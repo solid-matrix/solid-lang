@@ -1,0 +1,35 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+out/
+*.nupkg
+*.snupkg
+
+# IDE
+.vs/
+.idea/
+.vscode/
+
+# AGENT
+.zcode
+.claude
+nul
+NUL
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ARCHIVE
+.archive
+
+# Compiler outputs (generated during tests)
+*.o
+*.obj
+*.ll
+*.s
+
+# solid-lang
+.solid
