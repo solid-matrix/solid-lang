@@ -6,10 +6,8 @@
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "cl.exe",
-                "CMAKE_CXX_COMPILER": "cl.exe",
                 "LLVM_DIR": "$env{LLVM_DIR}",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -20,8 +18,8 @@
             }
         },
         {
-            "name": "x64-debug",
-            "displayName": "x64 Debug",
+            "name": "windows-x64-debug",
+            "displayName": "Windows x64 Debug",
             "inherits": "windows-base",
             "architecture": {
                 "value": "x64",
@@ -33,31 +31,9 @@
             }
         },
         {
-            "name": "x64-release",
-            "displayName": "x64 Release",
-            "inherits": "x64-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "$env{VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/cmake/Microsoft/SegmentHeap.cmake"
-            }
-        },
-        {
-            "name": "x86-debug",
-            "displayName": "x86 Debug",
-            "inherits": "windows-base",
-            "architecture": {
-                "value": "x86",
-                "strategy": "external"
-            },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "$env{VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/cmake/Microsoft/SegmentHeap.cmake"
-            }
-        },
-        {
-            "name": "x86-release",
-            "displayName": "x86 Release",
-            "inherits": "x86-debug",
+            "name": "windows-x64-release",
+            "displayName": "Windows x64 Release",
+            "inherits": "windows-x64-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "$env{VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/cmake/Microsoft/SegmentHeap.cmake"
@@ -79,17 +55,21 @@
             }
         },
         {
-            "name": "linux-debug",
-            "displayName": "Linux Debug",
+            "name": "linux-x64-debug",
+            "displayName": "Linux x64 Debug",
             "inherits": "linux-base",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
-            "name": "linux-release",
-            "displayName": "Linux Release",
-            "inherits": "linux-base",
+            "name": "linux-x64-release",
+            "displayName": "Linux x64 Release",
+            "inherits": "linux-x64-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
@@ -97,28 +77,20 @@
     ],
     "buildPresets": [
         {
-            "name": "linux-debug",
-            "configurePreset": "linux-debug"
+            "name": "windows-x64-debug",
+            "configurePreset": "windows-x64-debug"
         },
         {
-            "name": "linux-release",
-            "configurePreset": "linux-release"
+            "name": "windows-x64-release",
+            "configurePreset": "windows-x64-release"
         },
         {
-            "name": "x64-debug",
-            "configurePreset": "x64-debug"
+            "name": "linux-x64-debug",
+            "configurePreset": "linux-x64-debug"
         },
         {
-            "name": "x64-release",
-            "configurePreset": "x64-release"
-        },
-        {
-            "name": "x86-debug",
-            "configurePreset": "x86-debug"
-        },
-        {
-            "name": "x86-release",
-            "configurePreset": "x86-release"
+            "name": "linux-x64-release",
+            "configurePreset": "linux-x64-release"
         }
     ]
 }

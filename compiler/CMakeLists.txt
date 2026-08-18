@@ -1,8 +1,3 @@
-# CMakeList.txt: the CMake project of solid-lang-compiler. Top level
-# aggregates five subprojects: common (data structures/helpers),
-# parser (syntax parser), sema (semantic analyzer), irgen (IR generator),
-# cli (command-line tool).
-#
 cmake_minimum_required (VERSION 3.10)
 
 # Enable hot reload for the MSVC compiler where supported.
@@ -32,6 +27,7 @@ include(CTest)
 if(DEFINED ENV{LLVM_DIR} AND NOT LLVM_DIR)
   set(LLVM_DIR "$ENV{LLVM_DIR}")
 endif()
+
 if(NOT LLVM_DIR)
   # Debian/Ubuntu-style system installs expose /usr/bin/llvm-config,
   # which knows its own CMake package directory.
@@ -44,11 +40,13 @@ if(NOT LLVM_DIR)
     endif()
   endif()
 endif()
+
 if(LLVM_DIR AND NOT EXISTS "${LLVM_DIR}/LLVMConfig.cmake")
   if(EXISTS "${LLVM_DIR}/lib/cmake/llvm/LLVMConfig.cmake")
     set(LLVM_DIR "${LLVM_DIR}/lib/cmake/llvm")
   endif()
 endif()
+
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
 
@@ -70,6 +68,7 @@ else()
   endif()
   set(SOLID_LLVM_LIB ${SOLID_LLVM_COMPONENT_LIBS})
 endif()
+
 message(STATUS "Linking LLVM C API via: ${SOLID_LLVM_LIB}")
 
 add_subdirectory(common)
@@ -77,5 +76,3 @@ add_subdirectory(parser)
 add_subdirectory(sema)
 add_subdirectory(irgen)
 add_subdirectory(cli)
-
-# TODO: add install targets if needed.

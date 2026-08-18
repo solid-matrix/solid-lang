@@ -4,7 +4,7 @@ add_executable(solid-lang-compiler main.c options.c)
 
 # Depends only on irgen; parser/sema and LLVM-C.lib come transitively
 # through the static library chain.
-target_link_libraries(solid-lang-compiler PRIVATE solid_irgen)
+target_link_libraries(solid-lang-compiler PRIVATE solid-lang-irgen)
 
 # Runtime: copy LLVM-C.dll next to the exe so the debugger can find it.
 # Windows-only: on Unix the LLVM shared/static library is already reachable
