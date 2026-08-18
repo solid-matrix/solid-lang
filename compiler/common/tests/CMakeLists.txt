@@ -12,3 +12,7 @@ add_test(NAME common.arena COMMAND test_arena)
 add_executable(test_source test_source.c)
 target_link_libraries(test_source PRIVATE solid-lang-common)
 add_test(NAME common.source COMMAND test_source)
+
+add_executable(test_span test_span.c)
+target_link_libraries(test_span PRIVATE solid-lang-common)
+add_test(NAME common.span COMMAND test_span)

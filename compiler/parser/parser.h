@@ -22,20 +22,10 @@ typedef enum
 typedef struct
 {
   SyntaxErrorCode code;
-  SourceSpan span;
+  Span span;
 } SyntaxError;
 
-SyntaxError syntax_error_create(SyntaxErrorCode code, SourceSpan span);
-
-// parse不匹配时，matched 为 false, node 为 NULL, rem与parse_XXX函数传入的span保持一致;
-// parse 匹配且成功时，matched 为 true, node 不为NULL，rem为剩余span;
-// parse 匹配但失败时，matched 为 true, node 不为NULL，rem为剩余span, Parser 写入错误信息;
-typedef struct
-{
-  bool matched;
-  SyntaxNode *node;
-  SourceSpan rem;
-} ParseResult;
+SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
 
 typedef struct SyntaxErrorList SyntaxErrorList;
 
@@ -48,6 +38,7 @@ struct SyntaxErrorList
 typedef struct
 {
   SyntaxErrorList *errors;
+  Source *source;
   Arena *arena;
 } Parser;
 
@@ -55,14 +46,14 @@ Parser parser_create(Arena *arena);
 
 void parser_append_error(Parser *parser, SyntaxError error);
 
-ParseResult parse_program(Parser *parser, SourceSpan span);
+bool parse_program(Parser *parser, Span span, Span *rem, SyntaxProgram **program);
 
-ParseResult parse_expr(Parser *parser, SourceSpan span);
+bool parse_expr(Parser *parser, Span span, Span *rem, SyntaxExpr **expr);
 
-ParseResult parse_decl(Parser *parser, SourceSpan span);
+bool parse_decl(Parser *parser, Span span, Span *rem, SyntaxDecl **decl);
 
-ParseResult parse_stmt(Parser *parser, SourceSpan span);
+bool parse_stmt(Parser *parser, Span span, Span *rem, SyntaxStmt **stmt);
 
-ParseResult parse_type(Parser *parser, SourceSpan span);
+bool parse_type(Parser *parser, Span span, Span *rem, SyntaxType **type);
 
 #endif /* SOLID_PARSER_H */

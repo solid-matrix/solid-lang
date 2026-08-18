@@ -1,6 +1,6 @@
 /**
  * @file test_source.c
- * @brief Tests for the Source line index and SourceSpan behavior.
+ * @brief Tests for the Source line index and Span accessors.
  * @author solid-matrix
  * @version 0.0.5
  */
@@ -20,9 +20,9 @@ static int g_failures;
     }                                                                  \
   } while (0)
 
-static void check_span_text(SourceSpan span, const char *expected)
+static void check_span_text(const Source *src, Span span, const char *expected)
 {
-  CHECK(sv_equals(span_to_string_view(span), sv_from_cstr(expected)));
+  CHECK(sv_equals(source_get_string_view(src, span), sv_from_cstr(expected)));
 }
 
 int main(void)
@@ -36,8 +36,8 @@ int main(void)
   CHECK(source_get_line_end(&s, 1) == 11);
   CHECK(source_get_line_start(&s, 2) == 12);
   CHECK(source_get_line_end(&s, 2) == 12);
-  check_span_text(source_get_line_span(&s, 0), "hello");
-  check_span_text(source_get_line_span(&s, 1), "world");
+  check_span_text(&s, source_get_line_span(&s, 0), "hello");
+  check_span_text(&s, source_get_line_span(&s, 1), "world");
   CHECK(span_is_empty(source_get_line_span(&s, 2)));
 
   // Position queries: line start, mid-line, trailing empty line
@@ -49,28 +49,28 @@ int main(void)
   CHECK(p.row == 2 && p.col == 0);
 
   // Whole-source span and relative slicing
-  SourceSpan whole = source_to_span(&s);
+  Span whole = source_get_span(&s);
   CHECK(span_len(whole) == 12);
-  SourceSpan sub = span_slice(whole, 6, 11);
-  check_span_text(sub, "world");
-  CHECK(span_get_char(sub, 0) == 'w');
-  CHECK(span_get_char(sub, 4) == 'd');
+  Span sub = span_slice(whole, 6, 11);
+  check_span_text(&s, sub, "world");
+  CHECK(source_get_char(&s, 6) == 'w');
+  CHECK(source_get_char(&s, 10) == 'd');
   CHECK(span_is_empty(span_slice(whole, 0, 0)));
   source_destroy(&s);
 
   // CR: a lone '\r' is also a line terminator
   Source cr = source_from_cstr("a\rb");
   CHECK(cr.line_count == 2);
-  check_span_text(source_get_line_span(&cr, 0), "a");
-  check_span_text(source_get_line_span(&cr, 1), "b");
+  check_span_text(&cr, source_get_line_span(&cr, 0), "a");
+  check_span_text(&cr, source_get_line_span(&cr, 1), "b");
   source_destroy(&cr);
 
   // CRLF: "\r\n" is a single terminator, excluded from line content
   Source crlf = source_from_cstr("hello\r\nworld");
   CHECK(crlf.line_count == 2);
   CHECK(source_get_line_start(&crlf, 1) == 7);
-  check_span_text(source_get_line_span(&crlf, 0), "hello");
-  check_span_text(source_get_line_span(&crlf, 1), "world");
+  check_span_text(&crlf, source_get_line_span(&crlf, 0), "hello");
+  check_span_text(&crlf, source_get_line_span(&crlf, 1), "world");
   source_destroy(&crlf);
 
   // A bare "\r\n": two empty lines
@@ -87,10 +87,10 @@ int main(void)
   CHECK(source_get_line_start(&mix, 1) == 2);
   CHECK(source_get_line_start(&mix, 2) == 4);
   CHECK(source_get_line_start(&mix, 3) == 7);
-  check_span_text(source_get_line_span(&mix, 0), "a");
-  check_span_text(source_get_line_span(&mix, 1), "b");
-  check_span_text(source_get_line_span(&mix, 2), "c");
-  check_span_text(source_get_line_span(&mix, 3), "d");
+  check_span_text(&mix, source_get_line_span(&mix, 0), "a");
+  check_span_text(&mix, source_get_line_span(&mix, 1), "b");
+  check_span_text(&mix, source_get_line_span(&mix, 2), "c");
+  check_span_text(&mix, source_get_line_span(&mix, 3), "d");
   p = source_get_position(&mix, 7);
   CHECK(p.row == 3 && p.col == 0);
   source_destroy(&mix);
@@ -99,14 +99,14 @@ int main(void)
   Source empty = source_from_cstr("");
   CHECK(empty.line_count == 1);
   CHECK(source_get_position(&empty, 0).row == 0);
-  CHECK(span_is_empty(source_to_span(&empty)));
+  CHECK(span_is_empty(source_get_span(&empty)));
   source_destroy(&empty);
 
   // StringView-based constructor
   StringView sv = sv_from_cstr("abc\n");
   Source from_sv = source_from_string_view(sv);
   CHECK(from_sv.line_count == 2);
-  check_span_text(source_get_line_span(&from_sv, 0), "abc");
+  check_span_text(&from_sv, source_get_line_span(&from_sv, 0), "abc");
   source_destroy(&from_sv);
 
   if (g_failures == 0) {

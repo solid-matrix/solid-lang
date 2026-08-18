@@ -215,7 +215,7 @@ typedef union SyntaxDecl SyntaxDecl;
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t top_level_count;
   SyntaxDecl *top_levels;
@@ -224,7 +224,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView name;
 
@@ -235,7 +235,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
   StringView name;
@@ -245,7 +245,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -257,7 +257,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -269,7 +269,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -281,7 +281,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -293,7 +293,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
   StringView name;
@@ -303,7 +303,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -315,7 +315,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView name;
   SyntaxExpr *expr;
@@ -324,7 +324,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView name;
   SyntaxExpr *expr;
@@ -337,7 +337,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *expr;
 } SyntaxConstType;
@@ -345,7 +345,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t path_count;
   StringView *paths;
@@ -357,7 +357,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxRefKind ref_kind;
   SyntaxType *inner;
@@ -366,7 +366,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxConstType *len;
   SyntaxType *inner;
@@ -375,7 +375,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t call_param_count;
   SyntaxCallParameter *call_params;
@@ -401,7 +401,7 @@ union SyntaxType
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t stmt_count;
   SyntaxStmt *stmts;
@@ -410,7 +410,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView name;
   SyntaxType *type;
@@ -420,7 +420,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *left;
   SyntaxExpr *right;
@@ -429,7 +429,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *expr;
 } SyntaxExprStmt;
@@ -437,7 +437,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *condition;
   SyntaxBodyStmt *then_body;
@@ -447,7 +447,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxBodyStmt *body;
 } SyntaxLoopStmt;
@@ -455,19 +455,19 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 } SyntaxBreakStmt;
 
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 } SyntaxContinueStmt;
 
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *expr;
 } SyntaxReturnStmt;
@@ -475,7 +475,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *condition;
   SyntaxBodyStmt *body;
@@ -504,7 +504,7 @@ union SyntaxStmt
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView value;
   StringView suffix;
@@ -513,7 +513,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView value;
   StringView suffix;
@@ -522,7 +522,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView value;
 } SyntaxRuneLitExpr;
@@ -530,7 +530,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView value;
 } SyntaxStringLitExpr;
@@ -538,7 +538,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxNamedType *type;
 
@@ -549,7 +549,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxArrayType *type;
 
@@ -560,7 +560,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t path_count;
   StringView *paths;
@@ -575,7 +575,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxOperator operator;
   SyntaxExpr *operand;
@@ -584,7 +584,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxOperator operator;
   SyntaxExpr *left;
@@ -594,7 +594,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *receiver;
   StringView name;
@@ -603,7 +603,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *receiver;
   SyntaxExpr *index;
@@ -612,7 +612,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   SyntaxExpr *callee;
 
@@ -623,7 +623,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   StringView name;
   size_t argument_count;
@@ -655,7 +655,7 @@ union SyntaxExpr
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t path_count;
   StringView *paths;
@@ -664,7 +664,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t path_count;
   StringView *paths;
@@ -673,7 +673,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -686,7 +686,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -703,7 +703,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -718,7 +718,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -735,7 +735,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -753,7 +753,7 @@ typedef struct
 typedef struct
 {
   SyntaxKind kind;
-  SourceSpan span;
+  Span span;
 
   size_t annotation_count;
   SyntaxCtAnnotation *annotations;
@@ -771,31 +771,33 @@ typedef struct
 
 typedef struct
 {
-  SyntaxKind kind;
-  SourceSpan span;
+  SyntaxKind kind; // 4
+  Span span;       // 24
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
+  uint32_t annotation_count;       // 4
+  SyntaxCtAnnotation *annotations; // 8
 
-  StringView name;
+  StringView name; // 16
 
-  size_t generic_parameter_count;
+  uint32_t generic_parameter_count;
   SyntaxGenericParameter *generic_parameters;
 
-  size_t contract_parameter_count;
+  uint32_t contract_parameter_count;
   SyntaxContractParameter *contract_parameters;
 
-  size_t call_parameter_count;
+  uint32_t call_parameter_count;
   SyntaxCallParameter *call_parameters;
 
   SyntaxCallConv callconv;
   SyntaxType *return_type;
 
-  size_t fulfill_count;
+  uint32_t fulfill_count;
   SyntaxType *fulfills;
 
   SyntaxBodyStmt *body;
 } SyntaxFuncDecl;
+
+const size_t a1 = sizeof(SyntaxFuncDecl);
 
 union SyntaxDecl
 {
