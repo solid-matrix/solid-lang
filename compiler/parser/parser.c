@@ -6,24 +6,20 @@
  */
 
 #include "parser.h"
+#include <stdlib.h>
 
-// SyntaxError syntax_error_create(SyntaxErrorCode code, SourceSpan span)
-// {
-//     return (SyntaxError){.code = code, .span = span};
-// }
+Parser parser_create(Source *source)
+{
+    return (Parser){.source = source, .errors = NULL};
+}
 
-// Parser parser_create(Arena *arena)
-// {
-//     return (Parser){.errors = NULL, .arena = arena};
-// }
-
-// void parser_append_error(Parser *parser, SyntaxError error)
-// {
-//     SyntaxErrorList *en = arena_alloc(parser->arena, sizeof(SyntaxErrorList));
-//     en->error = error;
-//     en->next = parser->errors;
-//     parser->errors = en;
-// }
+void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code)
+{
+    SyntaxErrorList *en = malloc(sizeof(SyntaxErrorList));
+    en->error = (SyntaxError){.code = code, .span = span};
+    en->next = parser->errors;
+    parser->errors = en;
+}
 
 // static SourceSpan skip_trivia(SourceSpan span)
 // {

@@ -8,7 +8,6 @@
 #ifndef SOLID_PARSER_H
 #define SOLID_PARSER_H
 
-#include "arena.h"
 #include "ast.h"
 #include "source.h"
 #include <stddef.h>
@@ -25,8 +24,6 @@ typedef struct
   Span span;
 } SyntaxError;
 
-SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
-
 typedef struct SyntaxErrorList SyntaxErrorList;
 
 struct SyntaxErrorList
@@ -37,14 +34,13 @@ struct SyntaxErrorList
 
 typedef struct
 {
-  SyntaxErrorList *errors;
   Source *source;
-  Arena *arena;
+  SyntaxErrorList *errors;
 } Parser;
 
-Parser parser_create(Arena *arena);
+Parser parser_create(Source *source);
 
-void parser_append_error(Parser *parser, SyntaxError error);
+void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
 
 bool parse_program(Parser *parser, Span span, Span *rem, SyntaxProgram **program);
 
