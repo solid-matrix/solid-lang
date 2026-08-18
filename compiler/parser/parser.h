@@ -11,32 +11,49 @@
 #include "arena.h"
 #include "ast.h"
 #include "source.h"
-#include "syntax_error.h"
 #include <stddef.h>
 
-// parse不匹配时， node 为 NULL, rem与parse_XXX函数传入的span保持一致;
-// parse 匹配且成功时，node 不为NULL，rem为剩余span;
-// parse 匹配但失败时，node 不为NULL，rem为剩余span, 但在Parser 写入错误信息;
-typedef struct {
+typedef enum
+{
+  SYNTAX_OK = 0x0000,
+  SYNTAX_EXPECTED_EOF = 0x0001,
+} SyntaxErrorCode;
+
+typedef struct
+{
+  SyntaxErrorCode code;
+  SourceSpan span;
+} SyntaxError;
+
+SyntaxError syntax_error_create(SyntaxErrorCode code, SourceSpan span);
+
+// parse不匹配时，matched 为 false, node 为 NULL, rem与parse_XXX函数传入的span保持一致;
+// parse 匹配且成功时，matched 为 true, node 不为NULL，rem为剩余span;
+// parse 匹配但失败时，matched 为 true, node 不为NULL，rem为剩余span, Parser 写入错误信息;
+typedef struct
+{
+  bool matched;
   SyntaxNode *node;
   SourceSpan rem;
 } ParseResult;
 
 typedef struct SyntaxErrorList SyntaxErrorList;
 
-struct SyntaxErrorList {
+struct SyntaxErrorList
+{
   SyntaxError error;
   SyntaxErrorList *next;
 };
 
-typedef struct {
+typedef struct
+{
   SyntaxErrorList *errors;
   Arena *arena;
 } Parser;
 
-bool parser_init(Parser *parser, Arena *arena);
+Parser parser_create(Arena *arena);
 
-void parser_destroy(Parser *parser);
+void parser_append_error(Parser *parser, SyntaxError error);
 
 ParseResult parse_program(Parser *parser, SourceSpan span);
 

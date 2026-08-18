@@ -15,8 +15,7 @@ out/
 # AGENT
 .zcode
 .claude
-nul
-NUL
+.codex
 
 # OS
 .DS_Store

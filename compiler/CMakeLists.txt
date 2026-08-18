@@ -6,7 +6,7 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<C_COMPILER_ID:MSVC>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("solid-lang-compiler" LANGUAGES C)
+project ("solid-lang" LANGUAGES C)
 
 # C17 applies to all subprojects.
 set(CMAKE_C_STANDARD 17)
@@ -21,6 +21,16 @@ endif()
 # Enable CTest (defines the BUILD_TESTING option); each subproject adds
 # tests/ when BUILD_TESTING is on.
 include(CTest)
+
+# Executables (solid, test binaries) and their runtime DLLs go to
+# <build>/bin instead of per-subdirectory folders. Libraries stay in
+# their own subdirectories.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+foreach(cfg Debug Release RelWithDebInfo MinSizeRel)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg} ${CMAKE_BINARY_DIR}/bin)
+  set(CMAKE_PDB_OUTPUT_DIRECTORY_${cfg} ${CMAKE_BINARY_DIR}/bin)
+endforeach()
 
 # LLVM C API: LLVM_DIR points at the LLVM install location
 # (either the root or lib/cmake/llvm works).
