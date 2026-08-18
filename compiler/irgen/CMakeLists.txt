@@ -8,7 +8,7 @@ target_include_directories(solid_irgen PRIVATE ${LLVM_INCLUDE_DIRS})
 # AST types appear in irgen's public interface, so sema and the AST
 # dependency are visible to downstream targets.
 target_link_libraries(solid_irgen PUBLIC solid_sema)
-target_link_libraries(solid_irgen PRIVATE LLVM-C)
+target_link_libraries(solid_irgen PRIVATE ${SOLID_LLVM_LIB})
 
 if(BUILD_TESTING)
   add_subdirectory(tests)

@@ -32,6 +32,18 @@ include(CTest)
 if(DEFINED ENV{LLVM_DIR} AND NOT LLVM_DIR)
   set(LLVM_DIR "$ENV{LLVM_DIR}")
 endif()
+if(NOT LLVM_DIR)
+  # Debian/Ubuntu-style system installs expose /usr/bin/llvm-config,
+  # which knows its own CMake package directory.
+  find_program(LLVM_CONFIG_EXE "llvm-config")
+  if(LLVM_CONFIG_EXE)
+    execute_process(COMMAND "${LLVM_CONFIG_EXE}" --cmakedir
+      OUTPUT_VARIABLE LLVM_CMAKE_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(LLVM_CMAKE_DIR AND EXISTS "${LLVM_CMAKE_DIR}/LLVMConfig.cmake")
+      set(LLVM_DIR "${LLVM_CMAKE_DIR}")
+    endif()
+  endif()
+endif()
 if(LLVM_DIR AND NOT EXISTS "${LLVM_DIR}/LLVMConfig.cmake")
   if(EXISTS "${LLVM_DIR}/lib/cmake/llvm/LLVMConfig.cmake")
     set(LLVM_DIR "${LLVM_DIR}/lib/cmake/llvm")
@@ -39,6 +51,26 @@ if(LLVM_DIR AND NOT EXISTS "${LLVM_DIR}/LLVMConfig.cmake")
 endif()
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
+
+# Pick the LLVM target that provides the C API for linking:
+#   1. LLVM-C -- official LLVM releases and LLVM_BUILD_LLVM_C_DYLIB builds;
+#   2. LLVM   -- monolithic builds (e.g. the Debian/Ubuntu system LLVM);
+#   3. static components -- a full static install without the LLVM-C target.
+if(TARGET LLVM-C)
+  set(SOLID_LLVM_LIB LLVM-C)
+elseif(TARGET LLVM)
+  set(SOLID_LLVM_LIB LLVM)
+else()
+  llvm_map_components_to_libnames(SOLID_LLVM_COMPONENT_LIBS "core" "support")
+  if(NOT SOLID_LLVM_COMPONENT_LIBS)
+    message(FATAL_ERROR
+      "The LLVM installation in ${LLVM_DIR} provides no usable C API library "
+      "(no LLVM-C or LLVM target). Install a complete LLVM and point LLVM_DIR "
+      "at it.")
+  endif()
+  set(SOLID_LLVM_LIB ${SOLID_LLVM_COMPONENT_LIBS})
+endif()
+message(STATUS "Linking LLVM C API via: ${SOLID_LLVM_LIB}")
 
 add_subdirectory(common)
 add_subdirectory(parser)
