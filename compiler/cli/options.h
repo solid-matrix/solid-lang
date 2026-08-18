@@ -8,7 +8,7 @@
 #ifndef SOLID_CLI_OPTIONS_H
 #define SOLID_CLI_OPTIONS_H
 
- // Struct definitions and parsing (input file, output path, emit mode,
- // etc.): TODO.
+// Struct definitions and parsing (input file, output path, emit mode,
+// etc.): TODO.
 
 #endif /* SOLID_CLI_OPTIONS_H */

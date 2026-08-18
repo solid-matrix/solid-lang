@@ -13,12 +13,14 @@
 
 static int g_failures;
 
-#define CHECK(cond)                                                    \
-  do {                                                                 \
-    if (!(cond)) {                                                     \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);  \
-      g_failures++;                                                    \
-    }                                                                  \
+#define CHECK(cond)                                                   \
+  do                                                                  \
+  {                                                                   \
+    if (!(cond))                                                      \
+    {                                                                 \
+      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+      g_failures++;                                                   \
+    }                                                                 \
   } while (0)
 
 int main(void)
@@ -26,7 +28,8 @@ int main(void)
   // Init + alignment: all allocations are 16-byte aligned on x64
   Arena a;
   CHECK(arena_init(&a, 64));
-  for (size_t n = 1; n <= 32; n++) {
+  for (size_t n = 1; n <= 32; n++)
+  {
     void *p = arena_alloc(&a, n);
     CHECK((uintptr_t)p % 16 == 0);
   }
@@ -36,13 +39,15 @@ int main(void)
   memset(p1, 'A', 50);
   void *big = arena_alloc(&a, 300);
   CHECK(big != NULL);
-  for (int i = 0; i < 50; i++) {
+  for (int i = 0; i < 50; i++)
+  {
     CHECK(p1[i] == 'A');
   }
 
   // Zeroed allocation
   unsigned char *z = arena_alloc_zeroed(&a, 10);
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     CHECK(z[i] == 0);
   }
 
@@ -51,7 +56,8 @@ int main(void)
 
   // Reset makes memory reusable
   arena_reset(&a);
-  for (int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++)
+  {
     CHECK(arena_alloc(&a, (size_t)(i % 200) + 1) != NULL);
   }
 
@@ -63,15 +69,18 @@ int main(void)
   CHECK(arena_init(&b, 0));
   char *huge = arena_alloc(&b, 20000);
   CHECK(huge != NULL);
-  for (int i = 0; i < 20000; i++) {
+  for (int i = 0; i < 20000; i++)
+  {
     huge[i] = (char)(i & 0xFF);
   }
-  for (int i = 0; i < 20000; i++) {
+  for (int i = 0; i < 20000; i++)
+  {
     CHECK(huge[i] == (char)(i & 0xFF));
   }
   arena_destroy(&b);
 
-  if (g_failures == 0) {
+  if (g_failures == 0)
+  {
     printf("test_arena: all ok\n");
     return 0;
   }

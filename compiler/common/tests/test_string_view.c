@@ -12,15 +12,18 @@
 
 static int g_failures;
 
-#define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);          \
-      g_failures++;                                                            \
-    }                                                                          \
+#define CHECK(cond)                                                   \
+  do                                                                  \
+  {                                                                   \
+    if (!(cond))                                                      \
+    {                                                                 \
+      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+      g_failures++;                                                   \
+    }                                                                 \
   } while (0)
 
-int main(void) {
+int main(void)
+{
   // Construction: SV literal macro, sv_from_cstr, sv_empty
   StringView sv = SV("hello");
   CHECK(sv.len == 5);
@@ -78,7 +81,8 @@ int main(void) {
   CHECK(memcmp(got, "hello", 5) == 0);
   fclose(f);
 
-  if (g_failures == 0) {
+  if (g_failures == 0)
+  {
     printf("test_string_view: all ok\n");
     return 0;
   }

@@ -14,8 +14,9 @@
 #define ARENA_ALIGN (sizeof(void *) >= 8 ? 16 : 8)
 #define ARENA_DEFAULT_BLOCK_SIZE ((size_t)8192)
 
-struct ArenaBlock {
-  ArenaBlock* next;
+struct ArenaBlock
+{
+  ArenaBlock *next;
   size_t size;
   unsigned char data[];
 };
@@ -25,15 +26,16 @@ static size_t align_up(size_t n, size_t align)
   return (n + align - 1) / align * align;
 }
 
-static unsigned char* block_data(ArenaBlock* b)
+static unsigned char *block_data(ArenaBlock *b)
 {
-  return (unsigned char*)align_up((size_t)(uintptr_t)b->data, ARENA_ALIGN);
+  return (unsigned char *)align_up((size_t)(uintptr_t)b->data, ARENA_ALIGN);
 }
 
-static ArenaBlock* block_new(size_t size)
+static ArenaBlock *block_new(size_t size)
 {
-  ArenaBlock* b = malloc(sizeof(ArenaBlock) + size);
-  if (b == NULL) {
+  ArenaBlock *b = malloc(sizeof(ArenaBlock) + size);
+  if (b == NULL)
+  {
     return NULL;
   }
   b->next = NULL;
@@ -41,7 +43,7 @@ static ArenaBlock* block_new(size_t size)
   return b;
 }
 
-bool arena_init(Arena* a, size_t initial_cap)
+bool arena_init(Arena *a, size_t initial_cap)
 {
   a->head = NULL;
   a->offset = 0;
@@ -50,15 +52,17 @@ bool arena_init(Arena* a, size_t initial_cap)
   return a->head != NULL;
 }
 
-static void arena_grow(Arena* a, size_t required)
+static void arena_grow(Arena *a, size_t required)
 {
   size_t new_size = a->block_size;
-  if (new_size < required) {
+  if (new_size < required)
+  {
     new_size = required;
   }
   a->block_size = new_size > SIZE_MAX / 2 ? new_size : new_size * 2;
-  ArenaBlock* b = block_new(new_size);
-  if (b == NULL) {
+  ArenaBlock *b = block_new(new_size);
+  if (b == NULL)
+  {
     abort();
   }
   b->next = a->head;
@@ -66,33 +70,36 @@ static void arena_grow(Arena* a, size_t required)
   a->offset = 0;
 }
 
-void* arena_alloc(Arena* a, size_t size)
+void *arena_alloc(Arena *a, size_t size)
 {
   size = align_up(size, ARENA_ALIGN);
-  if (a->offset + size > a->head->size) {
+  if (a->offset + size > a->head->size)
+  {
     arena_grow(a, size);
   }
-  void* p = block_data(a->head) + a->offset;
+  void *p = block_data(a->head) + a->offset;
   a->offset += size;
   return p;
 }
 
-void* arena_alloc_zeroed(Arena* a, size_t size)
+void *arena_alloc_zeroed(Arena *a, size_t size)
 {
-  void* p = arena_alloc(a, size);
+  void *p = arena_alloc(a, size);
   memset(p, 0, size);
   return p;
 }
 
-void arena_reset(Arena* a)
+void arena_reset(Arena *a)
 {
-  if (a->head == NULL) {
+  if (a->head == NULL)
+  {
     return;
   }
-  ArenaBlock* keep = a->head;
-  ArenaBlock* b = keep->next;
-  while (b != NULL) {
-    ArenaBlock* next = b->next;
+  ArenaBlock *keep = a->head;
+  ArenaBlock *b = keep->next;
+  while (b != NULL)
+  {
+    ArenaBlock *next = b->next;
     free(b);
     b = next;
   }
@@ -101,11 +108,12 @@ void arena_reset(Arena* a)
   a->offset = 0;
 }
 
-void arena_destroy(Arena* a)
+void arena_destroy(Arena *a)
 {
-  ArenaBlock* b = a->head;
-  while (b != NULL) {
-    ArenaBlock* next = b->next;
+  ArenaBlock *b = a->head;
+  while (b != NULL)
+  {
+    ArenaBlock *next = b->next;
     free(b);
     b = next;
   }

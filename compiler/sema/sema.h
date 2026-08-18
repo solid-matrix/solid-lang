@@ -10,9 +10,9 @@
 
 #include "ast.h"
 
- /**
-  * @brief Semantic analyzer state; opaque to callers.
-  */
+/**
+ * @brief Semantic analyzer state; opaque to callers.
+ */
 typedef struct SolidSema SolidSema;
 
 // TODO: SolidSemaCreate(SolidSema **out, ...)

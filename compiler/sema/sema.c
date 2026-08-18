@@ -7,4 +7,4 @@
 
 #include "sema.h"
 
- // Semantic analysis implementation: TODO.
+// Semantic analysis implementation: TODO.

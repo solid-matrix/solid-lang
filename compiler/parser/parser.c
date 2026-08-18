@@ -8,61 +8,62 @@
 #include "parser.h"
 #include <stdlib.h>
 
-Parser parser_create(Source* source)
+Parser parser_create(Source *source)
 {
-    return (Parser) { .source = source, .errors = NULL };
+  return (Parser){.source = source, .errors = NULL};
 }
 
-void parser_destroy(Parser* parser)
+void parser_destroy(Parser *parser)
 {
-    SyntaxErrorList* en = parser->errors;
-    while (en != NULL)
+  SyntaxErrorList *en = parser->errors;
+  while (en != NULL)
+  {
+    SyntaxErrorList *next = en->next;
+    free(en);
+    en = next;
+  }
+}
+
+void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code)
+{
+  SyntaxErrorList *en = malloc(sizeof(SyntaxErrorList));
+  en->error = (SyntaxError){.code = code, .span = span};
+  en->next = parser->errors;
+  parser->errors = en;
+}
+
+static Span skip_trivia(const Source *source, Span span)
+{
+  size_t i = span.start;
+
+  while (i < span.end)
+  {
+    char c = source_get_char(source, i);
+
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
     {
-        SyntaxErrorList* next = en->next;
-        free(en);
-        en = next;
+      i += 1;
+      continue;
     }
+
+    if (c == '/' && i + 1 < span.end && source_get_char(source, i + 1) == '/')
+    {
+      i += 2;
+      while (i < span.end && source_get_char(source, i) != '\n' && source_get_char(source, i) != '\r')
+        i += 1;
+
+      continue;
+    }
+
+    break;
+  }
+
+  return (Span){.start = i, .end = span.end};
 }
 
-void parser_append_error(Parser* parser, Span span, SyntaxErrorCode code)
+ParseResult parse_program(Parser *parser, Span span)
 {
-    SyntaxErrorList* en = malloc(sizeof(SyntaxErrorList));
-    en->error = (SyntaxError){ .code = code, .span = span };
-    en->next = parser->errors;
-    parser->errors = en;
 }
-
-// static SourceSpan skip_trivia(SourceSpan span)
-// {
-//     size_t i = 0;
-//     size_t len = span_len(span);
-
-//     while (i < len)
-//     {
-//         char c = span_get_char(span, i);
-
-//         if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
-//         {
-//             i += 1;
-//             continue;
-//         }
-
-//         if (c == '/' && i + 1 < len && span_get_char(span, i + 1) == '/')
-//         {
-//             i += 2;
-//             while (i < len && span_get_char(span, i) != '\n' && span_get_char(span, i) != '\r')
-//                 i += 1;
-
-//             continue;
-//         }
-
-//         break;
-//     }
-
-//     return span_slice(span, i, len);
-// }
-
-// const size_t a0 = sizeof(SyntaxNode);
 
 // bool parse_program(Parser *parser, SourceSpan span, SourceSpan *rem, SyntaxProgram **program)
 // {

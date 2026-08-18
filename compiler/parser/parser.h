@@ -17,36 +17,37 @@ typedef struct SyntaxErrorList SyntaxErrorList;
 struct SyntaxErrorList
 {
   SyntaxError error;
-  SyntaxErrorList* next;
+  SyntaxErrorList *next;
 };
 
 typedef struct
 {
-  Source* source;
-  SyntaxErrorList* errors;
+  Source *source;
+  SyntaxErrorList *errors;
 } Parser;
 
 typedef struct
 {
   bool matched;
   Span rem;
-  SyntaxNode* node;
+  SyntaxKind kind;
+  void *node;
 } ParseResult;
 
-Parser parser_create(Source* source);
+Parser parser_create(Source *source);
 
-void parser_destroy(Parser* parser);
+void parser_destroy(Parser *parser);
 
-void parser_append_error(Parser* parser, Span span, SyntaxErrorCode code);
+void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
 
-ParseResult parse_program(Parser* parser, Span span);
+ParseResult parse_program(Parser *parser, Span span);
 
-ParseResult parse_expr(Parser* parser, Span span);
+ParseResult parse_expr(Parser *parser, Span span);
 
-ParseResult parse_decl(Parser* parser, Span span);
+ParseResult parse_decl(Parser *parser, Span span);
 
-ParseResult parse_stmt(Parser* parser, Span span);
+ParseResult parse_stmt(Parser *parser, Span span);
 
-ParseResult parse_type(Parser* parser, Span span);
+ParseResult parse_type(Parser *parser, Span span);
 
 #endif /* SOLID_PARSER_H */

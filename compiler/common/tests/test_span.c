@@ -11,12 +11,14 @@
 
 static int g_failures;
 
-#define CHECK(cond)                                                    \
-  do {                                                                 \
-    if (!(cond)) {                                                     \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);  \
-      g_failures++;                                                    \
-    }                                                                  \
+#define CHECK(cond)                                                   \
+  do                                                                  \
+  {                                                                   \
+    if (!(cond))                                                      \
+    {                                                                 \
+      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+      g_failures++;                                                   \
+    }                                                                 \
   } while (0)
 
 int main(void)
@@ -42,7 +44,8 @@ int main(void)
   CHECK(full.start == 2 && full.end == 7);
   CHECK(span_is_empty(span_slice(sp, 3, 3)));
 
-  if (g_failures == 0) {
+  if (g_failures == 0)
+  {
     printf("test_span: all ok\n");
     return 0;
   }

@@ -10,20 +10,20 @@
 #include <assert.h>
 #include <string.h>
 
-StringView sv_create(const char* str, size_t len)
+StringView sv_create(const char *str, size_t len)
 {
   assert(str != NULL || len == 0);
-  StringView sv = { str, len };
+  StringView sv = {str, len};
   return sv;
 }
 
 StringView sv_empty(void)
 {
-  StringView sv = { NULL, 0 };
+  StringView sv = {NULL, 0};
   return sv;
 }
 
-StringView sv_from_cstr(const char* str)
+StringView sv_from_cstr(const char *str)
 {
   assert(str != NULL);
   return sv_create(str, strlen(str));
@@ -75,7 +75,7 @@ char sv_char_at(StringView sv, size_t pos)
   return sv.data[pos];
 }
 
-void sv_write(StringView sv, FILE* stream)
+void sv_write(StringView sv, FILE *stream)
 {
   if (sv.len > 0)
   {
@@ -83,7 +83,7 @@ void sv_write(StringView sv, FILE* stream)
   }
 }
 
-void sv_copy(StringView sv, char* dst, size_t dst_size)
+void sv_copy(StringView sv, char *dst, size_t dst_size)
 {
   assert(dst != NULL || dst_size == 0);
   if (dst_size == 0)

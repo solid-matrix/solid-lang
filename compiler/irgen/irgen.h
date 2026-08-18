@@ -10,11 +10,11 @@
 
 #include "ast.h"
 
- /**
-  * @brief An opaque handle to generated IR.
-  *
-  * Holds an LLVMModuleRef internally; LLVM details never leak to callers.
-  */
+/**
+ * @brief An opaque handle to generated IR.
+ *
+ * Holds an LLVMModuleRef internally; LLVM details never leak to callers.
+ */
 typedef struct SolidIrgenModule SolidIrgenModule;
 
 // TODO: SolidIrgenGenerate(SolidIrgenModule **out, SolidAstNode *root)

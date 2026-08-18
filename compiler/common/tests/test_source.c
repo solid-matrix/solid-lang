@@ -12,12 +12,14 @@
 
 static int g_failures;
 
-#define CHECK(cond)                                                    \
-  do {                                                                 \
-    if (!(cond)) {                                                     \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);  \
-      g_failures++;                                                    \
-    }                                                                  \
+#define CHECK(cond)                                                   \
+  do                                                                  \
+  {                                                                   \
+    if (!(cond))                                                      \
+    {                                                                 \
+      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+      g_failures++;                                                   \
+    }                                                                 \
   } while (0)
 
 static void check_span_text(const Source *src, Span span, const char *expected)
@@ -109,7 +111,8 @@ int main(void)
   check_span_text(&from_sv, source_get_line_span(&from_sv, 0), "abc");
   source_destroy(&from_sv);
 
-  if (g_failures == 0) {
+  if (g_failures == 0)
+  {
     printf("test_source: all ok\n");
     return 0;
   }

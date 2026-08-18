@@ -8,10 +8,11 @@
 #ifndef SOLID_SEMA_TYPE_H
 #define SOLID_SEMA_TYPE_H
 
- /**
-  * @brief Built-in type kinds.
-  */
-typedef enum SolidTypeKind {
+/**
+ * @brief Built-in type kinds.
+ */
+typedef enum SolidTypeKind
+{
   SOLID_TYPE_VOID = 0,
   SOLID_TYPE_I32,
   SOLID_TYPE_F64,
