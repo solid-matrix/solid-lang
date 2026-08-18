@@ -12,20 +12,21 @@
 #include <stddef.h>
 #include <stdio.h>
 
-/**
- * @brief Builds a StringView from a string literal at compile time.
- * @note The argument MUST be a string literal (sizeof is applied to it).
- * Usage: StringView v = SV("hello"); or in a static table.
- */
+ /**
+  * @brief Builds a StringView from a string literal at compile time.
+  * @note The argument MUST be a string literal (sizeof is applied to it).
+  * Usage: StringView v = SV("hello"); or in a static table.
+  */
 #define SV(s) {s, sizeof(s) - 1}
 
-/**
- * @brief A non-owning, length-bounded view over a character buffer.
- *
- * Never allocates, never NUL-terminates, and does not copy the data.
- */
-typedef struct {
-  const char *data;
+  /**
+   * @brief A non-owning, length-bounded view over a character buffer.
+   *
+   * Never allocates, never NUL-terminates, and does not copy the data.
+   */
+typedef struct
+{
+  const char* data;
   size_t len;
 } StringView;
 
@@ -36,7 +37,7 @@ typedef struct {
  * @return The view.
  * @note Requires: str != NULL, or len == 0.
  */
-StringView sv_create(const char *str, size_t len);
+StringView sv_create(const char* str, size_t len);
 
 /**
  * @brief Returns an empty view (data == NULL, len == 0).
@@ -50,7 +51,7 @@ StringView sv_empty(void);
  * @return The view.
  * @note Requires: str != NULL.
  */
-StringView sv_from_cstr(const char *str);
+StringView sv_from_cstr(const char* str);
 
 /**
  * @brief Returns true when the view contains no bytes.
@@ -99,7 +100,7 @@ char sv_char_at(StringView sv, size_t pos);
  * @param sv The view to write.
  * @param stream The output stream.
  */
-void sv_write(StringView sv, FILE *stream);
+void sv_write(StringView sv, FILE* stream);
 
 /**
  * @brief Copies the view into @p dst as a NUL-terminated string.
@@ -110,6 +111,6 @@ void sv_write(StringView sv, FILE *stream);
  * @param dst_size Size of the destination buffer.
  * @note Requires: dst != NULL, or dst_size == 0.
  */
-void sv_copy(StringView sv, char *dst, size_t dst_size);
+void sv_copy(StringView sv, char* dst, size_t dst_size);
 
 #endif /* SOLID_STRING_VIEW_H */

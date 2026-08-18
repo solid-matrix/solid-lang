@@ -13,9 +13,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/**
- * @brief A zero-based line/column position within a Source.
- */
+ /**
+  * @brief A zero-based line/column position within a Source.
+  */
 typedef struct
 {
   size_t row; // 0-based line
@@ -33,7 +33,7 @@ typedef struct
 {
   StringView string_view;
   size_t line_count;    // number of lines, at least 1
-  size_t *line_offsets; // start offset of each line (indexed by 0-based line)
+  size_t* line_offsets; // start offset of each line (indexed by 0-based line)
 } Source;
 
 /**
@@ -48,13 +48,13 @@ Source source_from_string_view(StringView sv);
  * @param str NUL-terminated text; must outlive the Source.
  * @return The indexed Source.
  */
-Source source_from_cstr(const char *str);
+Source source_from_cstr(const char* str);
 
 /**
  * @brief Frees the internal line index.
  * @param source The Source to destroy. Safe to call once.
  */
-void source_destroy(Source *source);
+void source_destroy(Source* source);
 
 /**
  * @brief Position of byte @p offset as 0-based row/col.
@@ -62,7 +62,7 @@ void source_destroy(Source *source);
  * @param offset Byte offset. Asserts: offset <= source->string_view.len.
  * @return The position.
  */
-Position source_get_position(const Source *source, size_t offset);
+Position source_get_position(const Source* source, size_t offset);
 
 /**
  * @brief Start offset of line @p line (0-based).
@@ -70,7 +70,7 @@ Position source_get_position(const Source *source, size_t offset);
  * @param line 0-based line number. Asserts: line < source->line_count.
  * @return The offset of the line start.
  */
-size_t source_get_line_start(const Source *source, size_t line);
+size_t source_get_line_start(const Source* source, size_t line);
 
 /**
  * @brief Offset of the start of line @p line's terminator.
@@ -80,7 +80,7 @@ size_t source_get_line_start(const Source *source, size_t line);
  * @param line 0-based line number. Asserts: line < source->line_count.
  * @return The offset just past the line content.
  */
-size_t source_get_line_end(const Source *source, size_t line);
+size_t source_get_line_end(const Source* source, size_t line);
 
 /**
  * @brief Span of line @p line's content, excluding the line terminator.
@@ -88,14 +88,14 @@ size_t source_get_line_end(const Source *source, size_t line);
  * @param line 0-based line number. Asserts: line < source->line_count.
  * @return The line content span.
  */
-Span source_get_line_span(const Source *source, size_t line);
+Span source_get_line_span(const Source* source, size_t line);
 
 /**
  * @brief Span of the whole source text.
  * @param source The Source to query.
  * @return The whole-text span.
  */
-Span source_get_span(const Source *source);
+Span source_get_span(const Source* source);
 
 /**
  * @brief The text covered by @p span, as a view into the Source.
@@ -104,7 +104,7 @@ Span source_get_span(const Source *source);
  * @return A StringView over the covered text.
  * @note Asserts (via sv_slice) that the span lies within the text.
  */
-StringView source_get_string_view(const Source *source, Span span);
+StringView source_get_string_view(const Source* source, Span span);
 
 /**
  * @brief Byte at absolute offset @p pos in the source text.
@@ -112,6 +112,6 @@ StringView source_get_string_view(const Source *source, Span span);
  * @param pos Absolute byte offset. Asserts: pos < source->string_view.len.
  * @return The byte.
  */
-char source_get_char(const Source *source, size_t pos);
+char source_get_char(const Source* source, size_t pos);
 
 #endif /* SOLID_SOURCE_H */

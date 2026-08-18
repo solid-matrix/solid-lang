@@ -7,4 +7,4 @@
 
 #include "type.h"
 
-// Type system implementation: TODO.
+ // Type system implementation: TODO.

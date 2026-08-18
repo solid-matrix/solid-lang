@@ -10,46 +10,43 @@
 
 #include "ast.h"
 #include "source.h"
+#include "syntax_error.h"
 #include <stddef.h>
 
-typedef enum
-{
-  SYNTAX_OK = 0x0000,
-  SYNTAX_EXPECTED_EOF = 0x0001,
-} SyntaxErrorCode;
-
-typedef struct
-{
-  SyntaxErrorCode code;
-  Span span;
-} SyntaxError;
-
 typedef struct SyntaxErrorList SyntaxErrorList;
-
 struct SyntaxErrorList
 {
   SyntaxError error;
-  SyntaxErrorList *next;
+  SyntaxErrorList* next;
 };
 
 typedef struct
 {
-  Source *source;
-  SyntaxErrorList *errors;
+  Source* source;
+  SyntaxErrorList* errors;
 } Parser;
 
-Parser parser_create(Source *source);
+typedef struct
+{
+  bool matched;
+  Span rem;
+  SyntaxNode* node;
+} ParseResult;
 
-void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
+Parser parser_create(Source* source);
 
-bool parse_program(Parser *parser, Span span, Span *rem, SyntaxProgram **program);
+void parser_destroy(Parser* parser);
 
-bool parse_expr(Parser *parser, Span span, Span *rem, SyntaxExpr **expr);
+void parser_append_error(Parser* parser, Span span, SyntaxErrorCode code);
 
-bool parse_decl(Parser *parser, Span span, Span *rem, SyntaxDecl **decl);
+ParseResult parse_program(Parser* parser, Span span);
 
-bool parse_stmt(Parser *parser, Span span, Span *rem, SyntaxStmt **stmt);
+ParseResult parse_expr(Parser* parser, Span span);
 
-bool parse_type(Parser *parser, Span span, Span *rem, SyntaxType **type);
+ParseResult parse_decl(Parser* parser, Span span);
+
+ParseResult parse_stmt(Parser* parser, Span span);
+
+ParseResult parse_type(Parser* parser, Span span);
 
 #endif /* SOLID_PARSER_H */

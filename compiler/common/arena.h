@@ -11,18 +11,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/**
- * @brief A bump arena allocator backed by a linked list of blocks.
- *
- * Memory is released only by arena_reset() or arena_destroy();
- * individual deallocation is not supported.
- * NOT thread-safe: give each thread its own Arena, or guard access
- * with a lock if one Arena must be shared.
- *
- * Growth never moves previously returned pointers: when a block is
- * full a new block is appended, so all outstanding pointers stay valid
- * until the next arena_reset() or arena_destroy().
- */
+ /**
+  * @brief A bump arena allocator backed by a linked list of blocks.
+  *
+  * Memory is released only by arena_reset() or arena_destroy();
+  * individual deallocation is not supported.
+  * NOT thread-safe: give each thread its own Arena, or guard access
+  * with a lock if one Arena must be shared.
+  *
+  * Growth never moves previously returned pointers: when a block is
+  * full a new block is appended, so all outstanding pointers stay valid
+  * until the next arena_reset() or arena_destroy().
+  */
 
 typedef struct ArenaBlock ArenaBlock;
 
@@ -31,7 +31,7 @@ typedef struct ArenaBlock ArenaBlock;
  * functions.
  */
 typedef struct {
-  ArenaBlock *head;   // block currently being filled
+  ArenaBlock* head;   // block currently being filled
   size_t offset;      // cursor within the current block
   size_t block_size;  // size of the next block to allocate
 } Arena;
@@ -42,7 +42,7 @@ typedef struct {
  * @param initial_cap Size of the first block; 0 selects a default.
  * @return False if the first block could not be allocated.
  */
-bool arena_init(Arena *a, size_t initial_cap);
+bool arena_init(Arena* a, size_t initial_cap);
 
 /**
  * @brief Allocates @p size bytes.
@@ -53,7 +53,7 @@ bool arena_init(Arena *a, size_t initial_cap);
  * @param size Number of bytes; 0 returns a valid pointer.
  * @return The allocated memory.
  */
-void *arena_alloc(Arena *a, size_t size);
+void* arena_alloc(Arena* a, size_t size);
 
 /**
  * @brief Like arena_alloc(), with all returned bytes zeroed.
@@ -61,7 +61,7 @@ void *arena_alloc(Arena *a, size_t size);
  * @param size Number of bytes.
  * @return The zeroed memory.
  */
-void *arena_alloc_zeroed(Arena *a, size_t size);
+void* arena_alloc_zeroed(Arena* a, size_t size);
 
 /**
  * @brief Makes all previously allocated memory reusable.
@@ -70,12 +70,12 @@ void *arena_alloc_zeroed(Arena *a, size_t size);
  * block (its capacity is retained) and frees all older blocks.
  * @param a The arena to reset.
  */
-void arena_reset(Arena *a);
+void arena_reset(Arena* a);
 
 /**
  * @brief Frees all memory owned by @p a.
  * @param a The arena to destroy. Must not be used afterwards.
  */
-void arena_destroy(Arena *a);
+void arena_destroy(Arena* a);
 
 #endif /* SOLID_ARENA_H */

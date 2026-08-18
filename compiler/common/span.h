@@ -11,9 +11,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-/**
- * @brief A half-open [start, end) byte offset range.
- */
+ /**
+  * @brief A half-open [start, end) byte offset range.
+  */
 typedef struct
 {
     size_t start;

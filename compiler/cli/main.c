@@ -7,9 +7,9 @@
 
 #include "options.h"
 
-// CLI entry point: orchestrates the whole compilation pipeline
-// (read source -> parser -> sema -> irgen -> emit IR/bitcode/object).
-int main(int argc, char *argv[]) {
+ // CLI entry point: orchestrates the whole compilation pipeline
+ // (read source -> parser -> sema -> irgen -> emit IR/bitcode/object).
+int main(int argc, char* argv[]) {
   // TODO: parse command line arguments and drive the four subprojects.
   (void)argc;
   (void)argv;

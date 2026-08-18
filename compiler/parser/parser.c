@@ -8,15 +8,26 @@
 #include "parser.h"
 #include <stdlib.h>
 
-Parser parser_create(Source *source)
+Parser parser_create(Source* source)
 {
-    return (Parser){.source = source, .errors = NULL};
+    return (Parser) { .source = source, .errors = NULL };
 }
 
-void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code)
+void parser_destroy(Parser* parser)
 {
-    SyntaxErrorList *en = malloc(sizeof(SyntaxErrorList));
-    en->error = (SyntaxError){.code = code, .span = span};
+    SyntaxErrorList* en = parser->errors;
+    while (en != NULL)
+    {
+        SyntaxErrorList* next = en->next;
+        free(en);
+        en = next;
+    }
+}
+
+void parser_append_error(Parser* parser, Span span, SyntaxErrorCode code)
+{
+    SyntaxErrorList* en = malloc(sizeof(SyntaxErrorList));
+    en->error = (SyntaxError){ .code = code, .span = span };
     en->next = parser->errors;
     parser->errors = en;
 }

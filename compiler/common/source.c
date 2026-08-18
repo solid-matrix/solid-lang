@@ -34,7 +34,7 @@ Source source_from_string_view(StringView sv)
   Source source = {
       .string_view = sv,
       .line_count = count,
-      .line_offsets = malloc(sizeof(size_t) * count)};
+      .line_offsets = malloc(sizeof(size_t) * count) };
 
   if (source.line_offsets == NULL)
   {
@@ -68,12 +68,12 @@ Source source_from_string_view(StringView sv)
   return source;
 }
 
-Source source_from_cstr(const char *str)
+Source source_from_cstr(const char* str)
 {
   return source_from_string_view(sv_from_cstr(str));
 }
 
-void source_destroy(Source *source)
+void source_destroy(Source* source)
 {
   assert(source->line_offsets != NULL);
 
@@ -82,7 +82,7 @@ void source_destroy(Source *source)
   source->line_count = 0;
 }
 
-Position source_get_position(const Source *source, size_t offset)
+Position source_get_position(const Source* source, size_t offset)
 {
   assert(offset <= source->string_view.len);
   // Binary search for the last line with line_offsets <= offset.
@@ -106,14 +106,14 @@ Position source_get_position(const Source *source, size_t offset)
   return pos;
 }
 
-size_t source_get_line_start(const Source *source, size_t line)
+size_t source_get_line_start(const Source* source, size_t line)
 {
   assert(line < source->line_count);
 
   return source->line_offsets[line];
 }
 
-size_t source_get_line_end(const Source *source, size_t line)
+size_t source_get_line_end(const Source* source, size_t line)
 {
   assert(line < source->line_count);
 
@@ -129,22 +129,22 @@ size_t source_get_line_end(const Source *source, size_t line)
   return end;
 }
 
-Span source_get_line_span(const Source *source, size_t line)
+Span source_get_line_span(const Source* source, size_t line)
 {
-  return (Span){.start = source_get_line_start(source, line), .end = source_get_line_end(source, line)};
+  return (Span) { .start = source_get_line_start(source, line), .end = source_get_line_end(source, line) };
 }
 
-Span source_get_span(const Source *source)
+Span source_get_span(const Source* source)
 {
-  return (Span){.start = 0, .end = source->string_view.len};
+  return (Span) { .start = 0, .end = source->string_view.len };
 }
 
-StringView source_get_string_view(const Source *source, Span span)
+StringView source_get_string_view(const Source* source, Span span)
 {
   return sv_slice(source->string_view, span.start, span_len(span));
 }
 
-char source_get_char(const Source *source, size_t pos)
+char source_get_char(const Source* source, size_t pos)
 {
   return sv_char_at(source->string_view, pos);
 }

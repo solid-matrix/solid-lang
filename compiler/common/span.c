@@ -10,7 +10,7 @@
 
 Span span_empty(void)
 {
-    return (Span){.start = 0, .end = 0};
+    return (Span) { .start = 0, .end = 0 };
 }
 
 size_t span_len(Span span)
@@ -27,5 +27,5 @@ bool span_is_empty(Span span)
 Span span_slice(Span span, size_t rel_start, size_t rel_end)
 {
     assert(rel_start <= rel_end && rel_end <= span_len(span));
-    return (Span){.start = span.start + rel_start, .end = span.start + rel_end};
+    return (Span) { .start = span.start + rel_start, .end = span.start + rel_end };
 }
