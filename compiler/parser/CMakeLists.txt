@@ -1,5 +1,5 @@
 # parser: lexing + parsing, produces the AST (solid_parser static library).
-add_library(solid-lang-parser STATIC parser.c)
+add_library(solid-lang-parser STATIC parser.c ast.c)
 
 # Headers reference common types (source.h, string_view.h), so the
 # dependency is visible to downstream targets.

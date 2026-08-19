@@ -5,12 +5,12 @@
  * @version 0.0.5
  */
 
-#include "string_view.h"
-
 #include <assert.h>
 #include <string.h>
 
-StringView sv_create(const char *str, size_t len)
+#include "string_view.h"
+
+StringView sv_create(const uint8_t *str, size_t len)
 {
   assert(str != NULL || len == 0);
   StringView sv = {str, len};
@@ -69,7 +69,7 @@ StringView sv_slice(StringView sv, size_t start, size_t len)
   return sv_create(sv.data + start, len);
 }
 
-char sv_char_at(StringView sv, size_t pos)
+uint8_t sv_byte_at(StringView sv, size_t pos)
 {
   assert(pos < sv.len);
   return sv.data[pos];
@@ -83,7 +83,7 @@ void sv_write(StringView sv, FILE *stream)
   }
 }
 
-void sv_copy(StringView sv, char *dst, size_t dst_size)
+void sv_copy(StringView sv, uint8_t *dst, size_t dst_size)
 {
   assert(dst != NULL || dst_size == 0);
   if (dst_size == 0)

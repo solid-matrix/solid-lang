@@ -5,10 +5,10 @@
  * @version 0.0.5
  */
 
-#include "source.h"
-
 #include <assert.h>
-#include <stdlib.h>
+
+#include "source.h"
+#include "mem.h"
 
 Source source_from_string_view(StringView sv)
 {
@@ -17,7 +17,7 @@ Source source_from_string_view(StringView sv)
   size_t count = 1;
   for (size_t i = 0; i < sv.len; i++)
   {
-    char c = sv.data[i];
+    uint8_t c = sv.data[i];
     if (c == '\n')
     {
       count++;
@@ -34,18 +34,13 @@ Source source_from_string_view(StringView sv)
   Source source = {
       .string_view = sv,
       .line_count = count,
-      .line_offsets = malloc(sizeof(size_t) * count)};
-
-  if (source.line_offsets == NULL)
-  {
-    abort();
-  }
+      .line_offsets = xmalloc(sizeof(size_t) * count)};
 
   size_t line = 0;
   source.line_offsets[0] = 0;
   for (size_t i = 0; i < sv.len; i++)
   {
-    char c = sv.data[i];
+    uint8_t c = sv.data[i];
     if (c == '\n')
     {
       line++;
@@ -77,7 +72,7 @@ void source_destroy(Source *source)
 {
   assert(source->line_offsets != NULL);
 
-  free(source->line_offsets);
+  xfree(source->line_offsets);
   source->line_offsets = NULL;
   source->line_count = 0;
 }
@@ -139,12 +134,12 @@ Span source_get_span(const Source *source)
   return (Span){.start = 0, .end = source->string_view.len};
 }
 
-StringView source_get_string_view(const Source *source, Span span)
+StringView source_string_view_at(const Source *source, Span span)
 {
   return sv_slice(source->string_view, span.start, span_len(span));
 }
 
-char source_get_char(const Source *source, size_t pos)
+uint8_t source_byte_at(const Source *source, size_t pos)
 {
-  return sv_char_at(source->string_view, pos);
+  return sv_byte_at(source->string_view, pos);
 }

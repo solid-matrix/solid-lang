@@ -7,10 +7,11 @@
 
 #pragma once
 
-#include "string_view.h"
-#include "span.h"
 #include <stdbool.h>
 #include <stddef.h>
+
+#include "string_view.h"
+#include "span.h"
 
 /**
  * @brief A zero-based line/column position within a Source.
@@ -103,7 +104,7 @@ Span source_get_span(const Source *source);
  * @return A StringView over the covered text.
  * @note Asserts (via sv_slice) that the span lies within the text.
  */
-StringView source_get_string_view(const Source *source, Span span);
+StringView source_string_view_at(const Source *source, Span span);
 
 /**
  * @brief Byte at absolute offset @p pos in the source text.
@@ -111,4 +112,4 @@ StringView source_get_string_view(const Source *source, Span span);
  * @param pos Absolute byte offset. Asserts: pos < source->string_view.len.
  * @return The byte.
  */
-char source_get_char(const Source *source, size_t pos);
+uint8_t source_byte_at(const Source *source, size_t pos);

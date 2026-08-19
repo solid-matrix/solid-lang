@@ -24,7 +24,7 @@ static int g_failures;
 
 static void check_span_text(const Source *src, Span span, const char *expected)
 {
-  CHECK(sv_equals(source_get_string_view(src, span), sv_from_cstr(expected)));
+  CHECK(sv_equals(source_string_view_at(src, span), sv_from_cstr(expected)));
 }
 
 int main(void)
@@ -55,8 +55,8 @@ int main(void)
   CHECK(span_len(whole) == 12);
   Span sub = span_slice(whole, 6, 11);
   check_span_text(&s, sub, "world");
-  CHECK(source_get_char(&s, 6) == 'w');
-  CHECK(source_get_char(&s, 10) == 'd');
+  CHECK(source_byte_at(&s, 6) == 'w');
+  CHECK(source_byte_at(&s, 10) == 'd');
   CHECK(span_is_empty(span_slice(whole, 0, 0)));
   source_destroy(&s);
 

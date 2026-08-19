@@ -27,7 +27,7 @@ int main(void)
   // Construction: SV literal macro, sv_from_cstr, sv_empty
   StringView sv = SV("hello");
   CHECK(sv.len == 5);
-  CHECK(sv_char_at(sv, 0) == 'h');
+  CHECK(sv_byte_at(sv, 0) == 'h');
   CHECK(sv_equals(sv, sv_from_cstr("hello")));
   CHECK(!sv_equals(sv, sv_from_cstr("world")));
   CHECK(sv_is_empty(sv_empty()));
@@ -56,7 +56,7 @@ int main(void)
   CHECK(sv_is_empty(sv_slice(sv, 0, 0)));
 
   // Per-character access
-  CHECK(sv_char_at(sv, 4) == 'o');
+  CHECK(sv_byte_at(sv, 4) == 'o');
 
   // Copy: full fit
   char buf[8];

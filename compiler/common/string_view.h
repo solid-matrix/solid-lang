@@ -10,13 +10,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 
 /**
  * @brief Builds a StringView from a string literal at compile time.
  * @note The argument MUST be a string literal (sizeof is applied to it).
  * Usage: StringView v = SV("hello"); or in a static table.
  */
-#define SV(s) {s, sizeof(s) - 1}
+#define SV(s) ((StringView){.data = s, .len = sizeof(s) - 1})
 
 /**
  * @brief A non-owning, length-bounded view over a character buffer.
@@ -25,7 +26,7 @@
  */
 typedef struct
 {
-  const char *data;
+  const uint8_t *data;
   size_t len;
 } StringView;
 
@@ -36,7 +37,7 @@ typedef struct
  * @return The view.
  * @note Requires: str != NULL, or len == 0.
  */
-StringView sv_create(const char *str, size_t len);
+StringView sv_create(const uint8_t *str, size_t len);
 
 /**
  * @brief Returns an empty view (data == NULL, len == 0).
@@ -92,7 +93,7 @@ StringView sv_slice(StringView sv, size_t start, size_t len);
  * @return The byte.
  * @note Asserts: pos < sv.len.
  */
-char sv_char_at(StringView sv, size_t pos);
+uint8_t sv_byte_at(StringView sv, size_t pos);
 
 /**
  * @brief Writes the view bytes to @p stream (no trailing NUL is written).
@@ -110,4 +111,4 @@ void sv_write(StringView sv, FILE *stream);
  * @param dst_size Size of the destination buffer.
  * @note Requires: dst != NULL, or dst_size == 0.
  */
-void sv_copy(StringView sv, char *dst, size_t dst_size);
+void sv_copy(StringView sv, uint8_t *dst, size_t dst_size);

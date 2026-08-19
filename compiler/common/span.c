@@ -5,8 +5,9 @@
  * @version 0.0.5
  */
 
-#include "span.h"
 #include <assert.h>
+
+#include "span.h"
 
 Span span_empty(void)
 {
