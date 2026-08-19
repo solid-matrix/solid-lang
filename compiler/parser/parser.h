@@ -13,17 +13,17 @@
 #include "syntax_error.h"
 #include <stddef.h>
 
-typedef struct SyntaxErrorList SyntaxErrorList;
-struct SyntaxErrorList
+typedef struct SyntaxErrorLinkedList SyntaxErrorLinkedList;
+struct SyntaxErrorLinkedList
 {
   SyntaxError error;
-  SyntaxErrorList *next;
+  SyntaxErrorLinkedList *next;
 };
 
 typedef struct
 {
   Source *source;
-  SyntaxErrorList *errors;
+  SyntaxErrorLinkedList *errors;
 } Parser;
 
 typedef struct

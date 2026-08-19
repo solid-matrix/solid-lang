@@ -200,31 +200,35 @@ typedef enum
   SYNTAX_OPERATOR_SHR, // >>
 } SyntaxOperator;
 
-// typedef union SyntaxNode SyntaxNode;
+/**
+ * @brief Generic node handle: a pointer to the `kind` first member of
+ * any node struct. Dereferencing yields the node's kind; cast to the
+ * concrete struct after dispatching on it.
+ */
+typedef SyntaxKind SyntaxNode;
 
-typedef union SyntaxType SyntaxType;
+typedef struct
+{
+  size_t len;
+  size_t cap;
+  SyntaxNode **nodes;
 
-typedef union SyntaxExpr SyntaxExpr;
+} SyntaxNodeList;
 
-typedef union SyntaxStmt SyntaxStmt;
+typedef struct
+{
+  size_t len;
+  size_t cap;
+  StringView *names;
 
-typedef union SyntaxDecl SyntaxDecl;
-
-#pragma region SHARED
+} SyntaxPath;
 
 typedef struct
 {
   SyntaxKind kind;
   Span span;
-} SyntaxNode;
 
-typedef struct
-{
-  SyntaxKind kind;
-  Span span;
-
-  size_t top_level_count;
-  SyntaxDecl *top_levels;
+  SyntaxNodeList top_levels; // decl nodes
 
 } SyntaxProgram;
 
@@ -234,9 +238,7 @@ typedef struct
   Span span;
 
   StringView name;
-
-  size_t argument_count;
-  SyntaxExpr *arguments;
+  SyntaxNodeList arguments; // expr nodes
 
 } SyntaxCtAnnotation;
 
@@ -245,12 +247,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
+  SyntaxNode *type; // type node
 
 } SyntaxStructField;
 
@@ -259,12 +258,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxExpr *expr;
+  SyntaxNode *value; // expr node
 
 } SyntaxEnumField;
 
@@ -273,12 +269,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
+  SyntaxNode *type; // type node
 
 } SyntaxUnionField;
 
@@ -287,12 +280,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
+  SyntaxNode *type; // type node
 
 } SyntaxVariantField;
 
@@ -301,12 +291,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
+  SyntaxNode *type; // type node
 
 } SyntaxGenericParameter;
 
@@ -315,12 +302,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
+  SyntaxNode *type; // type node
 
 } SyntaxCallParameter;
 
@@ -329,11 +313,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-  SyntaxType *type;
+  SyntaxNode *type; // type node
+
 } SyntaxContractParameter;
 
 typedef struct
@@ -342,8 +325,7 @@ typedef struct
   Span span;
 
   StringView name;
-
-  SyntaxExpr *expr;
+  SyntaxNode *value; // expr node
 
 } SyntaxStructLitField;
 
@@ -353,12 +335,9 @@ typedef struct
   Span span;
 
   StringView name;
-
-  SyntaxExpr *expr;
+  SyntaxNode *value; // expr node
 
 } SyntaxContractArgument;
-
-#pragma endregion
 
 #pragma region TYPE
 
@@ -367,7 +346,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *expr;
+  SyntaxNode *value; // expr node
 
 } SyntaxConstType;
 
@@ -376,11 +355,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t path_count;
-  StringView *paths;
-
-  size_t generic_argument_count;
-  SyntaxType *generic_arguments;
+  SyntaxPath paths;
+  SyntaxNodeList generic_arguments; // type nodes
 
 } SyntaxNamedType;
 
@@ -390,8 +366,7 @@ typedef struct
   Span span;
 
   SyntaxRefKind ref_kind;
-
-  SyntaxType *inner;
+  SyntaxNode *inner_type; // type node
 
 } SyntaxRefType;
 
@@ -400,9 +375,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxConstType *len;
-
-  SyntaxType *inner;
+  SyntaxNode *len;        // SyntaxConstType
+  SyntaxNode *inner_type; // type node
 
 } SyntaxArrayType;
 
@@ -411,25 +385,11 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t call_param_count;
-  SyntaxCallParameter *call_params;
-
+  SyntaxNodeList call_params; // SyntaxCallParameter nodes
   SyntaxCallConv callconv;
-
-  SyntaxType *return_type;
+  SyntaxNode *return_type; // type node
 
 } SyntaxFuncType;
-
-union SyntaxType
-{
-  SyntaxKind kind;
-
-  SyntaxNamedType as_named_type;
-  SyntaxRefType as_ref_type;
-  SyntaxArrayType as_array_type;
-  SyntaxFuncType as_func_type;
-  SyntaxConstType as_const_type;
-};
 
 #pragma endregion
 
@@ -440,8 +400,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t stmt_count;
-  SyntaxStmt *stmts;
+  SyntaxNodeList stmts; // stmt nodes
 
 } SyntaxBodyStmt;
 
@@ -451,10 +410,8 @@ typedef struct
   Span span;
 
   StringView name;
-
-  SyntaxType *type;
-
-  SyntaxExpr *expr;
+  SyntaxNode *type;  // type node
+  SyntaxNode *value; // expr node
 
 } SyntaxLetStmt;
 
@@ -463,9 +420,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *left;
-
-  SyntaxExpr *right;
+  SyntaxNode *left;  // expr node
+  SyntaxNode *right; // expr node
 
 } SyntaxAssignStmt;
 
@@ -474,7 +430,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *expr;
+  SyntaxNode *expr; // expr node
 
 } SyntaxExprStmt;
 
@@ -483,11 +439,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *condition;
-
-  SyntaxBodyStmt *then_body;
-
-  SyntaxStmt *else_stmt;
+  SyntaxNode *condition; // expr node
+  SyntaxNode *then_stmt; // SyntaxBodyStmt
+  SyntaxNode *else_stmt; // SyntaxIfStmt | SyntaxBodyStmt
 
 } SyntaxIfStmt;
 
@@ -496,7 +450,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxBodyStmt *body;
+  SyntaxNode *stmt; // SyntaxBodyStmt
 
 } SyntaxLoopStmt;
 
@@ -519,7 +473,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *expr;
+  SyntaxNode *expr; // expr node
 
 } SyntaxReturnStmt;
 
@@ -528,27 +482,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *condition;
-
-  SyntaxBodyStmt *body;
+  SyntaxNode *condition; // expr
+  SyntaxNode *stmt;      // SyntaxBodyStmt node
 
 } SyntaxWhileStmt;
-
-union SyntaxStmt
-{
-  SyntaxKind kind;
-
-  SyntaxBodyStmt as_body_stmt;
-  SyntaxLetStmt as_let_stmt;
-  SyntaxAssignStmt as_assign_stmt;
-  SyntaxExprStmt as_expr_stmt;
-  SyntaxIfStmt as_if_stmt;
-  SyntaxLoopStmt as_loop_stmt;
-  SyntaxBreakStmt as_break_stmt;
-  SyntaxContinueStmt as_continue_stmt;
-  SyntaxReturnStmt as_return_stmt;
-  SyntaxWhileStmt as_while_stmt;
-};
 
 #pragma endregion
 
@@ -560,7 +497,6 @@ typedef struct
   Span span;
 
   StringView value;
-
   StringView suffix;
 
 } SyntaxIntLitExpr;
@@ -571,7 +507,6 @@ typedef struct
   Span span;
 
   StringView value;
-
   StringView suffix;
 
 } SyntaxFloatLitExpr;
@@ -599,10 +534,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxNamedType *type;
-
-  size_t field_count;
-  SyntaxStructLitField *fields;
+  SyntaxNode *type;      // SyntaxNamedType
+  SyntaxNodeList fields; // SyntaxStructLitField
 
 } SyntaxStructLitExpr;
 
@@ -611,10 +544,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxArrayType *type;
-
-  size_t element_count;
-  SyntaxExpr *elements;
+  SyntaxNode *type;        // SyntaxArrayType
+  SyntaxNodeList elements; // SyntaxExpr
 
 } SyntaxArrayLitExpr;
 
@@ -623,14 +554,9 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t path_count;
-  StringView *paths;
-
-  size_t generic_argument_count;
-  SyntaxType *generic_arguments;
-
-  size_t contract_argument_count;
-  SyntaxContractArgument *contract_arguments;
+  SyntaxPath paths;
+  SyntaxNodeList generic_arguments;  // type
+  SyntaxNodeList contract_arguments; // SyntaxContractArgument
 
 } SyntaxNamedExpr;
 
@@ -640,8 +566,7 @@ typedef struct
   Span span;
 
   SyntaxOperator operator;
-
-  SyntaxExpr *operand;
+  SyntaxNode *operand; // expr
 
 } SyntaxUnaryExpr;
 
@@ -651,10 +576,8 @@ typedef struct
   Span span;
 
   SyntaxOperator operator;
-
-  SyntaxExpr *left;
-
-  SyntaxExpr *right;
+  SyntaxNode *left;  // expr
+  SyntaxNode *right; // expr
 
 } SyntaxBinaryExpr;
 
@@ -663,8 +586,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *receiver;
-
+  SyntaxNode *receiver; // expr
   StringView name;
 
 } SyntaxDotExpr;
@@ -674,9 +596,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *receiver;
-
-  SyntaxExpr *index;
+  SyntaxNode *receiver; // expr
+  SyntaxNode *index;    // expr
 
 } SyntaxIndexExpr;
 
@@ -685,10 +606,8 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  SyntaxExpr *callee;
-
-  size_t argument_count;
-  SyntaxExpr *arguments;
+  SyntaxNode *callee;       // expr
+  SyntaxNodeList arguments; // expr nodes
 
 } SyntaxCallExpr;
 
@@ -698,29 +617,9 @@ typedef struct
   Span span;
 
   StringView name;
-
-  size_t argument_count;
-  SyntaxExpr *arguments;
+  SyntaxNodeList arguments; // expr nodes
 
 } SyntaxCtOperationExpr;
-
-union SyntaxExpr
-{
-  SyntaxKind kind;
-  SyntaxIntLitExpr as_int_lit_expr;
-  SyntaxFloatLitExpr as_float_lit_expr;
-  SyntaxRuneLitExpr as_rune_lit_expr;
-  SyntaxStringLitExpr as_string_lit_expr;
-  SyntaxStructLitExpr as_struct_lit_expr;
-  SyntaxArrayLitExpr as_array_lit_expr;
-  SyntaxNamedExpr as_named_expr;
-  SyntaxUnaryExpr as_unary_expr;
-  SyntaxBinaryExpr as_binary_expr;
-  SyntaxDotExpr as_dot_expr;
-  SyntaxIndexExpr as_index_expr;
-  SyntaxCallExpr as_call_expr;
-  SyntaxCtOperationExpr as_ct_operation_expr;
-};
 
 #pragma endregion
 
@@ -731,8 +630,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t path_count;
-  StringView *paths;
+  SyntaxPath paths;
 
 } SyntaxNamespaceDecl;
 
@@ -741,8 +639,7 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t path_count;
-  StringView *paths;
+  SyntaxPath paths;
 
 } SyntaxUsingDecl;
 
@@ -751,14 +648,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *type;
-
-  SyntaxExpr *expr;
+  SyntaxNode *type;  // type node
+  SyntaxNode *value; // expr node
 
 } SyntaxLetDecl;
 
@@ -767,16 +660,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  size_t generic_parameter_count;
-  SyntaxGenericParameter *generic_parameters;
-
-  size_t field_count;
-  SyntaxStructField *fields;
+  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList fields;         // SyntaxStructField nodes
 
 } SyntaxStructDecl;
 
@@ -785,14 +672,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-  SyntaxType *behind_type;
-
-  size_t field_count;
-  SyntaxEnumField *fields;
+  SyntaxNode *behind_type; // type node
+  SyntaxNodeList fields;   // SyntaxEnumField nodes
 
 } SyntaxEnumDecl;
 
@@ -801,16 +684,10 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  size_t generic_parameter_count;
-  SyntaxGenericParameter *generic_parameters;
-
-  size_t field_count;
-  SyntaxUnionField *fields;
+  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList fields;         // SyntaxUnionField nodes
 
 } SyntaxUnionDecl;
 
@@ -819,18 +696,11 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  SyntaxType *behind_type;
-
-  size_t generic_parameter_count;
-  SyntaxGenericParameter *generic_parameters;
-
-  size_t field_count;
-  SyntaxVariantField *fields;
+  SyntaxNode *behind_type;       // type node
+  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList fields;         // SyntaxVariantField nodes
 
 } SyntaxVariantDecl;
 
@@ -839,18 +709,11 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
   StringView name;
-
-  size_t generic_parameter_count;
-  SyntaxGenericParameter *generic_parameters;
-
-  size_t call_parameter_count;
-  SyntaxCallParameter *call_parameters;
-
-  SyntaxType *return_type;
+  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList call_params;    // SyntaxCallParameter nodes
+  SyntaxNode *return_type;       // type node
 
 } SyntaxContractDecl;
 
@@ -859,116 +722,18 @@ typedef struct
   SyntaxKind kind;
   Span span;
 
-  size_t annotation_count;
-  SyntaxCtAnnotation *annotations;
-
-  StringView name; // 16
-
-  size_t generic_parameter_count;
-  SyntaxGenericParameter *generic_parameters;
-
-  size_t contract_parameter_count;
-  SyntaxContractParameter *contract_parameters;
-
-  size_t call_parameter_count;
-  SyntaxCallParameter *call_parameters;
-
+  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  StringView name;
+  SyntaxNodeList generic_params;  // SyntaxGenericParameter nodes
+  SyntaxNodeList contract_params; // SyntaxContractParameter nodes
+  SyntaxNodeList call_params;     // SyntaxCallParameter nodes
   SyntaxCallConv callconv;
-  SyntaxType *return_type;
-
-  size_t fulfill_count;
-  SyntaxType *fulfills;
-
-  SyntaxBodyStmt *body;
+  SyntaxNode *return_type; // type node
+  SyntaxNodeList fulfills; // type nodes
+  SyntaxNode *body;        // SyntaxBodyStmt
 
 } SyntaxFuncDecl;
 
-union SyntaxDecl
-{
-  SyntaxKind kind;
-  SyntaxNamespaceDecl as_namespace_decl;
-  SyntaxUsingDecl as_using_decl;
-  SyntaxLetDecl as_let_decl;
-  SyntaxStructDecl as_struct_decl;
-  SyntaxEnumDecl as_enum_decl;
-  SyntaxUnionDecl as_union_decl;
-  SyntaxVariantDecl as_variant_decl;
-  SyntaxContractDecl as_contract_decl;
-  SyntaxFuncDecl as_func_decl;
-};
-
 #pragma endregion
-
-// /**
-//  * @brief The union of every AST node; used for top-level routing.
-//  *
-//  * Peer of the category unions (SyntaxType/SyntaxExpr/SyntaxStmt/
-//  * SyntaxDecl); unlike them it also covers the standalone nodes
-//  * (program, fields, annotations, parameters). All node structs share
-//  * the common initial sequence starting with `kind`.
-//  */
-// union SyntaxNode
-// {
-//   SyntaxKind kind;
-
-//   /* standalone nodes */
-//   SyntaxProgram as_program;
-
-//   SyntaxCtAnnotation as_ct_annotation;
-//   SyntaxStructField as_struct_field;
-//   SyntaxEnumField as_enum_field;
-//   SyntaxUnionField as_union_field;
-//   SyntaxVariantField as_variant_field;
-//   SyntaxGenericParameter as_generic_parameter;
-//   SyntaxCallParameter as_call_parameter;
-//   SyntaxContractParameter as_contract_parameter;
-//   SyntaxStructLitField as_struct_lit_field;
-//   SyntaxContractArgument as_contract_argument;
-
-//   /* type nodes */
-//   SyntaxConstType as_const_type;
-//   SyntaxNamedType as_named_type;
-//   SyntaxRefType as_ref_type;
-//   SyntaxArrayType as_array_type;
-//   SyntaxFuncType as_func_type;
-
-//   /* statement nodes */
-//   SyntaxBodyStmt as_body_stmt;
-//   SyntaxLetStmt as_let_stmt;
-//   SyntaxAssignStmt as_assign_stmt;
-//   SyntaxExprStmt as_expr_stmt;
-//   SyntaxIfStmt as_if_stmt;
-//   SyntaxLoopStmt as_loop_stmt;
-//   SyntaxBreakStmt as_break_stmt;
-//   SyntaxContinueStmt as_continue_stmt;
-//   SyntaxReturnStmt as_return_stmt;
-//   SyntaxWhileStmt as_while_stmt;
-
-//   /* expression nodes */
-//   SyntaxIntLitExpr as_int_lit_expr;
-//   SyntaxFloatLitExpr as_float_lit_expr;
-//   SyntaxRuneLitExpr as_rune_lit_expr;
-//   SyntaxStringLitExpr as_string_lit_expr;
-//   SyntaxStructLitExpr as_struct_lit_expr;
-//   SyntaxArrayLitExpr as_array_lit_expr;
-//   SyntaxNamedExpr as_named_expr;
-//   SyntaxUnaryExpr as_unary_expr;
-//   SyntaxBinaryExpr as_binary_expr;
-//   SyntaxDotExpr as_dot_expr;
-//   SyntaxIndexExpr as_index_expr;
-//   SyntaxCallExpr as_call_expr;
-//   SyntaxCtOperationExpr as_ct_operation_expr;
-
-//   /* declaration nodes */
-//   SyntaxNamespaceDecl as_namespace_decl;
-//   SyntaxUsingDecl as_using_decl;
-//   SyntaxLetDecl as_let_decl;
-//   SyntaxStructDecl as_struct_decl;
-//   SyntaxEnumDecl as_enum_decl;
-//   SyntaxUnionDecl as_union_decl;
-//   SyntaxVariantDecl as_variant_decl;
-//   SyntaxContractDecl as_contract_decl;
-//   SyntaxFuncDecl as_func_decl;
-// };
 
 #endif /* SOLID_AST_H */

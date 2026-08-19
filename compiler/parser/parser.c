@@ -15,10 +15,10 @@ Parser parser_create(Source *source)
 
 void parser_destroy(Parser *parser)
 {
-  SyntaxErrorList *en = parser->errors;
+  SyntaxErrorLinkedList *en = parser->errors;
   while (en != NULL)
   {
-    SyntaxErrorList *next = en->next;
+    SyntaxErrorLinkedList *next = en->next;
     free(en);
     en = next;
   }
@@ -26,7 +26,7 @@ void parser_destroy(Parser *parser)
 
 void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code)
 {
-  SyntaxErrorList *en = malloc(sizeof(SyntaxErrorList));
+  SyntaxErrorLinkedList *en = malloc(sizeof(SyntaxErrorLinkedList));
   en->error = (SyntaxError){.code = code, .span = span};
   en->next = parser->errors;
   parser->errors = en;
@@ -61,30 +61,30 @@ static Span skip_trivia(const Source *source, Span span)
   return (Span){.start = i, .end = span.end};
 }
 
-SyntaxProgram *parse_program(Parser *parser)
-{
-  Span rem = source_get_span(parser->source);
-  rem = skip_trivia(parser->source, rem);
+// SyntaxProgram *parse_program(Parser *parser)
+// {
+//   Span rem = source_get_span(parser->source);
+//   rem = skip_trivia(parser->source, rem);
 
-  SyntaxProgram *program = malloc(sizeof(SyntaxProgram));
-  *program = (SyntaxProgram){
-      .kind = SYNTAX_KIND_PROGRAM,
-      .span = {.start = rem.start},
-      .top_level_count = 0,
-      .top_levels = NULL};
+//   SyntaxProgram *program = malloc(sizeof(SyntaxProgram));
+//   *program = (SyntaxProgram){
+//       .kind = SYNTAX_KIND_PROGRAM,
+//       .span = {.start = rem.start},
+//       .top_level_count = 0,
+//       .top_levels = NULL};
 
-  // TODO
+//   // TODO
 
-  program->span.end = rem.start;
-  rem = skip_trivia(parser->source, rem);
+//   program->span.end = rem.start;
+//   rem = skip_trivia(parser->source, rem);
 
-  if (span_len(rem) > 0)
-  {
-    parser_append_error(parser, rem, SYNTAX_EXPECTED_EOF);
-  }
+//   if (span_len(rem) > 0)
+//   {
+//     parser_append_error(parser, rem, SYNTAX_EXPECTED_EOF);
+//   }
 
-  return program;
-}
+//   return program;
+// }
 
 // bool parse_program(Parser *parser, SourceSpan span, SourceSpan *rem, SyntaxProgram **program)
 // {
