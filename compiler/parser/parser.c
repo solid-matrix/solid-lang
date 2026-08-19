@@ -61,8 +61,29 @@ static Span skip_trivia(const Source *source, Span span)
   return (Span){.start = i, .end = span.end};
 }
 
-ParseResult parse_program(Parser *parser, Span span)
+SyntaxProgram *parse_program(Parser *parser)
 {
+  Span rem = source_get_span(parser->source);
+  rem = skip_trivia(parser->source, rem);
+
+  SyntaxProgram *program = malloc(sizeof(SyntaxProgram));
+  *program = (SyntaxProgram){
+      .kind = SYNTAX_KIND_PROGRAM,
+      .span = {.start = rem.start},
+      .top_level_count = 0,
+      .top_levels = NULL};
+
+  // TODO
+
+  program->span.end = rem.start;
+  rem = skip_trivia(parser->source, rem);
+
+  if (span_len(rem) > 0)
+  {
+    parser_append_error(parser, rem, SYNTAX_EXPECTED_EOF);
+  }
+
+  return program;
 }
 
 // bool parse_program(Parser *parser, SourceSpan span, SourceSpan *rem, SyntaxProgram **program)

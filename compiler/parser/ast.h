@@ -216,6 +216,12 @@ typedef struct
 {
   SyntaxKind kind;
   Span span;
+} SyntaxNode;
+
+typedef struct
+{
+  SyntaxKind kind;
+  Span span;
 
   size_t top_level_count;
   SyntaxDecl *top_levels;

@@ -30,9 +30,8 @@ typedef struct
 {
   bool matched;
   Span rem;
-  SyntaxKind kind;
-  void *node;
-} ParseResult;
+  SyntaxNode *node;
+} ParserResult;
 
 Parser parser_create(Source *source);
 
@@ -40,14 +39,14 @@ void parser_destroy(Parser *parser);
 
 void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
 
-ParseResult parse_program(Parser *parser, Span span);
+SyntaxProgram *parse_program(Parser *parser);
 
-ParseResult parse_expr(Parser *parser, Span span);
+ParserResult parse_expr(Parser *parser, Span span);
 
-ParseResult parse_decl(Parser *parser, Span span);
+ParserResult parse_decl(Parser *parser, Span span);
 
-ParseResult parse_stmt(Parser *parser, Span span);
+ParserResult parse_stmt(Parser *parser, Span span);
 
-ParseResult parse_type(Parser *parser, Span span);
+ParserResult parse_type(Parser *parser, Span span);
 
 #endif /* SOLID_PARSER_H */
