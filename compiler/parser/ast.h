@@ -13,7 +13,6 @@
 #include "source.h"
 #include "string_view.h"
 #include "syntax_kind.h"
-#include "syntax_node.h"
 
 typedef enum
 {
@@ -70,6 +69,12 @@ typedef enum
   SYNTAX_OPERATOR_SHL, // <<
   SYNTAX_OPERATOR_SHR, // >>
 } SyntaxOperator;
+
+typedef struct
+{
+  SyntaxKind kind;
+  Span span;
+} SyntaxNode;
 
 typedef SyntaxNode SyntaxHeader;
 

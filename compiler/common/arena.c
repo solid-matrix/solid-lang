@@ -6,6 +6,7 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 
 #include "arena.h"
 #include "mem.h"
@@ -21,9 +22,9 @@
  */
 struct ArenaBlock
 {
-  ArenaBlock *next;      // next block, or NULL for the block being filled
-  size_t size;           // usable bytes in this block, not counting the header
-  unsigned char data[];  // storage for the block; aligned up by block_data()
+  ArenaBlock *next;     // next block, or NULL for the block being filled
+  size_t size;          // usable bytes in this block, not counting the header
+  unsigned char data[]; // storage for the block; aligned up by block_data()
 };
 
 /**
