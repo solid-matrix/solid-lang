@@ -6,5 +6,3 @@
  */
 
 #include "sema.h"
-
-// Semantic analysis implementation: TODO.

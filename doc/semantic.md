@@ -1,0 +1,1 @@
+# SOLID Semantic Analyzer Specification

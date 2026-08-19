@@ -12,6 +12,12 @@
 
 Source source_from_string_view(StringView sv)
 {
+  // A leading UTF-8 BOM (EF BB BF) is not source text; drop it so that
+  // spans, line/column positions, and string views stay BOM-free.
+  if (sv.len >= 3 &&
+      sv.data[0] == 0xEF && sv.data[1] == 0xBB && sv.data[2] == 0xBF)
+    sv = sv_slice(sv, 3, sv.len - 3);
+
   // Count lines: both '\n' and '\r' start a new line, but "\r\n" is a
   // single terminator and only counts once.
   size_t count = 1;

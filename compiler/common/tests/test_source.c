@@ -111,6 +111,30 @@ int main(void)
   check_span_text(&from_sv, source_get_line_span(&from_sv, 0), "abc");
   source_destroy(&from_sv);
 
+  // UTF-8 BOM at the front is dropped by the Source constructor.
+  const uint8_t with_bom[] = {0xEF, 0xBB, 0xBF, 'l', 'e', 't', ' ', 'x'};
+  Source s_bom = source_from_string_view(sv_create(with_bom, sizeof(with_bom)));
+  CHECK(s_bom.line_count == 1);
+  CHECK(s_bom.string_view.len == 5);
+  CHECK(source_byte_at(&s_bom, 0) == 'l');
+  CHECK(source_get_position(&s_bom, 0).col == 0);
+  check_span_text(&s_bom, source_get_span(&s_bom), "let x");
+  source_destroy(&s_bom);
+
+  // Control: without a BOM the text is indexed unchanged.
+  Source s_plain = source_from_cstr("let x");
+  CHECK(s_plain.string_view.len == 5);
+  CHECK(source_byte_at(&s_plain, 0) == 'l');
+  check_span_text(&s_plain, source_get_span(&s_plain), "let x");
+  source_destroy(&s_plain);
+
+  // BOM only (no content) yields an empty, non-crashing source.
+  const uint8_t bom_only[] = {0xEF, 0xBB, 0xBF};
+  Source s_bom_only = source_from_string_view(sv_create(bom_only, sizeof(bom_only)));
+  CHECK(s_bom_only.line_count == 1);
+  CHECK(span_is_empty(source_get_span(&s_bom_only)));
+  source_destroy(&s_bom_only);
+
   if (g_failures == 0)
   {
     printf("test_source: all ok\n");

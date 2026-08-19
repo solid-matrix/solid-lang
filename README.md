@@ -51,10 +51,21 @@ Dependency chain: `common <- parser <- sema <- irgen <- cli`; CMake targets are 
 ### Building and Testing
 
 ```bash
-export LLVM_DIR=/path/to/llvm        # Windows: set LLVM_DIR=...
-cmake --preset linux-x64-debug       # or windows-x64-debug / *-release
+# linux-x64
+
+# export LLVM_DIR=[path_to_llvm]
+cmake --preset linux-x64-debug
 cmake --build --preset linux-x64-debug
-ctest --test-dir out/build/linux-x64-debug --output-on-failure
+ctest --test-dir .build/linux-x64-debug --output-on-failure
+```
+
+```powershell
+# windows-x64
+
+# set LLVM_DIR=[path_to_llvm]
+cmake --preset windows-x64-debug
+cmake --build --preset windows-x64-debug
+ctest --test-dir .build\windows-x64-debug\ --output-on-failure
 ```
 
 Executables go to `<build>/bin/`; on Windows the runtime `LLVM-C.dll` is copied next to the executable. Static libraries stay in their own subdirectories.

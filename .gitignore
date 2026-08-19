@@ -4,6 +4,7 @@
 [Bb]in/
 [Oo]bj/
 out/
+.build/
 *.nupkg
 *.snupkg
 

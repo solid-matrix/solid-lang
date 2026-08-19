@@ -39,14 +39,16 @@ typedef struct
 /**
  * @brief Builds a Source over @p sv, indexing its lines.
  * @param sv The text to index; the underlying buffer must outlive the Source.
- * @return The indexed Source.
+ * @return The indexed Source. A leading UTF-8 BOM (EF BB BF) is dropped from
+ *         the indexed text so spans and positions are BOM-free.
  */
 Source source_from_string_view(StringView sv);
 
 /**
  * @brief Convenience: source_from_string_view(sv_from_cstr(str)).
  * @param str NUL-terminated text; must outlive the Source.
- * @return The indexed Source.
+ * @return The indexed Source. A leading UTF-8 BOM (EF BB BF) is dropped from
+ *         the indexed text so spans and positions are BOM-free.
  */
 Source source_from_cstr(const char *str);
 

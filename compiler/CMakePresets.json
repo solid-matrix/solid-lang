@@ -5,12 +5,7 @@
             "name": "windows-base",
             "hidden": true,
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl.exe",
-                "LLVM_DIR": "$env{LLVM_DIR}",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-            },
+            "binaryDir": "${sourceDir}/.build/${presetName}",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -19,35 +14,27 @@
         },
         {
             "name": "windows-x64-debug",
-            "displayName": "Windows x64 Debug",
             "inherits": "windows-base",
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "$env{VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/cmake/Microsoft/SegmentHeap.cmake"
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_C_COMPILER_TARGET": "x86_64-pc-windows-msvc"
             }
         },
         {
             "name": "windows-x64-release",
-            "displayName": "Windows x64 Release",
-            "inherits": "windows-x64-debug",
+            "inherits": "windows-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "$env{VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/cmake/Microsoft/SegmentHeap.cmake"
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_C_COMPILER_TARGET": "x86_64-pc-windows-msvc"
             }
         },
         {
             "name": "linux-base",
             "hidden": true,
-            "generator": "Unix Makefiles",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "cacheVariables": {
-                "LLVM_DIR": "$env{LLVM_DIR}",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-            },
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/.build/${presetName}",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -56,22 +43,20 @@
         },
         {
             "name": "linux-x64-debug",
-            "displayName": "Linux x64 Debug",
             "inherits": "linux-base",
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_C_COMPILER_TARGET": "x86_64-linux-gnu"
             }
         },
         {
             "name": "linux-x64-release",
-            "displayName": "Linux x64 Release",
-            "inherits": "linux-x64-debug",
+            "inherits": "linux-base",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_C_COMPILER_TARGET": "x86_64-linux-gnu"
             }
         }
     ],

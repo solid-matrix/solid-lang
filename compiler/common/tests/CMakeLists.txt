@@ -1,6 +1,3 @@
-# Tests for the common subproject: one executable per test, registered
-# with CTest. Run with: ctest --test-dir out/build/x64-debug
-# (or ctest -R common to run only this subproject).
 add_executable(test_string_view test_string_view.c)
 target_link_libraries(test_string_view PRIVATE solid-lang-common)
 add_test(NAME common.string_view COMMAND test_string_view)
