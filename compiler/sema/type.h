@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_SEMA_TYPE_H
-#define SOLID_SEMA_TYPE_H
+#pragma once
 
 /**
  * @brief Built-in type kinds.
@@ -24,5 +23,3 @@ typedef enum SolidTypeKind
  * @brief Type descriptor; opaque to callers.
  */
 typedef struct SolidType SolidType;
-
-#endif /* SOLID_SEMA_TYPE_H */

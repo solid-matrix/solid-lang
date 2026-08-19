@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_SYNTAX_ERROR_H
-#define SOLID_SYNTAX_ERROR_H
+#pragma once
 
 #include "source.h"
 #include <stddef.h>
@@ -22,5 +21,3 @@ typedef struct
   SyntaxErrorCode code;
   Span span;
 } SyntaxError;
-
-#endif /* SOLID_SYNTAX_ERROR_H */

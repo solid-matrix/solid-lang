@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_ARENA_H
-#define SOLID_ARENA_H
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -78,5 +77,3 @@ void arena_reset(Arena *a);
  * @param a The arena to destroy. Must not be used afterwards.
  */
 void arena_destroy(Arena *a);
-
-#endif /* SOLID_ARENA_H */

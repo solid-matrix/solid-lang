@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_AST_H
-#define SOLID_AST_H
+#pragma once
 
 #include "source.h"
 #include "string_view.h"
@@ -735,5 +734,3 @@ typedef struct
 } SyntaxFuncDecl;
 
 #pragma endregion
-
-#endif /* SOLID_AST_H */

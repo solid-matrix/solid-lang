@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_SOURCE_H
-#define SOLID_SOURCE_H
+#pragma once
 
 #include "string_view.h"
 #include "span.h"
@@ -113,5 +112,3 @@ StringView source_get_string_view(const Source *source, Span span);
  * @return The byte.
  */
 char source_get_char(const Source *source, size_t pos);
-
-#endif /* SOLID_SOURCE_H */

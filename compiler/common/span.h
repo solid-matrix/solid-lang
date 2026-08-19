@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_SPAN_H
-#define SOLID_SPAN_H
+#pragma once
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -48,5 +47,3 @@ bool span_is_empty(Span span);
  * @return The sub-span.
  */
 Span span_slice(Span span, size_t rel_start, size_t rel_end);
-
-#endif /* SOLID_SPAN_H */

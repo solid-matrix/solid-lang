@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_PARSER_H
-#define SOLID_PARSER_H
+#pragma once
 
 #include "ast.h"
 #include "source.h"
@@ -48,5 +47,3 @@ ParserResult parse_decl(Parser *parser, Span span);
 ParserResult parse_stmt(Parser *parser, Span span);
 
 ParserResult parse_type(Parser *parser, Span span);
-
-#endif /* SOLID_PARSER_H */

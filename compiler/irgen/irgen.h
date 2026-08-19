@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_IRGEN_IRGEN_H
-#define SOLID_IRGEN_IRGEN_H
+#pragma once
 
 #include "ast.h"
 
@@ -21,5 +20,3 @@ typedef struct SolidIrgenModule SolidIrgenModule;
 // TODO: SolidIrgenEmitIRText(SolidIrgenModule *module, ...)
 // TODO: SolidIrgenEmitBitcode / SolidIrgenEmitObject
 // TODO: SolidIrgenDispose(SolidIrgenModule *module)
-
-#endif /* SOLID_IRGEN_IRGEN_H */

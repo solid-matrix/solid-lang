@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_STRING_VIEW_H
-#define SOLID_STRING_VIEW_H
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -112,5 +111,3 @@ void sv_write(StringView sv, FILE *stream);
  * @note Requires: dst != NULL, or dst_size == 0.
  */
 void sv_copy(StringView sv, char *dst, size_t dst_size);
-
-#endif /* SOLID_STRING_VIEW_H */

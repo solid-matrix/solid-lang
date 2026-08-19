@@ -5,8 +5,7 @@
  * @version 0.0.5
  */
 
-#ifndef SOLID_SEMA_SEMA_H
-#define SOLID_SEMA_SEMA_H
+#pragma once
 
 #include "ast.h"
 
@@ -18,5 +17,3 @@ typedef struct SolidSema SolidSema;
 // TODO: SolidSemaCreate(SolidSema **out, ...)
 // TODO: SolidSemaRun(SolidSema *sema, SolidAstNode *root, ...)
 // TODO: SolidSemaDestroy(SolidSema *sema)
-
-#endif /* SOLID_SEMA_SEMA_H */
