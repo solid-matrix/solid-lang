@@ -91,6 +91,8 @@ static Span skip_trivia(const Source *source, Span span)
 SyntaxProgram *parse(Parser *parser)
 {
   Span span = source_get_span(parser->source);
+  span = skip_trivia(parser->source, span);
+
   ParserResult res = parse_program(parser, span);
 
   assert(res.matched);
@@ -101,17 +103,17 @@ SyntaxProgram *parse(Parser *parser)
 
 ParserResult parse_program(Parser *parser, Span span)
 {
-  Span rem = skip_trivia(parser->source, span);
   SyntaxProgram *program = xmalloc(sizeof(SyntaxProgram));
 
   *program = (SyntaxProgram){
       .header = {
           .kind = SYNTAX_KIND_PROGRAM,
-          .span = {.start = rem.start},
+          .span = {.start = span.start},
       },
       .top_levels = syntax_node_list_create(),
   };
 
+  Span rem = span;
   ParserResult res;
 
   while (true)
@@ -174,13 +176,13 @@ ParserResult parse_identifier(Parser *parser, Span span)
   }
 
   Span consumed = {.start = span.start, .end = i};
-  Span rem = {.start = i, .end = span.end};
-
   SyntaxIdentifier *id = xmalloc(sizeof(SyntaxIdentifier));
   *id = (SyntaxIdentifier){
       .header = {.kind = SYNTAX_KIND_IDENTIFIER, .span = consumed},
       .string_view = source_string_view_at(parser->source, consumed),
   };
+
+  Span rem = skip_trivia(parser->source, (Span){.start = i, .end = span.end});
 
   return (ParserResult){
       .matched = true,

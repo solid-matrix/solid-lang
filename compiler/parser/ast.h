@@ -21,6 +21,7 @@ typedef enum
   SYNTAX_REF_KIND_READONLY,
 
   SYNTAX_REF_KIND_WRITEONLY,
+
 } SyntaxRefKind;
 
 typedef enum
@@ -36,6 +37,7 @@ typedef enum
   SYNTAX_CALLCONV_THISCALL,
 
   SYNTAX_CALLCONV_FASTCALL,
+
 } SyntaxCallConv;
 
 typedef enum
@@ -68,6 +70,7 @@ typedef enum
 
   SYNTAX_OPERATOR_SHL, // <<
   SYNTAX_OPERATOR_SHR, // >>
+
 } SyntaxOperator;
 
 typedef struct
@@ -76,14 +79,11 @@ typedef struct
   Span span;
 } SyntaxNode;
 
-typedef SyntaxNode SyntaxHeader;
-
 typedef struct
 {
   size_t len;
   size_t cap;
   SyntaxNode **nodes;
-
 } SyntaxNodeList;
 
 SyntaxNodeList syntax_node_list_create(void);
@@ -92,102 +92,90 @@ void syntax_node_list_destroy(SyntaxNodeList *list);
 
 typedef struct
 {
-  size_t len;
-  size_t cap;
-  StringView *names;
-
-} SyntaxPath;
-
-SyntaxPath syntax_path_create(void);
-void syntax_path_append(SyntaxPath *path, StringView name);
-void syntax_path_destroy(SyntaxPath *path);
-
-typedef struct
-{
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList top_levels; // decl nodes
 } SyntaxProgram;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   StringView string_view;
 } SyntaxIdentifier;
 
 typedef struct
 {
-  SyntaxHeader header;
-  StringView name;
+  SyntaxNode header;
+  SyntaxIdentifier *name;
   SyntaxNodeList arguments; // expr nodes
 } SyntaxCtAnnotation;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxStructField;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *value; // expr node
 } SyntaxEnumField;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxUnionField;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxVariantField;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxGenericParameter;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxCallParameter;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxContractParameter;
 
 typedef struct
 {
-  SyntaxHeader header;
-  StringView name;
+  SyntaxNode header;
+  SyntaxIdentifier *name;
   SyntaxNode *value; // expr node
 } SyntaxStructLitField;
 
 typedef struct
 {
-  SyntaxHeader header;
-  StringView name;
+  SyntaxNode header;
+  SyntaxIdentifier *name;
   SyntaxNode *value; // expr node
 } SyntaxContractArgument;
 
@@ -195,34 +183,34 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *value; // expr node
 } SyntaxConstType;
 
 typedef struct
 {
-  SyntaxHeader header;
-  SyntaxPath paths;
+  SyntaxNode header;
+  SyntaxNodeList paths;             // SyntaxIdentifier nodes
   SyntaxNodeList generic_arguments; // type nodes
 } SyntaxNamedType;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxRefKind ref_kind;
   SyntaxNode *inner_type; // type node
 } SyntaxRefType;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *len;        // SyntaxConstType
   SyntaxNode *inner_type; // type node
 } SyntaxArrayType;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList call_params; // SyntaxCallParameter nodes
   SyntaxCallConv callconv;
   SyntaxNode *return_type; // type node
@@ -234,34 +222,34 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList stmts; // stmt nodes
 } SyntaxBodyStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
-  StringView name;
+  SyntaxNode header;
+  SyntaxIdentifier *name;
   SyntaxNode *type;  // type node
   SyntaxNode *value; // expr node
 } SyntaxLetStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *left;  // expr node
   SyntaxNode *right; // expr node
 } SyntaxAssignStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *expr; // expr node
 } SyntaxExprStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *condition; // expr node
   SyntaxNode *then_stmt; // SyntaxBodyStmt
   SyntaxNode *else_stmt; // SyntaxIfStmt | SyntaxBodyStmt
@@ -269,29 +257,29 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *stmt; // SyntaxBodyStmt
 } SyntaxLoopStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
 } SyntaxBreakStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
 } SyntaxContinueStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *expr; // expr node
 } SyntaxReturnStmt;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *condition; // expr
   SyntaxNode *stmt;      // SyntaxBodyStmt node
 } SyntaxWhileStmt;
@@ -302,62 +290,62 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   StringView value;
   StringView suffix;
 } SyntaxIntLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   StringView value;
   StringView suffix;
 } SyntaxFloatLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   StringView value;
 } SyntaxRuneLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   StringView value;
 } SyntaxStringLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *type;      // SyntaxNamedType
   SyntaxNodeList fields; // SyntaxStructLitField
 } SyntaxStructLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *type;        // SyntaxArrayType
   SyntaxNodeList elements; // SyntaxExpr
 } SyntaxArrayLitExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
-  SyntaxPath paths;
+  SyntaxNode header;
+  SyntaxNodeList paths;              // SyntaxIdentifier nodes
   SyntaxNodeList generic_arguments;  // type
   SyntaxNodeList contract_arguments; // SyntaxContractArgument
 } SyntaxNamedExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxOperator operator;
   SyntaxNode *operand; // expr
 } SyntaxUnaryExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxOperator operator;
   SyntaxNode *left;  // expr
   SyntaxNode *right; // expr
@@ -365,29 +353,29 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *receiver; // expr
-  StringView name;
+  SyntaxIdentifier *name;
 } SyntaxDotExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *receiver; // expr
   SyntaxNode *index;    // expr
 } SyntaxIndexExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNode *callee;       // expr
   SyntaxNodeList arguments; // expr nodes
 } SyntaxCallExpr;
 
 typedef struct
 {
-  SyntaxHeader header;
-  StringView name;
+  SyntaxNode header;
+  SyntaxIdentifier *name;
   SyntaxNodeList arguments; // expr nodes
 } SyntaxCtOperationExpr;
 
@@ -397,57 +385,57 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
-  SyntaxPath paths;
+  SyntaxNode header;
+  SyntaxNodeList paths; // SyntaxIdentifier nodes
 } SyntaxNamespaceDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
-  SyntaxPath paths;
+  SyntaxNode header;
+  SyntaxNodeList paths; // SyntaxIdentifier nodes
 } SyntaxUsingDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *type;  // type node
   SyntaxNode *value; // expr node
 } SyntaxLetDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList fields;         // SyntaxStructField nodes
 } SyntaxStructDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *behind_type; // type node
   SyntaxNodeList fields;   // SyntaxEnumField nodes
 } SyntaxEnumDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList fields;         // SyntaxUnionField nodes
 } SyntaxUnionDecl;
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNode *behind_type;       // type node
   SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList fields;         // SyntaxVariantField nodes
@@ -455,9 +443,9 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList call_params;    // SyntaxCallParameter nodes
   SyntaxNode *return_type;       // type node
@@ -465,9 +453,9 @@ typedef struct
 
 typedef struct
 {
-  SyntaxHeader header;
+  SyntaxNode header;
   SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  StringView name;
+  SyntaxIdentifier *name;
   SyntaxNodeList generic_params;  // SyntaxGenericParameter nodes
   SyntaxNodeList contract_params; // SyntaxContractParameter nodes
   SyntaxNodeList call_params;     // SyntaxCallParameter nodes

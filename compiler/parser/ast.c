@@ -44,33 +44,3 @@ void syntax_node_list_destroy(SyntaxNodeList *list)
     list->len = 0;
     list->cap = 0;
 }
-
-SyntaxPath syntax_path_create(void)
-{
-    SyntaxPath path;
-    path.len = 0;
-    path.cap = 0;
-    path.names = NULL;
-    return path;
-}
-
-void syntax_path_append(SyntaxPath *path, StringView name)
-{
-    if (path->len == path->cap)
-    {
-        size_t new_cap = path->cap == 0 ? 4 : path->cap * 2;
-        path->names = (StringView *)xrealloc(path->names, new_cap * sizeof(StringView));
-        path->cap = new_cap;
-    }
-    path->names[path->len++] = name;
-}
-
-void syntax_path_destroy(SyntaxPath *path)
-{
-    if (path == NULL)
-        return;
-    xfree(path->names);
-    path->names = NULL;
-    path->len = 0;
-    path->cap = 0;
-}
