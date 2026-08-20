@@ -22,12 +22,20 @@ solid-lang/
 
 ```
 doc/
-├── note.md       # Designing notes
-├── spec.md       # Overall specification
-├── syntax.md     # Syntax specification
-├── semantic.md   # Semantics specification
-└── guide.md      # Usage guide
+├── notes.md         # Notes
+├── spec.md          # Specification
+├── manual.md        # User manual
+├── syntax.md        # Syntax parser specification
+├── semantic.md      # Semantic analyzer specification
+└── ir-gen.md   # IR generator specification
 ```
+
+- [Notes](./doc/notes.md): A development log that tracks ephemeral design choices, debugging histories, and incremental implementation tactics.
+- [Specification](./doc/spec.md): The formal, unchanging contract that exhaustively defines the language's lexical structure, syntactic forms, and operational semantics.
+- [User Manual](./doc/manual.md): A practical, high-level guide for end-users that explains installation, toolchain invocation, and idiomatic usage of the language.
+- [Syntax Parser Document](./doc/syntax.md): Implementation-focused documentation for the parser, detailing tokenization, grammar-rule application, and Abstract Syntax Tree (AST) construction.
+- [Semantic Analyzer Document](./doc/semantic.md): Implementation-focused documentation covering name resolution, type inference, scoping rules, and static semantic validation over the generated AST.
+- [IR Generator Document](./doc/ir-gen.md): Implementation-focused documentation outlining the transformation pipeline that translates the decorated AST into a target-agnostic intermediate representation.
 
 ## Compiler
 

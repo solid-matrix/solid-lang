@@ -1,1 +1,1 @@
-# SOLID Semantic Analyzer Specification
+# SOLID Semantic Analyzer Document

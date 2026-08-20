@@ -1,1 +1,0 @@
-# SOLID IR Generator Specification
