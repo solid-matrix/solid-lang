@@ -618,8 +618,8 @@ while cond { }
 Syntax:
 
 ```
-Expr = IntLitExpr | FloatLitExpr | StructLitExpr | ArrayLitExpr | StringLitExpr | RuneLitExpr |
-        .
+Expr = IntLitExpr | FloatLitExpr | StructLitExpr | ArrayLitExpr | StringLitExpr | RuneLitExpr
+     | .
 ```
 
 ### Integer Literals
@@ -627,20 +627,50 @@ Expr = IntLitExpr | FloatLitExpr | StructLitExpr | ArrayLitExpr | StringLitExpr 
 Syntax:
 
 ```
-int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
+int_lit        = (decimal_lit | binary_lit | octal_lit | hex_lit) [ [ "_" ] int_lit_suffix ].
 
-decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digit { [ "_" ] decimal_digit } ] [ [ "_" ] int_lit_suffix ] .
-binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digit { [ "_" ] binary_digit } [ [ "_" ] int_lit_suffix ] .
-octal_lit      = "0" ( "o" | "O" ) [ "_" ] octal_digit { [ "_" ] octal_digit } [ [ "_" ] int_lit_suffix ] .
-hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digit { [ "_" ] hex_digit } [ [ "_" ] int_lit_suffix ] .
+decimal_lit    = ( "0" | ( "1" … "9" ) [ "_" ] decimal_digits ) .
+binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digits .
+octal_lit      = "0" ( "o" | "O" ) [ "_" ] octal_digits .
+hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digits .
 
-int_lit_suffix = "i8" | "i16" | "i32" | "i64" | "isize" | "i" | "u8" | "u16" | "u32" | "u64" | "usize" | "u" .
+decimal_digits = decimal_digit { [ "_" ] decimal_digit } .
+binary_digits  = binary_digit { [ "_" ] binary_digit } .
+octal_digits   = octal_digit { [ "_" ] octal_digit } .
+hex_digits     = hex_digit { [ "_" ] hex_digit } .
+
+int_lit_suffix = "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "i"
+               | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "u" .
 ```
 
 Example:
 
 ```
+// decimal
+0 0i32 0_i32 1 1i32 1_i32 12 12i32 12_i32 1_2 1_2i32 1_2_i32
 
+// binary
+0b0 0b01 0b1 0b_0 0b_0000_1111 0B_0000_1111_u8
+
+// octal
+0o_123 0O_123
+
+// hex
+0x_FFFF 0X_FFFF
+
+// suffix
+0_i8 0_i16 0_i32 0_i64 0_i128 0_isize 0_i
+0_u8 0_u16 0_u32 0_u64 0_u128 0_usize 0_u
+
+// invalid
+01 00       // leading zero
+0_0         // zero cannot carry separators
+1__2        // consecutive underscores
+0b__0       // consecutive underscores
+1_          // trailing underscore
+0b 0x       // missing digits
+0x_         // missing digits after underscore
+0o8         // 8 is not an octal digit
 ```
 
 ### Float Literals
@@ -648,9 +678,59 @@ Example:
 Syntax:
 
 ```
-float_lit         = TODO .
+float_lit         = ( decimal_lit [ "." decimal_digits ] float_exponent [ [ "_" ] float_lit_suffix ] )
+                  | ( decimal_lit "." [ decimal_digits ] [ [ "_" ] float_lit_suffix ] )
+                  | ( decimal_lit [ "_" ] float_lit_suffix ) .
 
+float_exponent    = ( "e" | "E" ) [ "+" | "-" ] [ "_" ] decimal_lit .
 float_lit_suffix  = "f32" | "f64" | "f" | "d" .
+```
+
+Example:
+
+```
+// exponent
+1e5  1e5_f32  1.5e5  1.5e5_f32  1e+5  1e-5  1e_5
+
+// dot
+1.  1.5  1.5_f32  1.5f32  0.5
+
+// suffix
+1f  1f32  1_f32  0d
+
+// invalid
+.5       // missing integer part
+01.5     // leading zero
+1.e5     // no digits after dot
+1e05     // leading zero in exponent
+1e       // missing exponent digits
+1.5e     // missing exponent digits
+1e5.5    // extra dot
+1e5_     // trailing underscore
+1__5     // consecutive underscores
+```
+
+### Rune Literals
+
+Syntax:
+
+```
+
+```
+
+Example:
+
+```
+```
+
+
+
+### String Literals
+
+Syntax:
+
+```
+
 ```
 
 Example:
@@ -659,13 +739,41 @@ Example:
 
 ```
 
+
+
 ### Struct Literals
+
+Syntax:
+
+```
+
+```
+
+Example:
+
+```
+
+```
+
+
 
 ### Array Literals
 
-### String Literals
+Syntax:
 
-### Rune Literals
+```
+
+```
+
+Example:
+
+```
+
+```
+
+
+
+
 
 
 
