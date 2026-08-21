@@ -239,7 +239,7 @@ typedef struct
   SyntaxNode header;
   SyntaxNode *left;  // expr node
   SyntaxNode *right; // expr node
-} SyntaxAssignStmt;
+} SyntaxSetStmt;
 
 typedef struct
 {

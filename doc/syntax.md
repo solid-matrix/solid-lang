@@ -74,58 +74,99 @@ Comments serve as program documentation, start with the character sequence `"//"
 ```
 namespace   using       func        contract    fulfills    struct      
 enum        union       variant     let         if          else        
-loop        while       break       continue    return                  
+loop        while       break       continue    return      readonly
+writeonly   set
 ```
 
 ### Operators and Punctuation
 
 ```
-+       &       &&      ==      (       )       
--       |       ||      !=      [       ]       
-*       ~       !       <       {       }       
-/       ^       ^^      >       ,       ;       
++       &       &&      ==      (       )       =
+-       |       ||      !=      [       ]       @
+*       ~       !       <       {       }       $
+/       ^       ^^      >       ,       ;       ::
 %       <<              <=      .       :       
-=       >>              >=              ::      
+        >>              >=
 ```
 
+## Common
+
 ### Identifiers
+
+Syntax:
 
 ```
 identifier = letter { letter | decimal_digit } .
 ```
 
-### Integer Literals
+### Compile-Time Annotations
 
 Syntax:
 
 ```
-int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
-decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digit { [ "_" ] decimal_digit } ] [ [ "_" ] int_lit_suffix ] .
-binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digit { [ "_" ] binary_digit } [ [ "_" ] int_lit_suffix ] .
-octal_lit      = "0" ( "o" | "O" ) [ "_" ] octal_digit { [ "_" ] octal_digit } [ [ "_" ] int_lit_suffix ] .
-hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digit { [ "_" ] hex_digit } [ [ "_" ] int_lit_suffix ] .
-
-int_lit_suffix = "i8" | "i16" | "i32" | "i64" | "isize" | "i" | "u8" | "u16" | "u32" | "u64" | "usize" | "u" .
+CtAnnotation  = "@" identifier [ "(" CallArgs ")" ] .
+CtAnnotations = CtAnnotation { CtAnnotation } .
 ```
 
 Example:
 
 ```
+@private
+@align(16)
+@when(OS_LINUX)
+@import("LLVM-C","LLVMContextCreate")
 ```
 
-### Float Literals
+### Generic Parameters & Arguments
 
 Syntax:
 
 ```
-float_lit         = TODO .
+GenericParams = GenericParam { "," GenericParam } .
+GenericParam  = [ CtAnnotations ] identifier [ ":" Type ] .
 
-float_lit_suffix  = "f32" | "f64" | "f" | "d" .
+GenericArgs   = GenericArg { "," GenericArg } .
+GenericArg    = Type | Expr .
 ```
 
-Example:
+### Call Parameters & Arguments
+
+Syntax:
 
 ```
+CallParams = CallParam { "," CallParam } .
+CallParam  = [ CtAnnotations ] identifier ":" Type .
+
+CallArgs   = CallArg { "," CallArg } .
+CallArg    = Expr .
+```
+
+### Contract Parameters & Arguments
+
+Syntax:
+
+```
+ContractParams = ContractParam { "," ContractParam } .
+ContractParam  = [ CtAnnotations ] "$" identifier ":" NamedType .
+
+ContractArgs   = ContractArg { "," ContractArg } .
+ContractArg    = Expr .
+```
+
+### NamePath
+
+Syntax:
+
+```
+NamePath = identifier { "::" identifier } .
+```
+
+## Program
+
+Syntax:
+
+```
+Program = { Decl } .
 ```
 
 ## Types
@@ -141,13 +182,16 @@ Type = NamedType | RefType | ArrayType | FuncType .
 Syntax:
 
 ```
-NamedType =  .
+NamedType =  NamePath [ "<" GenericArgs ">" ] .
 ```
 
 Example:
 
 ```
-TODO
+i32
+
+std::math::Vector2<f32>
+
 ```
 
 ### Ref Type
@@ -155,13 +199,17 @@ TODO
 Syntax:
 
 ```
-RefType =  .
+RefType =  "&" [ "readonly" | "writeonly" ] Type .
 ```
 
 Example:
 
 ```
-TODO
+&i32
+
+&readonly i32
+
+&writeonly Vector2<f32>
 ```
 
 ### Array Type
@@ -169,13 +217,14 @@ TODO
 Syntax:
 
 ```
-ArrayType =  .
+ArrayType =  "[" Expr "]" Type.
 ```
 
 Example:
 
 ```
-TODO
+[5]i32
+[5+10]i32
 ```
 
 ### Func Type
@@ -183,39 +232,19 @@ TODO
 Syntax:
 
 ```
-FuncType =  .
+FuncType =  "&" "func" "(" [ Type { "," Type } ] ")" [CallConv] [ ":" Type ] .
+
+CallConv = "cdecl" | "stdcall" | "winapi" | "thiscall" | "fastcall" .
 ```
 
 Example:
 
 ```
-TODO
-```
+&func()
 
-## Program
+&func(i32):i32
 
-Syntax:
-
-```
-Program = { Decl } .
-```
-
-### Compile-Time Annotations
-
-Syntax:
-
-```
-CtAnnotation  = "@" identifier [ "(" Expr [ "," Expr ] ")" ] .
-CtAnnotations = CtAnnotation { CtAnnotation } .
-```
-
-Example:
-
-```
-@private
-@align(16)
-@when(OS_LINUX)
-@import("LLVM-C","LLVMContextCreate")
+&func(i32,i32)cdecl:i32
 ```
 
 ## Declarations
@@ -232,7 +261,6 @@ Syntax:
 
 ```
 NamespaceDecl = "namespace" NamePath ";" .
-NamePath      = identifier { "::" identifier } .
 ```
 
 Example:
@@ -279,19 +307,16 @@ let TMP: i32;
 Syntax:
 
 ```
-StructDecl       = [ CtAnnotations ] "struct" identifier [ "<" GenericParams ">" ] ( ";" | "{" [ StructDeclFields ] "}" ) .
+StructDecl       = [ CtAnnotations ] "struct" identifier [ "<" GenericParams ">" ]
+                   ( ";" | "{" [ StructDeclFields ] "}" ) .
 
 StructDeclFields = StructDeclField { "," StructDeclField } [ "," ] .
 StructDeclField  = [ CtAnnotations ] identifier ":" Type .
-
-GenericParams    = GenericParam { "," GenericParam } .
-GenericParam     = [ CtAnnotations ] identifier .
 ```
 
 Example:
 
 ```
-
 @intrinsic struct i32;
 
 struct Vector2F {
@@ -312,7 +337,8 @@ struct Vector2<T> { x: T, y: T }
 Syntax:
 
 ```
-EnumDecl       = [ CtAnnotations ] "enum" identifier [ ":" Type ] ( ";" | "{" [ EnumDeclFields ] "}" ) .
+EnumDecl       = [ CtAnnotations ] "enum" identifier [ ":" Type ]
+                 ( ";" | "{" [ EnumDeclFields ] "}" ) .
 
 EnumDeclFields = EnumDeclField { "," EnumDeclField } [ "," ] .
 EnumDeclField  = [ CtAnnotations ] identifier [ "=" Expr ] .
@@ -333,7 +359,7 @@ enum Color {
 enum SomeFlag: u32 {
 	A = 0x0001_u32,
 	B = 0x0002_u32,
-	C = 0x0004_32
+	C = 0x0004_u32
 }
 ```
 
@@ -342,13 +368,24 @@ enum SomeFlag: u32 {
 Syntax:
 
 ```
-TODO
+UnionDecl       = [ CtAnnotations ] "union" identifier [ "<" GenericParams ">" ]
+                  ( ";" | "{" [ UnionDeclFields ] "}" ) .
+
+UnionDeclFields = UnionDeclField { "," UnionDeclField } [ "," ] .
+UnionDeclField  = [ CtAnnotations ] identifier ":" Type .
 ```
 
 Example:
 
 ```
-TODO
+@intrinsic union IntrinsicUnion;
+
+union SomeUnion {
+	as_i32: i32,
+	as_f32: f32,
+}
+
+union FooUnion<T> { value: T, ptr: &T }
 ```
 
 ### Variant Declarations
@@ -356,13 +393,20 @@ TODO
 Syntax:
 
 ```
-TODO
+VariantDecl       = [ CtAnnotations ] "variant" identifier [ "<" GenericParams ">" ] [ ":" Type ]
+                    ( ";" | "{" [ VariantDeclFields ] "}" ) .
+
+VariantDeclFields = VariantDeclField { "," VariantDeclField } [","] .
+VariantDeclField  = [ CtAnnotations ] identifier [ ":" Type ] .
 ```
 
 Example:
 
 ```
-TODO
+variant Option<T>{
+	None,
+	Value: T,
+}
 ```
 
 ### Contract Declarations
@@ -370,13 +414,14 @@ TODO
 Syntax:
 
 ```
-TODO
+ContractDecl = [ CtAnnotations ] "contract" identifier [ "<" GenericParams ">" ]
+               "(" [ CallParams ] ")" [ ":" Type ] .
 ```
 
 Example:
 
 ```
-TODO
+contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;
 ```
 
 ### Funct Declarations
@@ -384,13 +429,29 @@ TODO
 Syntax:
 
 ```
-TODO
+FuncDecl = [ CtAnnotations ] "func" identifier
+           [ "<" ( GenericParams | ContractParams | GenericParams "," ContractParams ) ">" ]
+           "(" [ CallParams ] ")" [ CallConv ] [ ":" Type] [ "fulfills" NamedType { "," NamedType } ]
+           ( ";" | BodyStmt ) .
 ```
 
 Example:
 
 ```
-TODO
+func foo(a: i32, b: i32, c: i32): i32{
+	return a + b + c;
+}
+
+@intrinsic func add_i32(left: i32, right: i32): i32 fulfills Addable<i32,i32,i32>;
+
+@intrinsic func add_f32(left: f32, right: f32): f32 fulfills Addable<f32,f32,f32>;
+
+func add<TLeft,TRight,TResult,$iadd:Addable<TLeft,TRight,TResult>>(left: TLeft, right: TRight): TResult{
+	return iadd(left, right);
+}
+
+@import("LLVM-C","LLVMContextCreate")
+func context_create()cdecl : LLVMContextRef;
 ```
 
 ## Statments
@@ -398,7 +459,7 @@ TODO
 Syntax:
 
 ```
-Stmt = BodyStmt | LetStmt | AssignStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
+Stmt = BodyStmt | LetStmt | SetStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
 ```
 
 ### Body Statements
@@ -406,13 +467,18 @@ Stmt = BodyStmt | LetStmt | AssignStmt | ExprStmt | IfStmt | LoopStmt | BreakStm
 Syntax:
 
 ```
-TODO
+BodyStmt = "{" { Stmt } "}" .
 ```
 
 Example:
 
 ```
-TODO
+{}
+
+{
+	let a = 10;
+	let b = 10;
+}
 ```
 
 ### Let Statements
@@ -420,27 +486,27 @@ TODO
 Syntax:
 
 ```
-TODO
+LetStmt = "let" identifier "=" Expr ";" .
 ```
 
 Example:
 
 ```
-TODO
+let a = 10;
 ```
 
-### Assign Statements
+### Set Statements
 
 Syntax:
 
 ```
-TODO
+SetStmt = "set" Expr "=" Expr ";" .
 ```
 
 Example:
 
 ```
-TODO
+set a = 10;
 ```
 
 ### Expression Statements
@@ -448,13 +514,13 @@ TODO
 Syntax:
 
 ```
-TODO
+ExprStmt = Expr ";".
 ```
 
 Example:
 
 ```
-TODO
+foo();
 ```
 
 ### If Statements
@@ -462,13 +528,17 @@ TODO
 Syntax:
 
 ```
-TODO
+IfStmt = "if" Expr BodyStmt [ "else" ( BodyStmt | IfStmt ) ] .
 ```
 
 Example:
 
 ```
-TODO
+if cond { }
+
+if cond { } else { }
+
+if cond1 { } else if cond2 { } else { }
 ```
 
 ### Loop Statements
@@ -476,13 +546,13 @@ TODO
 Syntax:
 
 ```
-TODO
+LoopStmt = "loop" BodyStmt .
 ```
 
 Example:
 
 ```
-TODO
+loop { }
 ```
 
 ### Break Statements
@@ -490,13 +560,13 @@ TODO
 Syntax:
 
 ```
-TODO
+BreakStmt = "break" ";".
 ```
 
 Example:
 
 ```
-TODO
+break;
 ```
 
 ### Continue Statements
@@ -504,13 +574,13 @@ TODO
 Syntax:
 
 ```
-TODO
+ContinueStmt = "continue" ";".
 ```
 
 Example:
 
 ```
-TODO
+continue;
 ```
 
 ### Return Statements
@@ -518,13 +588,15 @@ TODO
 Syntax:
 
 ```
-TODO
+ReturnStmt = "return" [ Expr ] ";".
 ```
 
 Example:
 
 ```
-TODO
+return;
+
+return 10;
 ```
 
 ### While Statements
@@ -532,18 +604,68 @@ TODO
 Syntax:
 
 ```
-TODO
+WhileStmt = "while" Expr BodyStmt .
 ```
 
 Example:
 
 ```
-TODO
+while cond { }
 ```
 
 ## Expressions
 
+Syntax:
 
+```
+Expr = IntLitExpr | FloatLitExpr | StructLitExpr | ArrayLitExpr | StringLitExpr | RuneLitExpr |
+        .
+```
+
+### Integer Literals
+
+Syntax:
+
+```
+int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
+
+decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digit { [ "_" ] decimal_digit } ] [ [ "_" ] int_lit_suffix ] .
+binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digit { [ "_" ] binary_digit } [ [ "_" ] int_lit_suffix ] .
+octal_lit      = "0" ( "o" | "O" ) [ "_" ] octal_digit { [ "_" ] octal_digit } [ [ "_" ] int_lit_suffix ] .
+hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digit { [ "_" ] hex_digit } [ [ "_" ] int_lit_suffix ] .
+
+int_lit_suffix = "i8" | "i16" | "i32" | "i64" | "isize" | "i" | "u8" | "u16" | "u32" | "u64" | "usize" | "u" .
+```
+
+Example:
+
+```
+
+```
+
+### Float Literals
+
+Syntax:
+
+```
+float_lit         = TODO .
+
+float_lit_suffix  = "f32" | "f64" | "f" | "d" .
+```
+
+Example:
+
+```
+
+```
+
+### Struct Literals
+
+### Array Literals
+
+### String Literals
+
+### Rune Literals
 
 
 
