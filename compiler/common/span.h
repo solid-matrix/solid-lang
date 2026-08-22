@@ -7,16 +7,15 @@
 
 #pragma once
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /**
  * @brief A half-open [start, end) byte offset range.
  */
-typedef struct
-{
-    size_t start;
-    size_t end;
+typedef struct {
+  size_t start;
+  size_t end;
 } Span;
 
 /**
@@ -43,7 +42,8 @@ bool span_is_empty(Span span);
  * @brief Sub-span at relative offsets within this span.
  * @param span The span to slice.
  * @param rel_start Relative start offset.
- * @param rel_end Relative end offset. Asserts: rel_start <= rel_end <= span_len(span).
+ * @param rel_end Relative end offset. Asserts: rel_start <= rel_end <=
+ * span_len(span).
  * @return The sub-span.
  */
 Span span_slice(Span span, size_t rel_start, size_t rel_end);

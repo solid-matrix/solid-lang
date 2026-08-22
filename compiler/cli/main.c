@@ -7,8 +7,7 @@
 
 #include "irgen.h"
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   return irgen_example();
   return 0;
 }

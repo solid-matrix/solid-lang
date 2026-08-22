@@ -1,91 +1,186 @@
 /**
  * @file test_string_view.c
- * @brief Tests for the StringView basic behavior.
+ * @brief Tests for the StringView operations.
  * @author solid-matrix
  * @version 0.0.5
  */
 
+#include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "string_view.h"
+#include "test_util.h"
 
-static int g_failures;
+static void test_create_macro(void) {
+  StringView v = SV("hello");
+  CHECK(v.len == 5);
+  CHECK(v.data[0] == 'h' && v.data[4] == 'o');
 
-#define CHECK(cond)                                                   \
-  do                                                                  \
-  {                                                                   \
-    if (!(cond))                                                      \
-    {                                                                 \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-      g_failures++;                                                   \
-    }                                                                 \
-  } while (0)
+  // Concatenated string literals are also literals and keep working.
+  StringView c = SV("a" "b");
+  CHECK(c.len == 2);
+  CHECK(sv_equals(c, SV("ab")));
 
-int main(void)
-{
-  // Construction: SV literal macro, sv_from_cstr, sv_empty
-  StringView sv = SV("hello");
-  CHECK(sv.len == 5);
-  CHECK(sv_byte_at(sv, 0) == 'h');
-  CHECK(sv_equals(sv, sv_from_cstr("hello")));
-  CHECK(!sv_equals(sv, sv_from_cstr("world")));
+  // The empty literal produces an empty view.
+  StringView e = SV("");
+  CHECK(e.len == 0);
+
+  // Views never copy: writes to the underlying buffer are observable
+  // through the view (zero-copy semantics).
+  char buf[3] = {'a', 'b', 'c'};
+  StringView alias = sv_create((const uint8_t *)buf, 3);
+  buf[0] = 'X';
+  CHECK(sv_byte_at(alias, 0) == 'X');
+}
+
+static void test_create_functions(void) {
+  StringView v = sv_create((const uint8_t *)"xyz", 3);
+  CHECK(v.len == 3 && v.data[0] == 'x');
+
+  StringView e = sv_empty();
+  CHECK(e.data == NULL && e.len == 0);
+
+  StringView s = sv_from_cstr("str");
+  CHECK(s.len == 3 && sv_equals(s, SV("str")));
+}
+
+static void test_is_empty(void) {
   CHECK(sv_is_empty(sv_empty()));
-  CHECK(sv_empty().data == NULL);
+  CHECK(!sv_is_empty(SV("a")));
+}
 
-  // Equality: different lengths are not equal
-  CHECK(!sv_equals(sv, sv_from_cstr("hell")));
+static void test_equals(void) {
+  CHECK(sv_equals(SV("same"), SV("same")));
+  CHECK(!sv_equals(SV("same"), SV("sane")));
+  CHECK(!sv_equals(SV("short"), SV("shorter")));
+  CHECK(!sv_equals(SV("shorter"), SV("short")));
 
-  // Byte semantics: embedded NULs compare correctly
-  StringView n1 = sv_create("a\0b", 3);
-  StringView n2 = sv_create("a\0c", 3);
-  StringView n3 = sv_create("a\0b", 3);
-  CHECK(sv_equals(n1, n3));
-  CHECK(!sv_equals(n1, n2));
+  // Equality is length-bounded: embedded NUL bytes are just bytes.
+  uint8_t buf[3] = {'a', '\0', 'b'};
+  StringView v = sv_create(buf, 3);
+  CHECK(sv_equals(v, v));
+  CHECK(!sv_equals(v, SV("a")));
+  CHECK(sv_equals(v, sv_slice(v, 0, 3)));
 
-  // Lexicographic comparison
-  CHECK(sv_compare(sv_from_cstr("abc"), sv_from_cstr("abd")) < 0);
-  CHECK(sv_compare(sv_from_cstr("ab"), sv_from_cstr("abc")) < 0);
-  CHECK(sv_compare(sv_from_cstr("abc"), sv_from_cstr("abc")) == 0);
-  CHECK(sv_compare(sv_from_cstr("abd"), sv_from_cstr("abc")) > 0);
+  // Two empty views are equal regardless of their data pointers.
+  CHECK(sv_equals(sv_empty(), SV("")));
+}
 
-  // Slicing: normal and zero-length
-  StringView ell = sv_slice(sv, 1, 3);
-  CHECK(ell.len == 3);
-  CHECK(sv_equals(ell, sv_from_cstr("ell")));
-  CHECK(sv_is_empty(sv_slice(sv, 0, 0)));
+static void test_compare(void) {
+  CHECK(sv_compare(SV("a"), SV("b")) < 0);
+  CHECK(sv_compare(SV("b"), SV("a")) > 0);
+  CHECK(sv_compare(SV("x"), SV("x")) == 0);
 
-  // Per-character access
-  CHECK(sv_byte_at(sv, 4) == 'o');
+  // A proper prefix compares less than its extension.
+  CHECK(sv_compare(SV("ab"), SV("abc")) < 0);
+  CHECK(sv_compare(SV("abc"), SV("ab")) > 0);
 
-  // Copy: full fit
-  char buf[8];
-  sv_copy(sv, buf, sizeof(buf));
-  CHECK(strcmp(buf, "hello") == 0);
+  CHECK(sv_compare(sv_empty(), sv_empty()) == 0);
+  CHECK(sv_compare(sv_empty(), SV("a")) < 0);
+}
 
-  // Copy: silent truncation, always NUL-terminated
-  char small[3];
-  sv_copy(sv, small, sizeof(small));
-  CHECK(small[0] == 'h' && small[1] == 'e' && small[2] == '\0');
+static void test_starts_with(void) {
+  CHECK(sv_starts_with(SV("hello"), SV("he")));
+  CHECK(sv_starts_with(SV("hello"), SV("hello"))); // full match
+  CHECK(sv_starts_with(SV("hello"), SV("")));      // empty prefix
+  CHECK(!sv_starts_with(SV("hi"), SV("hello")));   // longer than the view
+  CHECK(!sv_starts_with(SV("hello"), SV("he!")));
+  CHECK(sv_starts_with(sv_empty(), SV("")));       // empty view + empty prefix
+}
 
-  // Copy: dst_size == 0 is a no-op
-  sv_copy(sv, NULL, 0);
+static void test_ends_with(void) {
+  CHECK(sv_ends_with(SV("hello"), SV("lo")));
+  CHECK(sv_ends_with(SV("hello"), SV("hello"))); // full match
+  CHECK(sv_ends_with(SV("hello"), SV("")));      // empty suffix
+  CHECK(!sv_ends_with(SV("lo"), SV("hello")));   // longer than the view
+  CHECK(!sv_ends_with(SV("hello"), SV("lo!")));
+  CHECK(sv_ends_with(sv_empty(), SV("")));       // empty view + empty suffix
+}
 
-  // Writing to a stream
+static void test_slice(void) {
+  StringView base = SV("abcdef");
+
+  StringView mid = sv_slice(base, 1, 4);
+  CHECK(mid.len == 4 && mid.data == base.data + 1);
+  CHECK(sv_equals(mid, SV("bcde")));
+
+  // A zero-length slice keeps pointing into the source buffer; it never
+  // falls back to a NULL-data empty view.
+  StringView z = sv_slice(base, 3, 0);
+  CHECK(z.len == 0 && z.data == base.data + 3);
+
+  // Slicing at offset len is valid and yields the same zero-length shape.
+  StringView tail = sv_slice(base, base.len, 0);
+  CHECK(tail.len == 0 && tail.data == base.data + base.len);
+
+  // Full-length slice reproduces the original.
+  CHECK(sv_equals(sv_slice(base, 0, base.len), base));
+}
+
+static void test_byte_at(void) {
+  StringView v = SV("abc");
+  CHECK(sv_byte_at(v, 0) == 'a');
+  CHECK(sv_byte_at(v, 2) == 'c');
+}
+
+static void test_write(void) {
   FILE *f = tmpfile();
   CHECK(f != NULL);
-  sv_write(sv, f);
+  if (!f)
+    return;
+
+  sv_write(SV("hello"), f);
   rewind(f);
-  char got[6] = {0};
-  CHECK(fread(got, 1, 5, f) == 5);
-  CHECK(memcmp(got, "hello", 5) == 0);
+  char out[8] = {0};
+  size_t n = fread(out, 1, sizeof(out), f);
+  CHECK(n == 5);
+  CHECK(memcmp(out, "hello", 5) == 0);
   fclose(f);
 
-  if (g_failures == 0)
-  {
-    printf("test_string_view: all ok\n");
-    return 0;
-  }
-  fprintf(stderr, "test_string_view: %d failure(s)\n", g_failures);
-  return 1;
+  // Writing an empty view writes nothing.
+  f = tmpfile();
+  CHECK(f != NULL);
+  if (!f)
+    return;
+  sv_write(sv_empty(), f);
+  rewind(f);
+  n = fread(out, 1, sizeof(out), f);
+  CHECK(n == 0);
+  fclose(f);
 }
+
+static void test_copy(void) {
+  uint8_t dst[6];
+
+  // Fits exactly: content plus terminating NUL.
+  sv_copy(SV("hello"), dst, sizeof(dst));
+  CHECK(memcmp(dst, "hello", 5) == 0 && dst[5] == '\0');
+
+  // Truncates silently to dst_size - 1 content bytes.
+  sv_copy(SV("truncated"), dst, 3);
+  CHECK(dst[0] == 't' && dst[1] == 'r' && dst[2] == '\0');
+
+  // Shorter source NUL-terminates early.
+  uint8_t small[8];
+  sv_copy(SV("ab"), small, sizeof(small));
+  CHECK(small[2] == '\0');
+
+  // Zero-size destination is a no-op.
+  sv_copy(SV("ignored"), NULL, 0);
+}
+
+static const TestEntry ENTRIES[] = {
+    {"create_macro", test_create_macro},
+    {"create_functions", test_create_functions},
+    {"is_empty", test_is_empty},
+    {"equals", test_equals},
+    {"compare", test_compare},
+    {"starts_with", test_starts_with},
+    {"ends_with", test_ends_with},
+    {"slice", test_slice},
+    {"byte_at", test_byte_at},
+    {"write", test_write},
+    {"copy", test_copy},
+};
+
+TEST_MAIN(ENTRIES)

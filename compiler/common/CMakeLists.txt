@@ -1,7 +1,6 @@
 add_library(solid-lang-common STATIC 
   source.c
   string_view.c
-  arena.c
   span.c
   mem.c)
 

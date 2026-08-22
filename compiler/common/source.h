@@ -10,17 +10,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "string_view.h"
 #include "span.h"
+#include "string_view.h"
 
 /**
  * @brief A zero-based line/column position within a Source.
  */
-typedef struct
-{
+typedef struct {
   size_t row; // 0-based line
-  size_t col; // 0-based byte column within the line
-} Position;
+  size_t col; // 0-based BYTE column within the line. This is not a
+              // character or display column: multi-byte UTF-8 sequences
+              // count as multiple columns and tabs are not expanded.
+} SourcePosition;
 
 /**
  * @brief A loaded source text plus a per-line offset index.
@@ -29,8 +30,7 @@ typedef struct
  * `line_offsets` is owned by the Source and freed by source_destroy().
  * A Source is used by reference in this API: always pass it as a pointer.
  */
-typedef struct
-{
+typedef struct {
   StringView string_view;
   size_t line_count;    // number of lines, at least 1
   size_t *line_offsets; // start offset of each line (indexed by 0-based line)
@@ -61,10 +61,12 @@ void source_destroy(Source *source);
 /**
  * @brief Position of byte @p offset as 0-based row/col.
  * @param source The Source to query.
- * @param offset Byte offset. Asserts: offset <= source->string_view.len.
+ * @param offset Byte offset. May equal the text length (one past the last
+ *               byte); such a position lies on the final line.
+ *               Asserts: offset <= source->string_view.len.
  * @return The position.
  */
-Position source_get_position(const Source *source, size_t offset);
+SourcePosition source_get_position(const Source *source, size_t offset);
 
 /**
  * @brief Start offset of line @p line (0-based).

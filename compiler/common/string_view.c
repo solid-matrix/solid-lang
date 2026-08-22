@@ -10,89 +10,84 @@
 
 #include "string_view.h"
 
-StringView sv_create(const uint8_t *str, size_t len)
-{
+StringView sv_create(const uint8_t *str, size_t len) {
   assert(str != NULL || len == 0);
   StringView sv = {str, len};
   return sv;
 }
 
-StringView sv_empty(void)
-{
+StringView sv_empty(void) {
   StringView sv = {NULL, 0};
   return sv;
 }
 
-StringView sv_from_cstr(const char *str)
-{
+StringView sv_from_cstr(const char *str) {
   assert(str != NULL);
-  return sv_create(str, strlen(str));
+  return sv_create((const uint8_t *)str, strlen(str));
 }
 
 bool sv_is_empty(StringView sv) { return sv.len == 0; }
 
-bool sv_equals(StringView a, StringView b)
-{
+bool sv_equals(StringView a, StringView b) {
   return a.len == b.len && (a.len == 0 || memcmp(a.data, b.data, a.len) == 0);
 }
 
-int sv_compare(StringView a, StringView b)
-{
+int sv_compare(StringView a, StringView b) {
   size_t min_len = a.len < b.len ? a.len : b.len;
-  if (min_len > 0)
-  {
+  if (min_len > 0) {
     int cmp = memcmp(a.data, b.data, min_len);
-    if (cmp != 0)
-    {
+    if (cmp != 0) {
       return cmp;
     }
   }
-  if (a.len > b.len)
-  {
+  if (a.len > b.len) {
     return 1;
   }
-  if (a.len < b.len)
-  {
+  if (a.len < b.len) {
     return -1;
   }
   return 0;
 }
 
-StringView sv_slice(StringView sv, size_t start, size_t len)
-{
+bool sv_starts_with(StringView sv, StringView prefix) {
+  if (prefix.len > sv.len) {
+    return false;
+  }
+  return prefix.len == 0 || memcmp(sv.data, prefix.data, prefix.len) == 0;
+}
+
+bool sv_ends_with(StringView sv, StringView suffix) {
+  if (suffix.len > sv.len) {
+    return false;
+  }
+  return suffix.len == 0 ||
+         memcmp(sv.data + sv.len - suffix.len, suffix.data, suffix.len) == 0;
+}
+
+StringView sv_slice(StringView sv, size_t start, size_t len) {
   assert(start <= sv.len);
   assert(len <= sv.len - start);
-  if (len == 0)
-  {
-    return sv_empty();
-  }
   return sv_create(sv.data + start, len);
 }
 
-uint8_t sv_byte_at(StringView sv, size_t pos)
-{
+uint8_t sv_byte_at(StringView sv, size_t pos) {
   assert(pos < sv.len);
   return sv.data[pos];
 }
 
-void sv_write(StringView sv, FILE *stream)
-{
-  if (sv.len > 0)
-  {
+void sv_write(StringView sv, FILE *stream) {
+  if (sv.len > 0) {
     fwrite(sv.data, 1, sv.len, stream);
   }
 }
 
-void sv_copy(StringView sv, uint8_t *dst, size_t dst_size)
-{
+void sv_copy(StringView sv, uint8_t *dst, size_t dst_size) {
   assert(dst != NULL || dst_size == 0);
-  if (dst_size == 0)
-  {
+  if (dst_size == 0) {
     return;
   }
   size_t n = sv.len < dst_size - 1 ? sv.len : dst_size - 1;
-  if (n > 0)
-  {
+  if (n > 0) {
     memcpy(dst, sv.data, n);
   }
   dst[n] = '\0';

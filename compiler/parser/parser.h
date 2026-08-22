@@ -14,14 +14,12 @@
 #include "syntax_error.h"
 
 typedef struct SyntaxErrorLinkedList SyntaxErrorLinkedList;
-struct SyntaxErrorLinkedList
-{
+struct SyntaxErrorLinkedList {
   SyntaxError error;
   SyntaxErrorLinkedList *next;
 };
 
-typedef struct
-{
+typedef struct {
   Source *source;
   SyntaxErrorLinkedList *errors;
 } Parser;
@@ -65,8 +63,7 @@ void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
  *   After matched == true a caller must not try alternatives: the enclosing
  *   construct was already recognized.
  */
-typedef struct
-{
+typedef struct {
   bool matched;
   Span rem;
   SyntaxNode *node;

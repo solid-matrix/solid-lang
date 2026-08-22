@@ -9,23 +9,24 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /**
  * @brief Builds a StringView from a string literal at compile time.
- * @note The argument MUST be a string literal (sizeof is applied to it).
+ * @note The argument MUST be a string literal: `sizeof` derives the length,
+ *       and the concatenation with "" makes any non-literal argument fail
+ *       to compile.
  * Usage: StringView v = SV("hello"); or in a static table.
  */
-#define SV(s) ((StringView){.data = s, .len = sizeof(s) - 1})
+#define SV(s) ((StringView){.data = (const uint8_t *)("" s), .len = sizeof(s) - 1})
 
 /**
  * @brief A non-owning, length-bounded view over a character buffer.
  *
  * Never allocates, never NUL-terminates, and does not copy the data.
  */
-typedef struct
-{
+typedef struct {
   const uint8_t *data;
   size_t len;
 } StringView;
@@ -77,11 +78,28 @@ bool sv_equals(StringView a, StringView b);
 int sv_compare(StringView a, StringView b);
 
 /**
+ * @brief True when @p sv begins with @p prefix.
+ * @param sv The view to test.
+ * @param prefix The expected leading bytes.
+ * @return True if sv.len >= prefix.len and the leading bytes are equal.
+ */
+bool sv_starts_with(StringView sv, StringView prefix);
+
+/**
+ * @brief True when @p sv ends with @p suffix.
+ * @param sv The view to test.
+ * @param suffix The expected trailing bytes.
+ * @return True if sv.len >= suffix.len and the trailing bytes are equal.
+ */
+bool sv_ends_with(StringView sv, StringView suffix);
+
+/**
  * @brief Returns the sub-view [start, start + len).
  * @param sv The view to slice.
  * @param start Relative start offset.
  * @param len Number of bytes.
- * @return The sub-view.
+ * @return The sub-view; a zero-length result still points into the same
+ *         buffer (at data + start), never at NULL.
  * @note Asserts: start <= sv.len and len <= sv.len - start.
  */
 StringView sv_slice(StringView sv, size_t start, size_t len);

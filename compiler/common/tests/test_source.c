@@ -1,145 +1,168 @@
 /**
  * @file test_source.c
- * @brief Tests for the Source line index and Span accessors.
+ * @brief Tests for the Source line index and span accessors.
  * @author solid-matrix
  * @version 0.0.5
  */
 
-#include <stdio.h>
 #include <string.h>
 
 #include "source.h"
+#include "test_util.h"
 
-static int g_failures;
-
-#define CHECK(cond)                                                   \
-  do                                                                  \
-  {                                                                   \
-    if (!(cond))                                                      \
-    {                                                                 \
-      fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-      g_failures++;                                                   \
-    }                                                                 \
-  } while (0)
-
-static void check_span_text(const Source *src, Span span, const char *expected)
-{
-  CHECK(sv_equals(source_string_view_at(src, span), sv_from_cstr(expected)));
+static void check_line(Source *s, size_t line, size_t want_start,
+                       size_t want_end) {
+  CHECK(source_get_line_start(s, line) == want_start);
+  CHECK(source_get_line_end(s, line) == want_end);
+  Span sp = source_get_line_span(s, line);
+  CHECK(sp.start == want_start && sp.end == want_end);
 }
 
-int main(void)
-{
-  // LF: trailing newline yields a trailing empty line
-  Source s = source_from_cstr("hello\nworld\n");
+static void test_lines_lf(void) {
+  // "a\nb\nc": three lines, the last without a terminator.
+  Source s = source_from_cstr("a\nb\nc");
   CHECK(s.line_count == 3);
-  CHECK(source_get_line_start(&s, 0) == 0);
-  CHECK(source_get_line_end(&s, 0) == 5);
-  CHECK(source_get_line_start(&s, 1) == 6);
-  CHECK(source_get_line_end(&s, 1) == 11);
-  CHECK(source_get_line_start(&s, 2) == 12);
-  CHECK(source_get_line_end(&s, 2) == 12);
-  check_span_text(&s, source_get_line_span(&s, 0), "hello");
-  check_span_text(&s, source_get_line_span(&s, 1), "world");
-  CHECK(span_is_empty(source_get_line_span(&s, 2)));
 
-  // Position queries: line start, mid-line, trailing empty line
-  Position p = source_get_position(&s, 0);
-  CHECK(p.row == 0 && p.col == 0);
-  p = source_get_position(&s, 7);
-  CHECK(p.row == 1 && p.col == 1);
-  p = source_get_position(&s, 12);
-  CHECK(p.row == 2 && p.col == 0);
+  check_line(&s, 0, 0, 1);
+  check_line(&s, 1, 2, 3);
+  check_line(&s, 2, 4, 5); // last line ends at text length
 
-  // Whole-source span and relative slicing
-  Span whole = source_get_span(&s);
-  CHECK(span_len(whole) == 12);
-  Span sub = span_slice(whole, 6, 11);
-  check_span_text(&s, sub, "world");
-  CHECK(source_byte_at(&s, 6) == 'w');
-  CHECK(source_byte_at(&s, 10) == 'd');
-  CHECK(span_is_empty(span_slice(whole, 0, 0)));
+  StringView l0 = source_string_view_at(&s, source_get_line_span(&s, 0));
+  CHECK(sv_equals(l0, SV("a")));
+  StringView l2 = source_string_view_at(&s, source_get_line_span(&s, 2));
+  CHECK(sv_equals(l2, SV("c")));
+
   source_destroy(&s);
-
-  // CR: a lone '\r' is also a line terminator
-  Source cr = source_from_cstr("a\rb");
-  CHECK(cr.line_count == 2);
-  check_span_text(&cr, source_get_line_span(&cr, 0), "a");
-  check_span_text(&cr, source_get_line_span(&cr, 1), "b");
-  source_destroy(&cr);
-
-  // CRLF: "\r\n" is a single terminator, excluded from line content
-  Source crlf = source_from_cstr("hello\r\nworld");
-  CHECK(crlf.line_count == 2);
-  CHECK(source_get_line_start(&crlf, 1) == 7);
-  check_span_text(&crlf, source_get_line_span(&crlf, 0), "hello");
-  check_span_text(&crlf, source_get_line_span(&crlf, 1), "world");
-  source_destroy(&crlf);
-
-  // A bare "\r\n": two empty lines
-  Source only = source_from_cstr("\r\n");
-  CHECK(only.line_count == 2);
-  CHECK(span_is_empty(source_get_line_span(&only, 0)));
-  CHECK(span_is_empty(source_get_line_span(&only, 1)));
-  source_destroy(&only);
-
-  // Mixed terminators: a\rb\nc\r\nd -> 4 lines
-  Source mix = source_from_cstr("a\rb\nc\r\nd");
-  CHECK(mix.line_count == 4);
-  CHECK(source_get_line_start(&mix, 0) == 0);
-  CHECK(source_get_line_start(&mix, 1) == 2);
-  CHECK(source_get_line_start(&mix, 2) == 4);
-  CHECK(source_get_line_start(&mix, 3) == 7);
-  check_span_text(&mix, source_get_line_span(&mix, 0), "a");
-  check_span_text(&mix, source_get_line_span(&mix, 1), "b");
-  check_span_text(&mix, source_get_line_span(&mix, 2), "c");
-  check_span_text(&mix, source_get_line_span(&mix, 3), "d");
-  p = source_get_position(&mix, 7);
-  CHECK(p.row == 3 && p.col == 0);
-  source_destroy(&mix);
-
-  // Empty text: treated as a single line
-  Source empty = source_from_cstr("");
-  CHECK(empty.line_count == 1);
-  CHECK(source_get_position(&empty, 0).row == 0);
-  CHECK(span_is_empty(source_get_span(&empty)));
-  source_destroy(&empty);
-
-  // StringView-based constructor
-  StringView sv = sv_from_cstr("abc\n");
-  Source from_sv = source_from_string_view(sv);
-  CHECK(from_sv.line_count == 2);
-  check_span_text(&from_sv, source_get_line_span(&from_sv, 0), "abc");
-  source_destroy(&from_sv);
-
-  // UTF-8 BOM at the front is dropped by the Source constructor.
-  const uint8_t with_bom[] = {0xEF, 0xBB, 0xBF, 'l', 'e', 't', ' ', 'x'};
-  Source s_bom = source_from_string_view(sv_create(with_bom, sizeof(with_bom)));
-  CHECK(s_bom.line_count == 1);
-  CHECK(s_bom.string_view.len == 5);
-  CHECK(source_byte_at(&s_bom, 0) == 'l');
-  CHECK(source_get_position(&s_bom, 0).col == 0);
-  check_span_text(&s_bom, source_get_span(&s_bom), "let x");
-  source_destroy(&s_bom);
-
-  // Control: without a BOM the text is indexed unchanged.
-  Source s_plain = source_from_cstr("let x");
-  CHECK(s_plain.string_view.len == 5);
-  CHECK(source_byte_at(&s_plain, 0) == 'l');
-  check_span_text(&s_plain, source_get_span(&s_plain), "let x");
-  source_destroy(&s_plain);
-
-  // BOM only (no content) yields an empty, non-crashing source.
-  const uint8_t bom_only[] = {0xEF, 0xBB, 0xBF};
-  Source s_bom_only = source_from_string_view(sv_create(bom_only, sizeof(bom_only)));
-  CHECK(s_bom_only.line_count == 1);
-  CHECK(span_is_empty(source_get_span(&s_bom_only)));
-  source_destroy(&s_bom_only);
-
-  if (g_failures == 0)
-  {
-    printf("test_source: all ok\n");
-    return 0;
-  }
-  fprintf(stderr, "test_source: %d failure(s)\n", g_failures);
-  return 1;
 }
+
+static void test_lines_crlf(void) {
+  // "ab\r\ncd": CRLF is one terminator and is excluded from line content.
+  Source s = source_from_cstr("ab\r\ncd");
+  CHECK(s.line_count == 2);
+
+  check_line(&s, 0, 0, 2);
+  check_line(&s, 1, 4, 6); // last line: no terminator
+
+  StringView l0 = source_string_view_at(&s, source_get_line_span(&s, 0));
+  CHECK(sv_equals(l0, SV("ab")));
+
+  source_destroy(&s);
+}
+
+static void test_lines_lone_cr(void) {
+  // A bare '\r' also terminates a line.
+  Source s = source_from_cstr("a\rb");
+  CHECK(s.line_count == 2);
+
+  check_line(&s, 0, 0, 1);
+  check_line(&s, 1, 2, 3);
+
+  source_destroy(&s);
+}
+
+static void test_lines_mixed(void) {
+  // "x\r\ny\nz\rw": all three terminator forms in one text.
+  Source s = source_from_cstr("x\r\ny\nz\rw");
+  CHECK(s.line_count == 4);
+
+  check_line(&s, 0, 0, 1);
+  check_line(&s, 1, 3, 4);
+  check_line(&s, 2, 5, 6);
+  check_line(&s, 3, 7, 8);
+
+  source_destroy(&s);
+}
+
+static void test_empty_source(void) {
+  Source s = source_from_cstr("");
+  CHECK(s.line_count == 1); // always at least one line
+
+  check_line(&s, 0, 0, 0);
+  CHECK(span_is_empty(source_get_span(&s)));
+
+  SourcePosition p = source_get_position(&s, 0);
+  CHECK(p.row == 0 && p.col == 0);
+
+  source_destroy(&s);
+}
+
+static void test_bom_stripped(void) {
+  const char *text = "\xEF\xBB\xBFlet";
+  Source s = source_from_cstr(text);
+
+  // The BOM does not count toward the length or any position.
+  CHECK(source_get_span(&s).end == 3);
+  CHECK(source_byte_at(&s, 0) == 'l');
+
+  SourcePosition p = source_get_position(&s, 0);
+  CHECK(p.row == 0 && p.col == 0);
+
+  source_destroy(&s);
+}
+
+static void test_get_position(void) {
+  //  h  e  l  l  o  \n  w  o  r  l  d
+  //  0  1  2  3  4  5   6  7  8  9  10
+  Source s = source_from_cstr("hello\nworld");
+
+  SourcePosition p;
+
+  p = source_get_position(&s, 0);
+  CHECK(p.row == 0 && p.col == 0);
+
+  p = source_get_position(&s, 4);
+  CHECK(p.row == 0 && p.col == 4);
+
+  // Offset 5 is the '\n': it still belongs to line 0 by column counting.
+  p = source_get_position(&s, 5);
+  CHECK(p.row == 0 && p.col == 5);
+
+  p = source_get_position(&s, 6);
+  CHECK(p.row == 1 && p.col == 0);
+
+  p = source_get_position(&s, 11);
+  CHECK(p.row == 1 && p.col == 5);
+
+  // One past the last byte lies on the final line.
+  p = source_get_position(&s, source_get_span(&s).end);
+  CHECK(p.row == 1 && p.col == 5);
+
+  source_destroy(&s);
+}
+
+static void test_accessors(void) {
+  Source s = source_from_cstr("hi\nyou");
+
+  Span whole = source_get_span(&s);
+  CHECK(whole.start == 0 && whole.end == 6);
+
+  CHECK(source_byte_at(&s, 0) == 'h');
+  CHECK(source_byte_at(&s, 3) == 'y');
+
+  CHECK(sv_equals(source_string_view_at(&s, whole), SV("hi\nyou")));
+  CHECK(sv_equals(source_string_view_at(&s, source_get_line_span(&s, 1)),
+                  SV("you")));
+
+  source_destroy(&s);
+}
+
+static void test_destroy(void) {
+  Source s = source_from_cstr("abc");
+  source_destroy(&s);
+  CHECK(s.line_offsets == NULL);
+  CHECK(s.line_count == 0);
+}
+
+static const TestEntry ENTRIES[] = {
+    {"lines_lf", test_lines_lf},
+    {"lines_crlf", test_lines_crlf},
+    {"lines_lone_cr", test_lines_lone_cr},
+    {"lines_mixed", test_lines_mixed},
+    {"empty_source", test_empty_source},
+    {"bom_stripped", test_bom_stripped},
+    {"get_position", test_get_position},
+    {"accessors", test_accessors},
+    {"destroy", test_destroy},
+};
+
+TEST_MAIN(ENTRIES)

@@ -11,14 +11,12 @@
 
 #include "source.h"
 
-typedef enum
-{
+typedef enum {
   SYNTAX_OK = 0x0000,
   SYNTAX_EXPECTED_EOF = 0x0001,
 } SyntaxErrorCode;
 
-typedef struct
-{
+typedef struct {
   SyntaxErrorCode code;
   Span span;
 } SyntaxError;

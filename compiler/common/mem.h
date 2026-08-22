@@ -8,8 +8,7 @@
  * out of memory as a fatal, unrecoverable error: each x* function aborts
  * the program instead of returning NULL. Routing every allocation in the
  * compiler through these functions removes the need for a NULL check at
- * each call site; this is the project-wide "OOM is fatal" convention
- * (see also common/arena.h).
+ * each call site; this is the project-wide "OOM is fatal" convention.
  */
 
 #pragma once
