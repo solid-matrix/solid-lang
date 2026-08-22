@@ -6,6 +6,7 @@
  */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "mem.h"
@@ -13,24 +14,41 @@
 
 #pragma region PARSER
 
-Parser parser_create(Source *source) {
-  return (Parser){.source = source, .errors = NULL};
+Parser parser_create(const Source *source) {
+  return (Parser){.source = source};
 }
 
-void parser_destroy(Parser *parser) {
-  SyntaxErrorLinkedList *en = parser->errors;
+void parser_result_push_error(ParserResult *result, Span span,
+                              SyntaxErrorCode code) {
+  SyntaxErrorLinkedList *en = xmalloc(sizeof(SyntaxErrorLinkedList));
+  en->error = (SyntaxError){.code = code, .span = span};
+  en->next = result->errors;
+  result->errors = en;
+}
+
+void parser_result_merge_errors(ParserResult *dst, ParserResult *src) {
+  if (src->errors == NULL)
+    return;
+
+  if (dst->errors == NULL) {
+    dst->errors = src->errors;
+  } else {
+    SyntaxErrorLinkedList *tail = dst->errors;
+    while (tail->next != NULL)
+      tail = tail->next;
+    tail->next = src->errors;
+  }
+  src->errors = NULL;
+}
+
+void parser_result_free_errors(ParserResult *result) {
+  SyntaxErrorLinkedList *en = result->errors;
   while (en != NULL) {
     SyntaxErrorLinkedList *next = en->next;
     xfree(en);
     en = next;
   }
-}
-
-void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code) {
-  SyntaxErrorLinkedList *en = xmalloc(sizeof(SyntaxErrorLinkedList));
-  en->error = (SyntaxError){.code = code, .span = span};
-  en->next = parser->errors;
-  parser->errors = en;
+  result->errors = NULL;
 }
 
 #pragma endregion
@@ -62,14 +80,14 @@ static inline bool is_base_digit(uint8_t c, int base) {
     return is_binary_digit(c);
   case 8:
     return is_octal_digit(c);
-  default:
-    return is_decimal_digit(c);
   case 16:
     return is_hex_digit(c);
+  default:
+    return is_decimal_digit(c);
   }
 }
 
-static inline bool is_space(uint8_t c) {
+static inline bool is_whitespace(uint8_t c) {
   return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == '\r' ||
          c == '\n';
 }
@@ -80,7 +98,7 @@ static Span skip_trivia(const Source *source, Span span) {
   while (i < span.end) {
     uint8_t c = source_byte_at(source, i);
 
-    if (is_space(c)) {
+    if (is_whitespace(c)) {
       i += 1;
       continue;
     }
@@ -242,54 +260,50 @@ static size_t try_exponent(const Parser *parser, Span span, size_t pos) {
   return 0;
 }
 
-/* A1: "." decimal_digits float_exponent [ float_lit_suffix ] . The dot
-   binds to a required digit run, so "1.e5" never takes this path. */
-static size_t try_float_dot_exp(const Parser *parser, Span span, size_t pos) {
-  if (pos >= span.end || source_byte_at(parser->source, pos) != '.')
-    return 0;
+/* decimal_lit = "0" | ( "1" �?"9" ) [ "_" ] decimal_digits . Returns
+   the position just past the body; @p start must sit on a decimal
+   digit. */
+static size_t scan_decimal_lit(const Parser *parser, Span span, size_t start) {
+  if (source_byte_at(parser->source, start) == '0')
+    return start + 1;
 
   size_t end;
-  if (scan_digits(parser, span, pos + 1, 10, &end) == 0)
-    return 0;
-
-  size_t exp = try_exponent(parser, span, end);
-  if (exp == 0)
-    return 0;
-
-  size_t suf = try_float_suffix(parser, span, exp);
-  return suf ? suf : exp;
+  scan_digits(parser, span, start + 1, 10, &end);
+  return end;
 }
 
-/* A2: "." [ decimal_digits ] [ float_lit_suffix ] . Covers "1." and
-   "1.5_f32"; no exponent is reachable on this branch. */
-static size_t try_float_dot(const Parser *parser, Span span, size_t pos) {
-  if (pos >= span.end || source_byte_at(parser->source, pos) != '.')
-    return 0;
-
-  size_t end;
-  scan_digits(parser, span, pos + 1, 10, &end);
-
-  size_t suf = try_float_suffix(parser, span, end);
-  return suf ? suf : end;
+/* Builds the node for a scanned literal covering
+   [span.start, number_end). */
+static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
+                                        size_t number_end, SyntaxKind kind) {
+  SyntaxNumberLitExpr *lit = xmalloc(sizeof(SyntaxNumberLitExpr));
+  Span lit_span = {.start = span.start, .end = number_end};
+  *lit = (SyntaxNumberLitExpr){
+      .header = {.kind = kind, .span = lit_span},
+      .value = source_string_view_at(parser->source, lit_span),
+  };
+  return (SyntaxNode *)lit;
 }
 
-/* A3: [ "_" ] float_lit_suffix . Covers "1f32" and "1_f32". */
-static size_t try_float_suffix_only(const Parser *parser, Span span,
-                                    size_t pos) {
-  if (pos < span.end && source_byte_at(parser->source, pos) == '_')
-    return match_float_suffix_at(parser, span, pos + 1);
-  return match_float_suffix_at(parser, span, pos);
+/* The canonical failed attempt: nothing consumed, nothing recorded. */
+static ParserResult nomatch(Span span) {
+  return (ParserResult){.matched = false, .node = NULL, .rem = span};
 }
 
-/* A4: float_exponent [ float_lit_suffix ] . Covers "1e5" and
-   "1e5_f32". */
-static size_t try_float_exp(const Parser *parser, Span span, size_t pos) {
-  size_t exp = try_exponent(parser, span, pos);
-  if (exp == 0)
-    return 0;
+/* Winner-takes-errors longest-match selection between two attempts
+   from the same span origin. Leaves never strip trivia, so rem.start -
+   span.start is exactly the consumed length and the comparison is a
+   pure length test. The winner's diagnostics are adopted; the loser's
+   branch �?and its diagnostics with it �?is released, so a discarded
+   alternative can never leak into the result. */
+static void select_longest(ParserResult *best, ParserResult *cand) {
+  if (cand->rem.start > best->rem.start) {
+    parser_result_free_errors(best);
+    *best = *cand;
+    return;
+  }
 
-  size_t suf = try_float_suffix(parser, span, exp);
-  return suf ? suf : exp;
+  parser_result_free_errors(cand);
 }
 
 /* Consumes the maximal identifier/number-looking run from span.start;
@@ -309,19 +323,9 @@ static Span scan_malformed_number_run(const Source *source, Span span) {
 
 #pragma region PARSE
 
-SyntaxProgram *parse(Parser *parser) {
-  Span span = source_get_span(parser->source);
+ParserResult parse_program(const Parser *parser, Span span) {
   span = skip_trivia(parser->source, span);
 
-  ParserResult res = parse_program(parser, span);
-
-  assert(res.matched);
-  assert(res.node->kind == SYNTAX_KIND_PROGRAM);
-
-  return (SyntaxProgram *)res.node;
-}
-
-ParserResult parse_program(Parser *parser, Span span) {
   SyntaxProgram *program = xmalloc(sizeof(SyntaxProgram));
 
   *program = (SyntaxProgram){
@@ -333,18 +337,25 @@ ParserResult parse_program(Parser *parser, Span span) {
       .top_levels = syntax_node_list_create(),
   };
 
-  Span rem = span;
-  ParserResult res;
-  bool with_errors = false;
+  ParserResult result = {
+      .matched = true,
+      .errors = NULL,
+      .node = (SyntaxNode *)program,
+      .rem = span,
+  };
 
   while (true) {
-    res = parse_decl(parser, rem);
-    rem = res.rem;
+    // Layout between top-level declarations is this loop's duty; the
+    // last skip also positions the SYNTAX_EXPECTED_EOF check below.
+    result.rem = skip_trivia(parser->source, result.rem);
+
+    ParserResult res = parse_decl(parser, result.rem);
+    result.rem = res.rem;
 
     if (!res.matched)
       break;
 
-    with_errors |= res.with_errors;
+    parser_result_merge_errors(&result, &res);
 
     if (res.node == NULL)
       continue;
@@ -354,37 +365,26 @@ ParserResult parse_program(Parser *parser, Span span) {
   }
 
   if (program->top_levels.len == 0) {
-    program->header.span.end = rem.start;
+    program->header.span.end = result.rem.start;
   } else {
     program->header.span.end =
         program->top_levels.nodes[program->top_levels.len - 1]->span.end;
   }
 
-  rem = skip_trivia(parser->source, rem);
+  if (span_len(result.rem) > 0)
+    parser_result_push_error(&result, result.rem, SYNTAX_EXPECTED_EOF);
 
-  if (span_len(rem) > 0) {
-    parser_append_error(parser, rem, SYNTAX_EXPECTED_EOF);
-    with_errors = true;
-  }
-
-  return (ParserResult){
-      .matched = true,
-      .with_errors = with_errors,
-      .node = (SyntaxNode *)program,
-      .rem = rem,
-  };
+  return result;
 }
 
-ParserResult parse_identifier(Parser *parser, Span span) {
+ParserResult parse_identifier(const Parser *parser, Span span) {
   if (span_is_empty(span))
-    return (ParserResult){
-        .matched = false, .with_errors = false, .node = NULL, .rem = span};
+    return nomatch(span);
 
   uint8_t c = source_byte_at(parser->source, span.start);
 
   if (!is_letter_or_underscore(c))
-    return (ParserResult){
-        .matched = false, .with_errors = false, .node = NULL, .rem = span};
+    return nomatch(span);
 
   size_t i = span.start + 1;
 
@@ -403,142 +403,275 @@ ParserResult parse_identifier(Parser *parser, Span span) {
       .string_view = source_string_view_at(parser->source, consumed),
   };
 
-  Span rem = skip_trivia(parser->source, (Span){.start = i, .end = span.end});
-
+  // Trailing trivia stays for the enclosing sequence to skip.
   return (ParserResult){
       .matched = true,
       .node = (SyntaxNode *)id,
-      .rem = rem,
+      .rem = (Span){.start = i, .end = span.end},
   };
 }
 
-ParserResult parse_number_lit_expr(Parser *parser, Span span) {
+/**
+ * @brief Shared body of binary_lit, octal_lit, and hex_lit:
+ *
+ *   "0" ( lo | hi ) [ "_" ] { base digits } [ [ "_" ] int_lit_suffix ]
+ *
+ * A prefix whose optional separator is not followed by a base digit is
+ * malformed: SYNTAX_MALFORMED_NUMBER is reported over the whole
+ * token-looking run, which is consumed so the caller's longest-match
+ * selection prefers this error path over the bare decimal reading.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @param lo Lowercase radix marker ("b", "o", or "x").
+ * @param hi Uppercase radix marker.
+ * @param base Digit base: 2, 8, or 16.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
+                                                uint8_t lo, uint8_t hi,
+                                                int base) {
+  if (span_len(span) < 2 || source_byte_at(parser->source, span.start) != '0')
+    return nomatch(span);
+
+  uint8_t marker = source_byte_at(parser->source, span.start + 1);
+  if (marker != lo && marker != hi)
+    return nomatch(span);
+
+  size_t i = span.start + 2;
+  // One optional separator is allowed before the first digit.
+  if (i < span.end && source_byte_at(parser->source, i) == '_')
+    i++;
+
+  if (i >= span.end ||
+      !is_base_digit(source_byte_at(parser->source, i), base)) {
+    Span bad = scan_malformed_number_run(parser->source, span);
+    ParserResult res = {.matched = true,
+                        .node = NULL,
+                        .rem = (Span){.start = bad.end, .end = span.end}};
+    parser_result_push_error(&res, bad, SYNTAX_MALFORMED_NUMBER);
+    return res;
+  }
+
+  size_t body_end;
+  scan_digits(parser, span, i, base, &body_end);
+
+  size_t suf = try_int_suffix(parser, span, body_end);
+  size_t number_end = suf ? suf : body_end;
+
+  return (ParserResult){.matched = true,
+                        .node = make_number_lit_node(parser, span, number_end,
+                                                     SYNTAX_KIND_INT_LIT_EXPR),
+                        .rem = (Span){.start = number_end, .end = span.end}};
+}
+
+/* binary_lit / octal_lit / hex_lit bind the shared scanner to one
+   radix each. */
+
+static ParserResult parse_binary_int_lit_expr(const Parser *parser, Span span) {
+  return parse_base_prefixed_int_lit(parser, span, 'b', 'B', 2);
+}
+
+static ParserResult parse_octal_int_lit_expr(const Parser *parser, Span span) {
+  return parse_base_prefixed_int_lit(parser, span, 'o', 'O', 8);
+}
+
+static ParserResult parse_hex_int_lit_expr(const Parser *parser, Span span) {
+  return parse_base_prefixed_int_lit(parser, span, 'x', 'X', 16);
+}
+
+/**
+ * @brief decimal_lit plus an optional int_lit_suffix:
+ *
+ *   decimal_lit = "0" | ( "1" �?"9" ) [ "_" ] decimal_digits .
+ */
+static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
+                                               Span span) {
+  if (span_is_empty(span) ||
+      !is_decimal_digit(source_byte_at(parser->source, span.start)))
+    return nomatch(span);
+
+  size_t body_end = scan_decimal_lit(parser, span, span.start);
+
+  size_t suf = try_int_suffix(parser, span, body_end);
+  size_t number_end = suf ? suf : body_end;
+
+  return (ParserResult){.matched = true,
+                        .node = make_number_lit_node(parser, span, number_end,
+                                                     SYNTAX_KIND_INT_LIT_EXPR),
+                        .rem = (Span){.start = number_end, .end = span.end}};
+}
+
+/**
+ * @brief float_lit first alternative:
+ *
+ *   decimal_lit [ "." decimal_digits ] float_exponent
+ *   [ [ "_" ] float_lit_suffix ]
+ *
+ * The bracketed dot group is all-or-nothing: without digits the dot is
+ * not consumed and the exponent must sit directly at the body end, so
+ * "1.e5" fails here and splits via the dot branch instead.
+ */
+static ParserResult parse_exponent_float_lit_expr(const Parser *parser,
+                                                  Span span) {
+  if (span_is_empty(span) ||
+      !is_decimal_digit(source_byte_at(parser->source, span.start)))
+    return nomatch(span);
+
+  size_t pos = scan_decimal_lit(parser, span, span.start);
+
+  if (pos < span.end && source_byte_at(parser->source, pos) == '.') {
+    size_t after;
+    if (scan_digits(parser, span, pos + 1, 10, &after) > 0)
+      pos = after;
+  }
+
+  size_t exp = try_exponent(parser, span, pos);
+  if (exp == 0)
+    return nomatch(span);
+
+  size_t suf = try_float_suffix(parser, span, exp);
+  size_t number_end = suf ? suf : exp;
+
+  return (ParserResult){.matched = true,
+                        .node =
+                            make_number_lit_node(parser, span, number_end,
+                                                 SYNTAX_KIND_FLOAT_LIT_EXPR),
+                        .rem = (Span){.start = number_end, .end = span.end}};
+}
+
+/**
+ * @brief float_lit second alternative:
+ *
+ *   decimal_lit "." [ decimal_digits ] [ [ "_" ] float_lit_suffix ]
+ *
+ * No exponent is reachable on this branch, so "1.5e5" belongs to the
+ * exponent branch while "1." alone is already a complete literal.
+ */
+static ParserResult parse_dot_float_lit_expr(const Parser *parser, Span span) {
+  if (span_is_empty(span) ||
+      !is_decimal_digit(source_byte_at(parser->source, span.start)))
+    return nomatch(span);
+
+  size_t pos = scan_decimal_lit(parser, span, span.start);
+
+  if (pos >= span.end || source_byte_at(parser->source, pos) != '.')
+    return nomatch(span);
+
+  size_t after;
+  scan_digits(parser, span, pos + 1, 10, &after);
+
+  size_t suf = try_float_suffix(parser, span, after);
+  size_t number_end = suf ? suf : after;
+
+  return (ParserResult){.matched = true,
+                        .node =
+                            make_number_lit_node(parser, span, number_end,
+                                                 SYNTAX_KIND_FLOAT_LIT_EXPR),
+                        .rem = (Span){.start = number_end, .end = span.end}};
+}
+
+/**
+ * @brief float_lit third alternative:
+ *
+ *   decimal_lit [ "_" ] float_lit_suffix .
+ */
+static ParserResult parse_suffix_float_lit_expr(const Parser *parser,
+                                                Span span) {
+  if (span_is_empty(span) ||
+      !is_decimal_digit(source_byte_at(parser->source, span.start)))
+    return nomatch(span);
+
+  size_t body_end = scan_decimal_lit(parser, span, span.start);
+
+  size_t suf = try_float_suffix(parser, span, body_end);
+  if (suf == 0)
+    return nomatch(span);
+
+  return (ParserResult){.matched = true,
+                        .node = make_number_lit_node(
+                            parser, span, suf, SYNTAX_KIND_FLOAT_LIT_EXPR),
+                        .rem = (Span){.start = suf, .end = span.end}};
+}
+
+/* int_lit realized as longest-match across the four radix leaves. The
+   leaves are mutually exclusive by their second character, so exactly
+   one competes with the short decimal reading of a prefixed form and
+   always wins it; winner-takes-errors keeps that outcome authoritative
+   without relying on the proof. */
+static ParserResult parse_int_lit_expr(const Parser *parser, Span span) {
+  ParserResult best = parse_decimal_int_lit_expr(parser, span);
+
+  ParserResult r = parse_binary_int_lit_expr(parser, span);
+  select_longest(&best, &r);
+
+  r = parse_octal_int_lit_expr(parser, span);
+  select_longest(&best, &r);
+
+  r = parse_hex_int_lit_expr(parser, span);
+  select_longest(&best, &r);
+
+  return best;
+}
+
+/* The three float alternatives may genuinely overlap ("1.5e5" matches
+   both a dot prefix and the full exponent branch), so the winner is
+   decided purely by consumption length. */
+static ParserResult parse_float_lit_expr(const Parser *parser, Span span) {
+  ParserResult best = parse_exponent_float_lit_expr(parser, span);
+
+  ParserResult r = parse_dot_float_lit_expr(parser, span);
+  select_longest(&best, &r);
+
+  r = parse_suffix_float_lit_expr(parser, span);
+  select_longest(&best, &r);
+
+  return best;
+}
+
+ParserResult parse_number_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
-    return (ParserResult){
-        .matched = false, .with_errors = false, .node = NULL, .rem = span};
+    return nomatch(span);
 
   uint8_t first = source_byte_at(parser->source, span.start);
   if (!is_decimal_digit(first))
-    return (ParserResult){
-        .matched = false, .with_errors = false, .node = NULL, .rem = span};
+    return nomatch(span);
 
-  // ---- numeric body ----
-  size_t body_end = span.start;
-  int base = 10;
-  bool malformed = false;
+  ParserResult flt = parse_float_lit_expr(parser, span);
+  ParserResult integ = parse_int_lit_expr(parser, span);
 
-  if (first == '0' && span.start + 1 < span.end) {
-    uint8_t marker = source_byte_at(parser->source, span.start + 1);
-    if (marker == 'b' || marker == 'B')
-      base = 2;
-    else if (marker == 'o' || marker == 'O')
-      base = 8;
-    else if (marker == 'x' || marker == 'X')
-      base = 16;
-
-    if (base != 10) {
-      size_t i = span.start + 2;
-      // One optional separator is allowed before the first digit.
-      if (i < span.end && source_byte_at(parser->source, i) == '_')
-        i++;
-
-      if (i < span.end &&
-          is_base_digit(source_byte_at(parser->source, i), base))
-        scan_digits(parser, span, i, base, &body_end);
-      else
-        malformed = true; // "0b", "0x_", "0o8", ...
-    }
-  }
-
-  if (!malformed && base == 10) {
-    if (first == '0') {
-      body_end = span.start + 1;
-    } else {
-      size_t end;
-      scan_digits(parser, span, span.start + 1, 10, &end);
-      body_end = end;
-    }
-  }
-
-  if (malformed) {
-    Span bad = scan_malformed_number_run(parser->source, span);
-    parser_append_error(parser, bad, SYNTAX_MALFORMED_NUMBER);
-    Span rem =
-        skip_trivia(parser->source, (Span){.start = bad.end, .end = span.end});
-    return (ParserResult){.matched = true, .node = NULL, .rem = rem};
-  }
-
-  // ---- float continuations (decimal bodies only) ----
-  bool is_float = false;
-  size_t number_end = body_end;
-  if (base == 10) {
-    size_t a1 = try_float_dot_exp(parser, span, body_end);
-    size_t a2 = try_float_dot(parser, span, body_end);
-    size_t a3 = try_float_suffix_only(parser, span, body_end);
-    size_t a4 = try_float_exp(parser, span, body_end);
-
-    size_t best = a1;
-    if (a2 > best)
-      best = a2;
-    if (a3 > best)
-      best = a3;
-    if (a4 > best)
-      best = a4;
-
-    if (best > body_end) {
-      is_float = true;
-      number_end = best;
-    }
-  }
-
-  if (!is_float) {
-    size_t suf = try_int_suffix(parser, span, body_end);
-    number_end = suf ? suf : body_end;
-  }
-
-  Span lit_span = {.start = span.start, .end = number_end};
-  SyntaxNumberLitExpr *lit = xmalloc(sizeof(SyntaxNumberLitExpr));
-  *lit = (SyntaxNumberLitExpr){
-      .header = {.kind = is_float ? SYNTAX_KIND_FLOAT_LIT_EXPR
-                                  : SYNTAX_KIND_INT_LIT_EXPR,
-                 .span = lit_span},
-      .value = source_string_view_at(parser->source, lit_span),
-  };
-
-  Span rem =
-      skip_trivia(parser->source, (Span){.start = number_end, .end = span.end});
-  return (ParserResult){.matched = true, .node = (SyntaxNode *)lit, .rem = rem};
+  // Distinct token bodies order strictly under longest-match, so the
+  // selection never needs a tie-break; the winner carries its own
+  // diagnostics and the loser's are released with it.
+  select_longest(&flt, &integ);
+  return flt;
 }
 
 /* Not implemented yet: the parser is being built bottom-up, one
    construct at a time. Each stub reports "no match" so that callers and
    tests link and behave as if the construct were absent. */
-ParserResult parse_decl(Parser *parser, Span span) {
+ParserResult parse_decl(const Parser *parser, Span span) {
   (void)parser;
   (void)span;
-  return (ParserResult){
-      .matched = false, .with_errors = false, .node = NULL, .rem = span};
+  return nomatch(span);
 }
 
-ParserResult parse_stmt(Parser *parser, Span span) {
+ParserResult parse_stmt(const Parser *parser, Span span) {
   (void)parser;
   (void)span;
-  return (ParserResult){
-      .matched = false, .with_errors = false, .node = NULL, .rem = span};
+  return nomatch(span);
 }
 
-ParserResult parse_expr(Parser *parser, Span span) {
+ParserResult parse_expr(const Parser *parser, Span span) {
   (void)parser;
   (void)span;
-  return (ParserResult){
-      .matched = false, .with_errors = false, .node = NULL, .rem = span};
+  return nomatch(span);
 }
 
-ParserResult parse_type(Parser *parser, Span span) {
+ParserResult parse_type(const Parser *parser, Span span) {
   (void)parser;
   (void)span;
-  return (ParserResult){
-      .matched = false, .with_errors = false, .node = NULL, .rem = span};
+  return nomatch(span);
 }
 
 #pragma endregion

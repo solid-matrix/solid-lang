@@ -23,10 +23,8 @@ static Parser g_parser;
 static bool g_active;
 
 static void begin(const char *text) {
-  if (g_active) {
-    parser_destroy(&g_parser);
+  if (g_active)
     source_destroy(&g_source);
-  }
   g_source = source_from_cstr(text);
   g_parser = parser_create(&g_source);
   g_active = true;
@@ -38,9 +36,9 @@ static ParserResult parse_number(const char *text) {
   return parse_number_lit_expr(&g_parser, source_get_span(&g_source));
 }
 
-static size_t error_count(void) {
+static size_t error_count(const ParserResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorLinkedList *e = g_parser.errors; e; e = e->next)
+  for (const SyntaxErrorLinkedList *e = r->errors; e; e = e->next)
     n++;
   return n;
 }
@@ -50,6 +48,7 @@ static size_t error_count(void) {
 static void expect_int(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -62,6 +61,7 @@ static void expect_int(const char *text) {
 static void expect_float(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -75,6 +75,7 @@ static void expect_float(const char *text) {
 static void expect_int_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -87,6 +88,7 @@ static void expect_int_split(const char *text, size_t tok_len) {
 static void expect_float_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -100,9 +102,9 @@ static void expect_malformed(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);      // consumed as a recovery run
   CHECK(r.node == NULL); // nothing worth keeping
-  CHECK(error_count() == 1);
+  CHECK(error_count(&r) == 1);
 
-  const SyntaxErrorLinkedList *e = g_parser.errors;
+  const SyntaxErrorLinkedList *e = r.errors;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_NUMBER);
 }
 
@@ -177,8 +179,8 @@ static void test_boundaries(void) {
   ParserResult r = parse_number_lit_expr(&g_parser, source_get_span(&g_source));
   CHECK(!r.matched);
   CHECK(r.node == NULL);
+  CHECK(r.errors == NULL);
   CHECK(r.rem.start == 0);
-  CHECK(error_count() == 0);
 
   // Underscore-separated hex digits keep working with a suffix.
   expect_int("0xF_F_u8");
@@ -189,6 +191,16 @@ static void test_boundaries(void) {
 
   // A suffix must not swallow identifier characters beyond it.
   expect_int_split("12isizex", 7); // INT(12isize), then "x"
+
+  // Trailing trivia belongs to the enclosing sequence: rem stops right
+  // after the token and the kept node's span matches it exactly.
+  begin("12 // c\nx");
+  r = parse_number_lit_expr(&g_parser, source_get_span(&g_source));
+  CHECK(r.matched);
+  CHECK(r.errors == NULL);
+  CHECK(r.node != NULL);
+  CHECK(r.node->span.end == 2 && r.node->span.start == 0);
+  CHECK(r.rem.start == 2);
 }
 
 static const TestEntry ENTRIES[] = {
