@@ -19,7 +19,8 @@
  *       to compile.
  * Usage: StringView v = SV("hello"); or in a static table.
  */
-#define SV(s) ((StringView){.data = (const uint8_t *)("" s), .len = sizeof(s) - 1})
+#define SV(s)                                                                  \
+  ((StringView){.data = (const uint8_t *)("" s), .len = sizeof(s) - 1})
 
 /**
  * @brief A non-owning, length-bounded view over a character buffer.

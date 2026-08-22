@@ -17,7 +17,8 @@ static void test_create_macro(void) {
   CHECK(v.data[0] == 'h' && v.data[4] == 'o');
 
   // Concatenated string literals are also literals and keep working.
-  StringView c = SV("a" "b");
+  StringView c = SV("a"
+                    "b");
   CHECK(c.len == 2);
   CHECK(sv_equals(c, SV("ab")));
 
@@ -85,7 +86,7 @@ static void test_starts_with(void) {
   CHECK(sv_starts_with(SV("hello"), SV("")));      // empty prefix
   CHECK(!sv_starts_with(SV("hi"), SV("hello")));   // longer than the view
   CHECK(!sv_starts_with(SV("hello"), SV("he!")));
-  CHECK(sv_starts_with(sv_empty(), SV("")));       // empty view + empty prefix
+  CHECK(sv_starts_with(sv_empty(), SV(""))); // empty view + empty prefix
 }
 
 static void test_ends_with(void) {
@@ -94,7 +95,7 @@ static void test_ends_with(void) {
   CHECK(sv_ends_with(SV("hello"), SV("")));      // empty suffix
   CHECK(!sv_ends_with(SV("lo"), SV("hello")));   // longer than the view
   CHECK(!sv_ends_with(SV("hello"), SV("lo!")));
-  CHECK(sv_ends_with(sv_empty(), SV("")));       // empty view + empty suffix
+  CHECK(sv_ends_with(sv_empty(), SV(""))); // empty view + empty suffix
 }
 
 static void test_slice(void) {
