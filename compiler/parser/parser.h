@@ -62,9 +62,21 @@ void parser_append_error(Parser *parser, Span span, SyntaxErrorCode code);
  *                       in parser->errors.
  *   After matched == true a caller must not try alternatives: the enclosing
  *   construct was already recognized.
+ *
+ *   with_errors reports whether any SyntaxError was appended to
+ *   parser->errors while recognizing this construct, directly or by
+ *   nested constructs. The flag is pure information: it never drives
+ *   control flow here, but callers may use it to tag subtrees or to
+ *   suppress cascading diagnostics. Invariants every parse_XXX must
+ *   uphold:
+ *       matched == false  ->  with_errors == false (a failed attempt
+ *                             records nothing);
+ *       otherwise         ->  with_errors == (own appends) ||
+ *                             (any child result's with_errors).
  */
 typedef struct {
   bool matched;
+  bool with_errors;
   Span rem;
   SyntaxNode *node;
 } ParserResult;
@@ -82,3 +94,16 @@ ParserResult parse_decl(Parser *parser, Span span);
 ParserResult parse_stmt(Parser *parser, Span span);
 
 ParserResult parse_type(Parser *parser, Span span);
+
+/**
+ * @brief Parses an int_lit or float_lit token.
+ *
+ * See the Number Literals section of doc/syntax.md. Produces a
+ * SyntaxNumberLitExpr whose kind distinguishes the two forms and whose
+ * value holds the full raw token text.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+ParserResult parse_number_lit_expr(Parser *parser, Span span);

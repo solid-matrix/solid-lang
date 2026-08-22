@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "source.h"
+#include "span.h"
 #include "string_view.h"
 #include "syntax_kind.h"
 
@@ -259,14 +259,7 @@ typedef struct {
 typedef struct {
   SyntaxNode header;
   StringView value;
-  StringView suffix;
-} SyntaxIntLitExpr;
-
-typedef struct {
-  SyntaxNode header;
-  StringView value;
-  StringView suffix;
-} SyntaxFloatLitExpr;
+} SyntaxNumberLitExpr;
 
 typedef struct {
   SyntaxNode header;
