@@ -68,3 +68,28 @@ Span skip_trivia(const Source *source, Span span) {
 
   return (Span){.start = i, .end = span.end};
 }
+
+Span span_consumed(Span span, Span rem) {
+  assert(span.start <= rem.start && rem.start <= span.end);
+  return (Span){.start = span.start, .end = rem.start};
+}
+
+ParserResult complete_longest_match(ParserResult *results, size_t count) {
+  assert(count > 0);
+
+  size_t selected = 0;
+
+  for (size_t i = 1; i < count; i++) {
+    if (results[i].rem.start > results[selected].rem.start) {
+      selected = i;
+    }
+  }
+
+  for (size_t i = 0; i < count; i++) {
+    if (i != selected) {
+      syntax_errorlist_destroy(results[i].errors);
+    }
+  }
+
+  return results[selected];
+}

@@ -693,49 +693,63 @@ Example:
 ```
 // integer - decimal
 0 0i32 0_i32 1 1i32 1_i32 12 12i32 12_i32 1_2 1_2i32 1_2_i32
+1_234_567 0isize 1u128
 
 // integer - binary
 0b0 0b01 0b1 0b_0 0b_0000_1111 0B_0000_1111_u8
+0b1010_1101 0b1u8
 
 // integer - octal
-0o_123 0O_123
+0o0 0o17 0o_123 0O_123 0o7_i16
 
 // integer - hex
-0x_FFFF 0X_FFFF
+0x0 0xFF 0x_FFFF 0X_FFFF 0xDeAd_beEf 0xF_u32 0xFFu64
 
 // integer - suffix
 0_i8 0_i16 0_i32 0_i64 0_i128 0_isize 0_i
 0_u8 0_u16 0_u32 0_u64 0_u128 0_usize 0_u
+0u8 12i32 1_2u
 
 // float - exponent
 1e5  1e5_f32  1.5e5  1.5e5_f32  1e+5  1e-5  1e_5
+1E5  1E+5  1E-5              // the exponent marker is case-insensitive
+1e+_5  1e-_5                  // an optional "_" may follow the sign
+0e0  1_000e3                  // zero mantissa; separated mantissa
+1e5f64  1.5e5_f64             // suffix directly attached or after "_"
 
 // float - dot
 1.  1.5  1.5_f32  1.5f32  0.5
+0.0  12.75  1.5d
+1.f32                         // suffix straight after the dot, no digits
 
 // float - suffix
 1f  1f32  1_f32  0d
+1f64  0f
 
 // integer - invalid
 01 00       // leading zero
-0_0         // zero cannot carry separators
+0_0 0_      // zero cannot carry separators
 1__2        // consecutive underscores
 0b__0       // consecutive underscores
 1_          // trailing underscore
-0b 0x       // missing digits
-0x_         // missing digits after underscore
+0b 0x 0B 0O // missing digits
+0x_ 0x_g    // missing digits after underscore
 0o8         // 8 is not an octal digit
+0b2         // 2 is not a binary digit
+0xG         // G is not a hex digit
+1_e5        // "_" is only allowed before a suffix, not the exponent
 
 // float - invalid
 .5       // missing integer part
 01.5     // leading zero
 1.e5     // no digits after dot
 1e05     // leading zero in exponent
-1e       // missing exponent digits
+1e 1e+   // missing exponent digits
 1.5e     // missing exponent digits
 1e5.5    // extra dot
 1e5_     // trailing underscore
 1__5     // consecutive underscores
+1._5     // "_" may not follow the dot directly
 ```
 
 ### Rune Literals

@@ -201,14 +201,6 @@ typedef enum {
 
 } SyntaxOperator;
 
-static const char *const INT_SUFFIXES[] = {
-    "isize", "usize", "i128", "u128", "i64", "u64", "i32",
-    "u32",   "i16",   "u16",  "i8",   "u8",  "i",   "u"};
-
-static const char *const FLOAT_SUFFIXES[] = {"f32", "f64", "f", "d"};
-
-#define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
-
 typedef struct {
   SyntaxKind kind;
   Span span;
