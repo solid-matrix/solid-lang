@@ -4,9 +4,15 @@
 
 set(COMMON_TEST_MODULES strview xmem span source)
 
+# Shared test-surface header (test_util.h); kept out of the library's
+# public include path on purpose: only test executables may see it.
+add_library(solid-lang-test-util INTERFACE)
+target_include_directories(solid-lang-test-util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
 foreach(module IN LISTS COMMON_TEST_MODULES)
   add_executable(test_${module} test_${module}.c)
-  target_link_libraries(test_${module} PRIVATE solid-lang-common)
+  target_link_libraries(test_${module} PRIVATE solid-lang-common
+                                               solid-lang-test-util)
   # The MSVC CRT deprecates standard functions (e.g. tmpfile) that the
   # tests use deliberately; silence those diagnostics only for tests.
   target_compile_definitions(test_${module} PRIVATE _CRT_SECURE_NO_WARNINGS)

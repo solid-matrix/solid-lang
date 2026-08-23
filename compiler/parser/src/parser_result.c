@@ -1,30 +1,4 @@
-/**
- * @file parser.c
- * @brief Parser implementation.
- * @author solid-matrix
- * @version 0.0.5
- */
-
-#include <assert.h>
-#include <stdbool.h>
-
-#include "parser.h"
-#include "syntax_node.h"
-#include "xmem.h"
-
-#pragma region PARSER
-
-Parser *parser_create(const Source *source) {
-  Parser *parser = xmalloc(sizeof(Parser));
-  *parser = (Parser){.source = source};
-  return parser;
-}
-
-void parser_destroy(Parser *parser) {
-  assert(parser != NULL);
-
-  xfree(parser);
-}
+#include "parser_result.h"
 
 ParserResult parser_result_not_match(Span span) {
   return (ParserResult){
@@ -50,5 +24,3 @@ ParserResult parser_result_matched(Span rem, SyntaxNode *node,
       .errors = errors,
   };
 }
-
-#pragma endregion
