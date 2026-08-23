@@ -26,7 +26,7 @@ ParserResult parse_identifier(const Parser *parser, Span span) {
   SyntaxIdentifier *id = xmalloc(sizeof(SyntaxIdentifier));
   *id = (SyntaxIdentifier){
       .header = syntax_node_header(SYNTAX_KIND_IDENTIFIER, consumed),
-      .string_view = source_string_view_at(parser->source, consumed),
+      .strview = source_strview_at(parser->source, consumed),
   };
 
   return (ParserResult){
@@ -92,10 +92,10 @@ static size_t match_suffix_at(const Parser *parser, Span span, size_t pos,
     if (rel + len > span_len(span))
       continue;
 
-    StringView part =
-        source_string_view_at(parser->source, span_slice(span, rel, rel + len));
-    StringView cand = sv_create((const uint8_t *)candidates[k], len);
-    if (sv_equals(part, cand))
+    Strview part =
+        source_strview_at(parser->source, span_slice(span, rel, rel + len));
+    Strview cand = strview_create((const uint8_t *)candidates[k], len);
+    if (strview_equals(part, cand))
       return pos + len;
   }
   return 0;
@@ -184,7 +184,7 @@ static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
   Span lit_span = {.start = span.start, .end = number_end};
   *lit = (SyntaxNumberLitExpr){
       .header = {.kind = kind, .span = lit_span},
-      .value = source_string_view_at(parser->source, lit_span),
+      .value = source_strview_at(parser->source, lit_span),
   };
   return (SyntaxNode *)lit;
 }

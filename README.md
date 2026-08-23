@@ -41,7 +41,7 @@ doc/
 
 ```
 compiler/
-├── common/             # Foundation: StringView, Arena, Source
+├── common/             # Foundation: Strview, Arena, Source
 ├── parser/             # AST definitions + lexing + parsing
 ├── sema/               # Semantic analysis
 ├── irgen/              # LLVM IR generation (the only LLVM C API user)

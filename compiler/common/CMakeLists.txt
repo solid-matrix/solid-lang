@@ -1,8 +1,8 @@
 add_library(solid-lang-common STATIC 
   source.c
-  string_view.c
+  strview.c
   span.c
-  mem.c)
+  xmem.c)
 
 target_include_directories(solid-lang-common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

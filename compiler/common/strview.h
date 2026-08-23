@@ -1,5 +1,5 @@
 /**
- * @file string_view.h
+ * @file strview.h
  * @brief Non-owning, length-bounded views over character buffers.
  * @author solid-matrix
  * @version 0.0.5
@@ -13,14 +13,14 @@
 #include <stdio.h>
 
 /**
- * @brief Builds a StringView from a string literal at compile time.
+ * @brief Builds a Strview from a string literal at compile time.
  * @note The argument MUST be a string literal: `sizeof` derives the length,
  *       and the concatenation with "" makes any non-literal argument fail
  *       to compile.
- * Usage: StringView v = SV("hello"); or in a static table.
+ * Usage: Strview v = STRVIEW("hello"); or in a static table.
  */
-#define SV(s)                                                                  \
-  ((StringView){.data = (const uint8_t *)("" s), .len = sizeof(s) - 1})
+#define STRVIEW(s)                                                            \
+  ((Strview){.data = (const uint8_t *)("" s), .len = sizeof(s) - 1})
 
 /**
  * @brief A non-owning, length-bounded view over a character buffer.
@@ -30,7 +30,7 @@
 typedef struct {
   const uint8_t *data;
   size_t len;
-} StringView;
+} Strview;
 
 /**
  * @brief Creates a view over @p str with explicit @p len bytes.
@@ -39,13 +39,13 @@ typedef struct {
  * @return The view.
  * @note Requires: str != NULL, or len == 0.
  */
-StringView sv_create(const uint8_t *str, size_t len);
+Strview strview_create(const uint8_t *str, size_t len);
 
 /**
  * @brief Returns an empty view (data == NULL, len == 0).
  * @return The empty view.
  */
-StringView sv_empty(void);
+Strview strview_empty(void);
 
 /**
  * @brief Creates a view over a NUL-terminated string, using strlen.
@@ -53,14 +53,14 @@ StringView sv_empty(void);
  * @return The view.
  * @note Requires: str != NULL.
  */
-StringView sv_from_cstr(const char *str);
+Strview strview_from_cstr(const char *str);
 
 /**
  * @brief Returns true when the view contains no bytes.
  * @param sv The view to test.
  * @return True if len == 0.
  */
-bool sv_is_empty(StringView sv);
+bool strview_is_empty(Strview sv);
 
 /**
  * @brief Byte-wise equality. Safe for views containing embedded NULs.
@@ -68,7 +68,7 @@ bool sv_is_empty(StringView sv);
  * @param b Second view.
  * @return True if both length and bytes are equal.
  */
-bool sv_equals(StringView a, StringView b);
+bool strview_equals(Strview a, Strview b);
 
 /**
  * @brief Lexicographic comparison (memcmp-based).
@@ -76,7 +76,7 @@ bool sv_equals(StringView a, StringView b);
  * @param b Second view.
  * @return Negative, zero, or positive.
  */
-int sv_compare(StringView a, StringView b);
+int strview_compare(Strview a, Strview b);
 
 /**
  * @brief True when @p sv begins with @p prefix.
@@ -84,7 +84,7 @@ int sv_compare(StringView a, StringView b);
  * @param prefix The expected leading bytes.
  * @return True if sv.len >= prefix.len and the leading bytes are equal.
  */
-bool sv_starts_with(StringView sv, StringView prefix);
+bool strview_starts_with(Strview sv, Strview prefix);
 
 /**
  * @brief True when @p sv ends with @p suffix.
@@ -92,7 +92,7 @@ bool sv_starts_with(StringView sv, StringView prefix);
  * @param suffix The expected trailing bytes.
  * @return True if sv.len >= suffix.len and the trailing bytes are equal.
  */
-bool sv_ends_with(StringView sv, StringView suffix);
+bool strview_ends_with(Strview sv, Strview suffix);
 
 /**
  * @brief Returns the sub-view [start, start + len).
@@ -103,7 +103,7 @@ bool sv_ends_with(StringView sv, StringView suffix);
  *         buffer (at data + start), never at NULL.
  * @note Asserts: start <= sv.len and len <= sv.len - start.
  */
-StringView sv_slice(StringView sv, size_t start, size_t len);
+Strview strview_slice(Strview sv, size_t start, size_t len);
 
 /**
  * @brief Returns the byte at position @p pos.
@@ -112,14 +112,14 @@ StringView sv_slice(StringView sv, size_t start, size_t len);
  * @return The byte.
  * @note Asserts: pos < sv.len.
  */
-uint8_t sv_byte_at(StringView sv, size_t pos);
+uint8_t strview_byte_at(Strview sv, size_t pos);
 
 /**
  * @brief Writes the view bytes to @p stream (no trailing NUL is written).
  * @param sv The view to write.
  * @param stream The output stream.
  */
-void sv_write(StringView sv, FILE *stream);
+void strview_write(Strview sv, FILE *stream);
 
 /**
  * @brief Copies the view into @p dst as a NUL-terminated string.
@@ -130,4 +130,4 @@ void sv_write(StringView sv, FILE *stream);
  * @param dst_size Size of the destination buffer.
  * @note Requires: dst != NULL, or dst_size == 0.
  */
-void sv_copy(StringView sv, uint8_t *dst, size_t dst_size);
+void strview_copy(Strview sv, uint8_t *dst, size_t dst_size);

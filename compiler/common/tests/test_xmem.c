@@ -1,5 +1,5 @@
 /**
- * @file test_mem.c
+ * @file test_xmem.c
  * @brief Tests for the fatal-failure allocation wrappers.
  * @author solid-matrix
  * @version 0.0.5
@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "mem.h"
+#include "xmem.h"
 #include "test_util.h"
 
 static void test_malloc(void) {

@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #include "span.h"
-#include "string_view.h"
+#include "strview.h"
 
 /**
  * @brief Kind of an AST node.
@@ -239,7 +239,7 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  StringView string_view;
+  Strview strview;
 } SyntaxIdentifier;
 
 typedef struct {
@@ -405,17 +405,17 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  StringView value;
+  Strview value;
 } SyntaxNumberLitExpr;
 
 typedef struct {
   SyntaxNode header;
-  StringView value;
+  Strview value;
 } SyntaxRuneLitExpr;
 
 typedef struct {
   SyntaxNode header;
-  StringView value;
+  Strview value;
 } SyntaxStringLitExpr;
 
 typedef struct {

@@ -17,41 +17,43 @@ const char *source_code = "namespace std::math;\n"
                           "  return 0;\n"
                           "}\n";
 
-int main(int argc, char *argv[]) {
-  Source source = source_from_cstr(source_code);
-  Parser parser = parser_create(&source);
-
-  ParserResult parser_res = parse_program(&parser, source_get_span(&source));
+SyntaxProgram *parse(const Parser *parser) {
+  ParserResult parser_res =
+      parse_program(parser, source_get_span(parser->source));
 
   if (parser_res.matched == false || parser_res.node == NULL ||
       parser_res.node->kind != SYNTAX_KIND_PROGRAM) {
-    fprintf(stderr, "failed to parse program");
+    fprintf(stderr, "failed to parse program\n");
 
-    parser_destroy(&parser);
-    source_destroy(&source);
-    return 1;
+    return NULL;
   }
 
   if (parser_res.errors != NULL) {
     SyntaxErrorList *node = parser_res.errors;
 
     while (node != NULL) {
-      fprintf(stderr, "error code: 0x%x", node->error.code);
+      fprintf(stderr, "error code: 0x%x\n", node->error.code);
       node = node->next;
     }
 
     syntax_error_list_free(&parser_res.errors);
-    parser_destroy(&parser);
-    source_destroy(&source);
-    return 2;
+    return NULL;
   }
 
-  SyntaxProgram *program = (SyntaxProgram *)parser_res.node;
+  return (SyntaxProgram *)parser_res.node;
+}
 
-  printf("top level declaration count = %zu", program->top_levels.len);
+int main(int argc, char *argv[]) {
+  Source *source = source_from_cstr(source_code);
+  Parser *parser = parser_create(source);
+
+  SyntaxProgram *program = parse(parser);
+  if (program != NULL) {
+    printf("top level declaration count = %zu\n", program->top_levels.len);
+  }
 
   // int _ = irgen_example();
-  parser_destroy(&parser);
-  source_destroy(&source);
+  parser_destroy(parser);
+  source_destroy(source);
   return 0;
 }

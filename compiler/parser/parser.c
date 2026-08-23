@@ -9,17 +9,21 @@
 #include <stdbool.h>
 
 #include "ast.h"
-#include "mem.h"
+#include "xmem.h"
 #include "parser.h"
 
 #pragma region PARSER
 
-Parser parser_create(const Source *source) {
-  return (Parser){.source = source};
+Parser *parser_create(const Source *source) {
+  Parser *parser = xmalloc(sizeof(Parser));
+  *parser = (Parser){.source = source};
+  return parser;
 }
 
 void parser_destroy(Parser *parser) {
-  // STUB
+  assert(parser != NULL);
+
+  xfree(parser);
 }
 
 SyntaxError syntax_error_create(SyntaxErrorCode code, Span span) {

@@ -4,8 +4,8 @@
  * @author solid-matrix
  * @version 0.0.5
  *
- * All storage uses xrealloc/xfree (OOM is fatal; see common/mem.h). A
- * list/path owns only its backing array of pointers (or StringViews); it
+ * All storage uses xrealloc/xfree (OOM is fatal; see common/xmem.h). A
+ * list/path owns only its backing array of pointers (or Strviews); it
  * never owns the nodes or source text those pointers/views refer to.
  */
 
@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 #include "ast.h"
-#include "mem.h"
+#include "xmem.h"
 
 SyntaxNode syntax_node_header(SyntaxKind kind, Span span) {
   return (SyntaxNode){.kind = kind, .span = span};

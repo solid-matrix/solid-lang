@@ -24,8 +24,20 @@ typedef struct {
   const Source *source;
 } Parser;
 
-Parser parser_create(const Source *source);
+/**
+ * @brief Creates a heap-allocated Parser over @p source.
+ * @param source The text to parse; the Source must outlive the Parser.
+ * @return The new Parser, owned by the caller; released exactly once
+ *         with parser_destroy().
+ */
+Parser *parser_create(const Source *source);
 
+/**
+ * @brief Frees a Parser created by parser_create().
+ * @param parser The Parser to destroy; must come from parser_create()
+ *               and be destroyed exactly once. The Source is not
+ *               touched: it is not owned by the Parser.
+ */
 void parser_destroy(Parser *parser);
 
 typedef enum {

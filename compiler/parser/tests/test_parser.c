@@ -19,22 +19,22 @@
 #include "source.h"
 #include "test_util.h"
 
-static Source g_source;
-static Parser g_parser;
+static Source *g_source;
+static Parser *g_parser;
 static bool g_active;
 
 static void begin(const char *text) {
   if (g_active)
-    source_destroy(&g_source);
+    source_destroy(g_source);
   g_source = source_from_cstr(text);
-  g_parser = parser_create(&g_source);
+  g_parser = parser_create(g_source);
   g_active = true;
 }
 
 /* Parses the whole text as one number literal (no surrounding trivia). */
 static ParserResult parse_number(const char *text) {
   begin(text);
-  return parse_number_lit_expr(&g_parser, source_get_span(&g_source));
+  return parse_number_lit_expr(g_parser, source_get_span(g_source));
 }
 
 static size_t error_count(const ParserResult *r) {
@@ -54,8 +54,8 @@ static void expect_int(const char *text) {
   if (!r.node)
     return;
   CHECK(r.node->kind == SYNTAX_KIND_INT_LIT_EXPR);
-  CHECK(sv_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  sv_create((const uint8_t *)text, strlen(text))));
+  CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
+                  strview_create((const uint8_t *)text, strlen(text))));
 }
 
 /* Same for FLOAT literals. */
@@ -67,8 +67,8 @@ static void expect_float(const char *text) {
   if (!r.node)
     return;
   CHECK(r.node->kind == SYNTAX_KIND_FLOAT_LIT_EXPR);
-  CHECK(sv_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  sv_create((const uint8_t *)text, strlen(text))));
+  CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
+                  strview_create((const uint8_t *)text, strlen(text))));
 }
 
 /* Asserts that only the first tok_len bytes form an int token and rem
@@ -81,8 +81,8 @@ static void expect_int_split(const char *text, size_t tok_len) {
   if (!r.node)
     return;
   CHECK(r.node->kind == SYNTAX_KIND_INT_LIT_EXPR);
-  CHECK(sv_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  sv_create((const uint8_t *)text, tok_len)));
+  CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
+                  strview_create((const uint8_t *)text, tok_len)));
   CHECK(r.rem.start == tok_len);
 }
 
@@ -94,8 +94,8 @@ static void expect_float_split(const char *text, size_t tok_len) {
   if (!r.node)
     return;
   CHECK(r.node->kind == SYNTAX_KIND_FLOAT_LIT_EXPR);
-  CHECK(sv_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  sv_create((const uint8_t *)text, tok_len)));
+  CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
+                  strview_create((const uint8_t *)text, tok_len)));
   CHECK(r.rem.start == tok_len);
 }
 
@@ -177,7 +177,7 @@ static void test_splits(void) {
 static void test_boundaries(void) {
   // Not a number start: rejected without consuming.
   begin(".5");
-  ParserResult r = parse_number_lit_expr(&g_parser, source_get_span(&g_source));
+  ParserResult r = parse_number_lit_expr(g_parser, source_get_span(g_source));
   CHECK(!r.matched);
   CHECK(r.node == NULL);
   CHECK(r.errors == NULL);
@@ -196,7 +196,7 @@ static void test_boundaries(void) {
   // Trailing trivia belongs to the enclosing sequence: rem stops right
   // after the token and the kept node's span matches it exactly.
   begin("12 // c\nx");
-  r = parse_number_lit_expr(&g_parser, source_get_span(&g_source));
+  r = parse_number_lit_expr(g_parser, source_get_span(g_source));
   CHECK(r.matched);
   CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
