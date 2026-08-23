@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "parse.h"
 #include "parser.h"
 
 int irgen_example(void);

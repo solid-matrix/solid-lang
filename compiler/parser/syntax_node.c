@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#include "ast.h"
+#include "syntax_node.h"
 #include "xmem.h"
 
 SyntaxNode syntax_node_header(SyntaxKind kind, Span span) {

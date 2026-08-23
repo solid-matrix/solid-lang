@@ -1,6 +1,7 @@
 add_library(solid-lang-parser STATIC
   parser.c
-  ast.c
+  syntax_node.c
+  syntax_error.c
   parse.c
   parse_type.c
   parse_expr.c

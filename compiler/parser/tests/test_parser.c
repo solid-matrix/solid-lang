@@ -13,10 +13,9 @@
 
 #include <string.h>
 
-#include "ast.h"
-#include "parse.h"
 #include "parser.h"
 #include "source.h"
+#include "syntax_node.h"
 #include "test_util.h"
 
 static Source *g_source;
@@ -55,7 +54,7 @@ static void expect_int(const char *text) {
     return;
   CHECK(r.node->kind == SYNTAX_KIND_INT_LIT_EXPR);
   CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  strview_create((const uint8_t *)text, strlen(text))));
+                       strview_create((const uint8_t *)text, strlen(text))));
 }
 
 /* Same for FLOAT literals. */
@@ -68,7 +67,7 @@ static void expect_float(const char *text) {
     return;
   CHECK(r.node->kind == SYNTAX_KIND_FLOAT_LIT_EXPR);
   CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  strview_create((const uint8_t *)text, strlen(text))));
+                       strview_create((const uint8_t *)text, strlen(text))));
 }
 
 /* Asserts that only the first tok_len bytes form an int token and rem
@@ -82,7 +81,7 @@ static void expect_int_split(const char *text, size_t tok_len) {
     return;
   CHECK(r.node->kind == SYNTAX_KIND_INT_LIT_EXPR);
   CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  strview_create((const uint8_t *)text, tok_len)));
+                       strview_create((const uint8_t *)text, tok_len)));
   CHECK(r.rem.start == tok_len);
 }
 
@@ -95,7 +94,7 @@ static void expect_float_split(const char *text, size_t tok_len) {
     return;
   CHECK(r.node->kind == SYNTAX_KIND_FLOAT_LIT_EXPR);
   CHECK(strview_equals(((SyntaxNumberLitExpr *)r.node)->value,
-                  strview_create((const uint8_t *)text, tok_len)));
+                       strview_create((const uint8_t *)text, tok_len)));
   CHECK(r.rem.start == tok_len);
 }
 

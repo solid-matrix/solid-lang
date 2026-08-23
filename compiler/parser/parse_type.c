@@ -1,4 +1,4 @@
-#include "parse.h"
+#include "parser.h"
 
 ParserResult parse_type(const Parser *parser, Span span) {
   (void)parser;

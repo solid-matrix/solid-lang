@@ -1,7 +1,8 @@
 #include <assert.h>
 #include <string.h>
 
-#include "parse.h"
+#include "parser.h"
+#include "xmem.h"
 
 ParserResult parse_identifier(const Parser *parser, Span span) {
   if (span_is_empty(span))
@@ -197,12 +198,12 @@ static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
    alternative can never leak into the result. */
 static void select_longest(ParserResult *best, ParserResult *cand) {
   if (cand->rem.start > best->rem.start) {
-    syntax_error_list_free(&best->errors);
+    syntax_errorlist_free(&best->errors);
     *best = *cand;
     return;
   }
 
-  syntax_error_list_free(&cand->errors);
+  syntax_errorlist_free(&cand->errors);
 }
 
 /* Consumes the maximal identifier/number-looking run from span.start;
@@ -256,8 +257,8 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
     ParserResult res = {.matched = true,
                         .node = NULL,
                         .rem = (Span){.start = bad.end, .end = span.end}};
-    syntax_error_list_append(&res.errors,
-                             syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
+    syntax_errorlist_append(&res.errors,
+                            syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
     return res;
   }
 

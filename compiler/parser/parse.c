@@ -1,10 +1,9 @@
 #include <assert.h>
 #include <string.h>
 
-#include "ast.h"
-#include "parse.h"
 #include "parser.h"
 #include "span.h"
+#include "xmem.h"
 
 bool is_letter_or_underscore(uint8_t c) {
   return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
@@ -81,7 +80,7 @@ ParserResult parse_program(const Parser *parser, Span span) {
   };
 
   Span rem = span;
-  SyntaxErrorList *errors = syntax_error_list_create();
+  SyntaxErrorList *errors = syntax_errorlist_create();
 
   while (true) {
     // Layout between top-level declarations is this loop's duty; the
@@ -94,7 +93,7 @@ ParserResult parse_program(const Parser *parser, Span span) {
     if (!res.matched)
       break;
 
-    syntax_error_list_merge(&errors, &(res.errors));
+    syntax_errorlist_merge(&errors, &(res.errors));
 
     if (res.node == NULL)
       continue;
@@ -108,8 +107,8 @@ ParserResult parse_program(const Parser *parser, Span span) {
   rem = skip_trivia(parser->source, rem);
 
   if (span_len(rem) > 0)
-    syntax_error_list_append(&errors,
-                             syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
+    syntax_errorlist_append(&errors,
+                            syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
 
   return parser_result_matched(rem, (SyntaxNode *)program, errors);
 }

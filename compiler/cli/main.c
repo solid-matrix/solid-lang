@@ -5,10 +5,10 @@
  * @version 0.0.5
  */
 
-#include "ast.h"
 #include "irgen.h"
 #include "parser.h"
 #include "source.h"
+#include "syntax_node.h"
 #include <stdio.h>
 
 const char *source_code = "namespace std::math;\n"
@@ -36,7 +36,7 @@ SyntaxProgram *parse(const Parser *parser) {
       node = node->next;
     }
 
-    syntax_error_list_free(&parser_res.errors);
+    syntax_errorlist_free(&parser_res.errors);
     return NULL;
   }
 
