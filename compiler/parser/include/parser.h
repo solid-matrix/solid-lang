@@ -53,6 +53,45 @@ void parser_destroy(Parser *parser);
  */
 ParserResult parse_number_lit_expr(const Parser *parser, Span span);
 
+/**
+ * @brief Parses a rune_lit token: one Unicode code point (raw or
+ *        escaped) between single quotes.
+ *
+ * See the Rune Literals section of doc/syntax.md. Produces a
+ * SyntaxRuneLitExpr whose value holds the full raw token text; escape
+ * decoding belongs to semantic analysis.
+ *
+ * A malformed form (empty or multi-character content, unknown or
+ * out-of-range escape, unterminated quote, invalid UTF-8) is reported
+ * as SYNTAX_MALFORMED_RUNE over a recovery span and consumes it: the
+ * result is matched with node == NULL, so longest-match selection
+ * treats the error path like any other alternative.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+ParserResult parse_rune_lit_expr(const Parser *parser, Span span);
+
+/**
+ * @brief Parses a string_lit token: a UTF-8 encoded sequence of raw or
+ *        escaped characters between double quotes.
+ *
+ * See the String Literals section of doc/syntax.md. The escapes are
+ * those defined for rune literals. Produces a SyntaxStringLitExpr
+ * whose value holds the full raw token text.
+ *
+ * A malformed form (unterminated or multi-line literal, unknown or
+ * malformed escape, invalid UTF-8, raw tab/line feed/carriage return)
+ * is reported as SYNTAX_MALFORMED_STRING over a recovery span and
+ * consumes it: the result is matched with node == NULL.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+ParserResult parse_string_lit_expr(const Parser *parser, Span span);
+
 ParserResult parse_identifier(const Parser *parser, Span span);
 
 ParserResult parse_expr(const Parser *parser, Span span);

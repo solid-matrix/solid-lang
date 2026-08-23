@@ -86,7 +86,7 @@ static size_t scan_digits(const Parser *parser, Span span, size_t start,
 }
 
 /**
- * @brief Scans decimal_lit = "0" | ( "1" … "9" ) [ "_" ] decimal_digits.
+ * @brief Scans decimal_lit = "0" | ( "1" .. "9" ) [ "_" ] decimal_digits.
  *
  * Returns the position just past the body; @p start must sit on a
  * decimal digit.
@@ -199,7 +199,7 @@ static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
 /**
  * @brief decimal_lit plus an optional int_lit_suffix:
  *
- *   decimal_lit = "0" | ( "1" … "9" ) [ "_" ] decimal_digits .
+ *   decimal_lit = "0" | ( "1" .. "9" ) [ "_" ] decimal_digits .
  */
 static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
                                                Span span) {
@@ -436,4 +436,279 @@ ParserResult parse_number_lit_expr(const Parser *parser, Span span) {
   };
 
   return complete_longest_match(results, COUNT_OF(results));
+}
+
+/**
+ * @brief Scans one UTF-8 encoded code point at @p pos.
+ *
+ * Well-formedness is validated strictly: every continuation byte must
+ * be a continuation byte, the decoded value must not be an overlong
+ * encoding, a surrogate, or above U+10FFFF.
+ *
+ * @param parser The parser providing the source text.
+ * @param span The enclosing range to scan within.
+ * @param pos Position to scan at.
+ * @param end Receives the position just past the code point.
+ * @return True when a valid code point was scanned.
+ */
+static bool scan_utf8_char(const Parser *parser, Span span, size_t pos,
+                           size_t *end) {
+  if (pos >= span.end)
+    return false;
+
+  static const uint32_t MIN_VALUE[] = {0x80, 0x800, 0x10000};
+
+  uint8_t lead = source_byte_at(parser->source, pos);
+  size_t len;
+  uint32_t value;
+
+  if (lead < 0x80) { // U+0000..U+007F: single byte
+    *end = pos + 1;
+    return true;
+  } else if (lead >= 0xC2 && lead <= 0xDF) { // U+0080..U+07FF
+    len = 2;
+    value = lead & 0x1F;
+  } else if (lead >= 0xE0 && lead <= 0xEF) { // U+0800..U+FFFF
+    len = 3;
+    value = lead & 0x0F;
+  } else if (lead >= 0xF0 && lead <= 0xF4) { // U+10000..U+10FFFF
+    len = 4;
+    value = lead & 0x07;
+  } else {
+    return false; // stray continuation byte, 0xC0/0xC1, or 0xF5..0xFF
+  }
+
+  if (pos + len > span.end)
+    return false; // truncated sequence
+
+  for (size_t k = 1; k < len; k++) {
+    uint8_t cont = source_byte_at(parser->source, pos + k);
+    if ((cont & 0xC0) != 0x80)
+      return false;
+
+    value = (value << 6) | (cont & 0x3F);
+  }
+
+  if (value < MIN_VALUE[len - 2])
+    return false; // overlong encoding
+  if (value >= 0xD800 && value <= 0xDFFF)
+    return false; // surrogate
+  if (value > 0x10FFFF)
+    return false; // outside the Unicode scalar range
+
+  *end = pos + len;
+  return true;
+}
+
+/**
+ * @brief Scans escape = quote_escape | ascii_escape | unicode_escape
+ *        at @p pos.
+ *
+ *   quote_escape   = "\'" | "\"" .
+ *   ascii_escape   = "\n" | "\r" | "\t" | "\\" | "\0"
+ *                  | "\x" octal_digit hex_digit .
+ *   unicode_escape = "\u{" hex_digit { ["_"] hex_digit } "}" .
+ *
+ * In \u{ ... } an underscore may only appear between two hex digits, and
+ * the enclosed value must be a Unicode scalar value.
+ *
+ * @param parser The parser providing the source text.
+ * @param span The enclosing range to scan within.
+ * @param pos Position to scan at.
+ * @param end Receives the position just past the escape.
+ * @return True when an escape was scanned.
+ */
+static bool try_escape(const Parser *parser, Span span, size_t pos,
+                       size_t *end) {
+  if (pos + 1 >= span.end || source_byte_at(parser->source, pos) != '\\')
+    return false;
+
+  uint8_t c = source_byte_at(parser->source, pos + 1);
+  switch (c) {
+  case '\'':
+  case '"':
+  case 'n':
+  case 'r':
+  case 't':
+  case '\\':
+  case '0':
+    *end = pos + 2;
+    return true;
+  case 'x': {
+    if (pos + 3 >= span.end) // two digit bytes must follow "\x"
+      return false;
+
+    uint8_t hi = source_byte_at(parser->source, pos + 2);
+    uint8_t lo = source_byte_at(parser->source, pos + 3);
+    if (!is_base_digit(hi, 8) || !is_base_digit(lo, 16))
+      return false;
+
+    *end = pos + 4;
+    return true;
+  }
+  case 'u': {
+    size_t i = pos + 2;
+    if (i >= span.end || source_byte_at(parser->source, i) != '{')
+      return false;
+    i++;
+
+    if (i >= span.end ||
+        !is_base_digit(source_byte_at(parser->source, i), 16))
+      return false; // empty braces or a leading underscore
+
+    uint32_t value = 0;
+    while (i < span.end) {
+      uint8_t d = source_byte_at(parser->source, i);
+      if (d == '}') {
+        *end = i + 1;
+        return value <= 0x10FFFF &&
+               !(value >= 0xD800 && value <= 0xDFFF);
+      }
+
+      if (is_base_digit(d, 16)) {
+        value = value * 16 + (uint32_t)(is_decimal_digit(d)
+                                            ? d - '0'
+                                            : (d | 0x20) - 'a' + 10);
+        if (value > 0x10FFFF)
+          return false; // the value can only grow; avoid wraparound
+        i++;
+        continue;
+      }
+
+      if (d == '_') { // allowed only between two hex digits
+        if (i + 1 >= span.end ||
+            !is_base_digit(source_byte_at(parser->source, i + 1), 16))
+          return false;
+        i++;
+        continue;
+      }
+
+      return false; // anything else breaks the escape
+    }
+    return false; // missing closing brace
+  }
+  default:
+    return false;
+  }
+}
+
+/**
+ * @brief Recovery span for a malformed quoted literal: from the opening
+ *        quote up to (but excluding) the matching quote or the first
+ *        raw line terminator, whichever comes first. Escapes are not
+ *        honored here: the run only bounds the diagnostic.
+ */
+static Span scan_malformed_lit_run(const Parser *parser, Span span,
+                                   uint8_t quote) {
+  Span rem = span_advance(span, 1); // skip the opening quote
+
+  while (span_len(rem) > 0) {
+    uint8_t c = source_first_byte_at(parser->source, rem);
+    if (c == quote || c == '\n' || c == '\r')
+      break;
+
+    rem = span_advance(rem, 1);
+  }
+
+  return span_consumed(span, rem);
+}
+
+/**
+ * @brief Builds the outcome for a malformed quoted literal: reports
+ *        @p code over the recovery run started by @p quote and consumes
+ *        it, so longest-match selection treats the error path like any
+ *        other alternative (matched with node == NULL).
+ */
+static ParserResult malformed_quoted_lit(const Parser *parser, Span span,
+                                         SyntaxErrorCode code, uint8_t quote) {
+  Span bad = scan_malformed_lit_run(parser, span, quote);
+
+  SyntaxErrorList *errors = syntax_errorlist_create();
+  syntax_errorlist_append(errors, syntax_error_create(code, bad));
+
+  return parser_result_matched((Span){.start = bad.end, .end = span.end},
+                               NULL, errors);
+}
+
+ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
+  if (span_is_empty(span))
+    return parser_result_not_match(span);
+
+  if (source_first_byte_at(parser->source, span) != '\'')
+    return parser_result_not_match(span);
+
+  Span rem = span_advance(span, 1); // consume the opening quote
+  if (span_len(rem) == 0 ||
+      source_first_byte_at(parser->source, rem) == '\'')
+    return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
+
+  uint8_t c = source_first_byte_at(parser->source, rem);
+  size_t content_end;
+  bool scanned;
+  if (c == '\\') {
+    scanned = try_escape(parser, span, rem.start, &content_end);
+  } else if (c == '\t' || c == '\n' || c == '\r') {
+    scanned = false; // raw tab/line feed/carriage return are excluded
+  } else {
+    scanned = scan_utf8_char(parser, span, rem.start, &content_end);
+  }
+
+  if (!scanned)
+    return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
+
+  rem = (Span){.start = content_end, .end = rem.end};
+  if (span_len(rem) == 0 ||
+      source_first_byte_at(parser->source, rem) != '\'')
+    return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
+  rem = span_advance(rem, 1); // consume the closing quote
+
+  SyntaxRuneLitExpr *rune = xmalloc(sizeof(SyntaxRuneLitExpr));
+  *rune = (SyntaxRuneLitExpr){
+      .header = syntax_node_header(SYNTAX_KIND_RUNE_LIT_EXPR,
+                                   span_consumed(span, rem)),
+      .value = source_strview_at(parser->source, span_consumed(span, rem)),
+  };
+
+  return parser_result_matched(rem, (SyntaxNode *)rune, NULL);
+}
+
+ParserResult parse_string_lit_expr(const Parser *parser, Span span) {
+  if (span_is_empty(span))
+    return parser_result_not_match(span);
+
+  if (source_first_byte_at(parser->source, span) != '"')
+    return parser_result_not_match(span);
+
+  Span rem = span_advance(span, 1); // consume the opening quote
+  while (span_len(rem) > 0) {
+    uint8_t c = source_first_byte_at(parser->source, rem);
+
+    if (c == '"') {
+      rem = span_advance(rem, 1); // consume the closing quote
+
+      SyntaxStringLitExpr *string = xmalloc(sizeof(SyntaxStringLitExpr));
+      *string = (SyntaxStringLitExpr){
+          .header = syntax_node_header(SYNTAX_KIND_STRING_LIT_EXPR,
+                                       span_consumed(span, rem)),
+          .value = source_strview_at(parser->source, span_consumed(span, rem)),
+      };
+      return parser_result_matched(rem, (SyntaxNode *)string, NULL);
+    }
+
+    size_t elem_end;
+    bool scanned;
+    if (c == '\\')
+      scanned = try_escape(parser, span, rem.start, &elem_end);
+    else if (c == '\t' || c == '\n' || c == '\r')
+      scanned = false; // raw controls terminate: strings are single-line
+    else
+      scanned = scan_utf8_char(parser, span, rem.start, &elem_end);
+
+    if (!scanned)
+      return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_STRING, '"');
+
+    rem = (Span){.start = elem_end, .end = rem.end};
+  }
+
+  return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_STRING, '"');
 }

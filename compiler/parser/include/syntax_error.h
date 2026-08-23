@@ -8,6 +8,8 @@ typedef enum {
   SYNTAX_OK = 0x0000,
   SYNTAX_EXPECTED_EOF = 0x0001,
   SYNTAX_MALFORMED_NUMBER = 0x0002,
+  SYNTAX_MALFORMED_RUNE = 0x0003,
+  SYNTAX_MALFORMED_STRING = 0x0004,
 } SyntaxErrorCode;
 
 typedef struct {

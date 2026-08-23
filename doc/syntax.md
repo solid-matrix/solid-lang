@@ -782,23 +782,32 @@ Example:
 ```
 // simple
 'a' '字' '"' '\n' '\t' '\'' '\\' '\0'
+'€' '😀'                       // raw multi-byte code points
 
 // numeric escapes
-'\x41' '\x30' '\u{41}' '\u{0}' '\u{1_F600}' '\u{10FFFF}'
+'\x41' '\x30' '\x7f' '\u{41}' '\u{0}' '\u{1_F600}' '\u{10FFFF}'
+'\u{10_FFFF}' '\u{00e9}'
 
 // invalid
 ''           // empty rune
-'ab'         // more than one character
 '''          // unescaped single quote
+'ab'         // more than one character
+'ab          // missing closing quote
 '\q'         // unknown escape
 '\x'         // missing digits
+'\x8'        // one digit missing
 '\x80'       // out of ASCII range
+'\x7G'       // G is not a hexadecimal digit
 '\u{}'       // empty unicode escape
 '\u{_41}'    // leading underscore
 '\u{41_}'    // trailing underscore
 '\u{1__F}'   // consecutive underscores
 '\u{D800}'   // surrogate
+'\u{DFFF}'   // surrogate
 '\u{110000}' // out of Unicode scalar range
+'<TAB>'      // raw horizontal tab
+'<LF>'       // raw line feed
+'<CR>'       // raw carriage return
 ```
 
 ### String Literals
@@ -820,9 +829,10 @@ Example:
 ```
 // simple
 "" "hello" "'a'" "\"" "\\"
+"中文😀" "tab\there"
 
 // escapes
-"a\nb\tc\0d\r" "\x09" "\u{1F600}"
+"a\nb\tc\0d\r" "\x09" "\x7f" "\u{1F600}" "\u{10_FFFF}"
 
 // invalid
 "abc         // missing closing quote
@@ -831,6 +841,13 @@ b"           // raw line feed
 "a	b"        // raw horizontal tab
 "\q"         // unknown escape
 "\x7G"       // G is not a hexadecimal digit
+"\x8"        // one digit missing
+"\u{}"       // empty unicode escape
+"\u{_41}"    // leading underscore
+"\u{41_}"    // trailing underscore
+"\u{1__F}"   // consecutive underscores
+"\u{D800}"   // surrogate
+"\u{110000}" // out of Unicode scalar range
 ```
 
 ### Struct Literals
