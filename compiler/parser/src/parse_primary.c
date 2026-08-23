@@ -2,27 +2,27 @@
 #include <string.h>
 
 #include "parse_shared.h"
+#include "span.h"
 
 ParserResult parse_identifier(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  uint8_t c = source_byte_at(parser->source, span.start);
+  uint8_t c = source_first_byte_at(parser->source, span);
   if (!is_letter_or_underscore(c))
     return parser_result_not_match(span);
 
-  size_t i = span.start + 1;
-  while (i < span.end) {
-    c = source_byte_at(parser->source, i);
+  Span rem = span_advance(span, 1);
+  while (span_len(rem) > 0) {
+    c = source_first_byte_at(parser->source, rem);
+
     if (!is_letter_digit_or_underscore(c))
       break;
 
-    i++;
+    rem = span_advance(rem, 1);
   }
 
-  Span consumed = span_create(span.start, i);
-  Span rem = span_create(i, span.end);
-
+  Span consumed = span_create(span.start, rem.start);
   SyntaxIdentifier *id = xmalloc(sizeof(SyntaxIdentifier));
   *id = (SyntaxIdentifier){
       .header = syntax_node_header(SYNTAX_KIND_IDENTIFIER, consumed),

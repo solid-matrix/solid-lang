@@ -26,3 +26,7 @@ Span span_slice(Span span, size_t rel_start, size_t rel_end) {
   assert(rel_start <= rel_end && rel_end <= span_len(span));
   return (Span){.start = span.start + rel_start, .end = span.start + rel_end};
 }
+
+Span span_advance(Span span, size_t step) {
+  return (Span){.start = span.start + step, .end = span.end};
+}

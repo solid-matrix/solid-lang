@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "span.h"
 #include "strview.h"
@@ -125,6 +126,14 @@ Span source_get_line_span(const Source *source, size_t line);
 Span source_get_span(const Source *source);
 
 /**
+ * @brief The whole source text, as a view into the Source.
+ * @param source The Source to view.
+ * @return A Strview over the full text; it stays valid for the
+ *         Source's lifetime and is never NULL-data.
+ */
+Strview source_get_strview(const Source *source);
+
+/**
  * @brief The text covered by @p span, as a view into the Source.
  * @param source The Source the span refers to.
  * @param span Offset range within the source text.
@@ -140,3 +149,16 @@ Strview source_strview_at(const Source *source, Span span);
  * @return The byte.
  */
 uint8_t source_byte_at(const Source *source, size_t pos);
+
+/**
+ * @brief First byte of @p span, without slicing.
+ *
+ * Convenience for one-byte lookahead at a span's start (e.g. testing
+ * the character a parse attempt would begin at).
+ * @param source The Source to read from.
+ * @param span The span whose first byte to read.
+ *             Asserts: span is non-empty and span.start < the text
+ *             length.
+ * @return The byte at span.start.
+ */
+uint8_t source_first_byte_at(const Source *source, Span span);

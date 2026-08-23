@@ -55,3 +55,16 @@ bool span_is_empty(Span span);
  * @return The sub-span.
  */
 Span span_slice(Span span, size_t rel_start, size_t rel_end);
+
+/**
+ * @brief Skips @p step bytes from the front of the span.
+ *
+ * Typical use: shrinking a working span after consuming a token from
+ * its start (rem = span_advance(span, consumed)).
+ * @param span The span to advance.
+ * @param step Number of bytes to move the start offset forward by.
+ * @return The span [start + step, end); its length shrinks by @p step.
+ * @note No bounds check is performed: step > span_len(span) produces an
+ *       inverted span with start > end.
+ */
+Span span_advance(Span span, size_t step);

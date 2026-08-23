@@ -9,8 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "xmem.h"
 #include "source.h"
+#include "xmem.h"
 
 /**
  * @brief The private representation of a Source.
@@ -190,11 +190,22 @@ Span source_get_span(const Source *source) {
   return (Span){.start = 0, .end = source->len};
 }
 
+Strview source_get_strview(const Source *source) {
+  return strview_create(source->bytes, source->len);
+}
+
 Strview source_strview_at(const Source *source, Span span) {
-  Strview sv = strview_create(source->bytes, source->len);
+  Strview sv = source_get_strview(source);
   return strview_slice(sv, span.start, span_len(span));
 }
 
 uint8_t source_byte_at(const Source *source, size_t pos) {
-  return strview_byte_at(strview_create(source->bytes, source->len), pos);
+  assert(pos < source->len);
+  return source->bytes[pos];
+}
+
+uint8_t source_first_byte_at(const Source *source, Span span) {
+  assert(!span_is_empty(span));
+  assert(span.start < source->len);
+  return source->bytes[span.start];
 }
