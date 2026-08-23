@@ -81,6 +81,8 @@ void parser_destroy(Parser *parser);
  *
  *   matched == true -> the construct was recognized and its input was
  *   consumed (see the postconditions above).
+ *       errors is ALWAYS a valid (possibly empty) list owned by the
+ *       result: consumers never test it for NULL, only for emptiness.
  *       node != NULL -> a concrete AST node to keep (e.g. append it to
  *                       the enclosing node list);
  *       node == NULL -> nothing worth keeping (e.g. a dropped
@@ -90,10 +92,11 @@ void parser_destroy(Parser *parser);
  *   errors carries every SyntaxError produced while recognizing this
  *   construct, directly or by nested constructs. The list is owned by
  *   the result: a combinator must either merge it upward into its own
- *   result (sequential acceptance) or free it together with the losing
- *   branch (longest-match selection adopts the winner's list and
- *   releases the losers' -> winner-takes-errors). The top-level caller
- *   disposes of the final list with parser_result_free_errors().
+ *   result (sequential acceptance; the emptied source handle is
+ *   released separately) or free it together with the losing branch
+ *   (longest-match selection adopts the winner's list and releases the
+ *   losers' -> winner-takes-errors). The top-level caller disposes of
+ *   the final list with syntax_errorlist_destroy().
  */
 typedef struct {
   bool matched;
@@ -102,8 +105,21 @@ typedef struct {
   SyntaxErrorList *errors;
 } ParserResult;
 
+/**
+ * @brief Builds the not-matched outcome: errors == NULL, node == NULL,
+ *        rem == @p span.
+ */
 ParserResult parser_result_not_match(Span span);
 
+/**
+ * @brief Builds a matched outcome.
+ * @param rem The position just past the consumed text.
+ * @param node The AST node to keep, or NULL for a dropped construct.
+ * @param errors Diagnostics to attach; NULL means "no diagnostics" and
+ *               receives a fresh empty list, so the returned result
+ *               always owns a valid (possibly empty) list.
+ * @return The result.
+ */
 ParserResult parser_result_matched(Span rem, SyntaxNode *node,
                                    SyntaxErrorList *errors);
 

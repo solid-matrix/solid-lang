@@ -30,12 +30,7 @@ ParserResult parse_identifier(const Parser *parser, Span span) {
       .strview = source_strview_at(parser->source, consumed),
   };
 
-  return (ParserResult){
-      .matched = true,
-      .errors = NULL,
-      .node = (SyntaxNode *)id,
-      .rem = rem,
-  };
+  return parser_result_matched(rem, (SyntaxNode *)id, NULL);
 }
 
 /**
@@ -198,12 +193,14 @@ static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
    alternative can never leak into the result. */
 static void select_longest(ParserResult *best, ParserResult *cand) {
   if (cand->rem.start > best->rem.start) {
-    syntax_errorlist_free(&best->errors);
+    syntax_errorlist_destroy(best->errors);
     *best = *cand;
+    cand->errors = NULL; // ownership moved into best; guard against reuse
     return;
   }
 
-  syntax_errorlist_free(&cand->errors);
+  syntax_errorlist_destroy(cand->errors);
+  cand->errors = NULL;
 }
 
 /* Consumes the maximal identifier/number-looking run from span.start;
@@ -254,12 +251,11 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
   if (i >= span.end ||
       !is_base_digit(source_byte_at(parser->source, i), base)) {
     Span bad = scan_malformed_number_run(parser->source, span);
-    ParserResult res = {.matched = true,
-                        .node = NULL,
-                        .rem = (Span){.start = bad.end, .end = span.end}};
-    syntax_errorlist_append(&res.errors,
+    SyntaxErrorList *errors = syntax_errorlist_create();
+    syntax_errorlist_append(errors,
                             syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
-    return res;
+    return parser_result_matched((Span){.start = bad.end, .end = span.end},
+                                 NULL, errors);
   }
 
   size_t body_end;
@@ -268,10 +264,10 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
   size_t suf = try_int_suffix(parser, span, body_end);
   size_t number_end = suf ? suf : body_end;
 
-  return (ParserResult){.matched = true,
-                        .node = make_number_lit_node(parser, span, number_end,
-                                                     SYNTAX_KIND_INT_LIT_EXPR),
-                        .rem = (Span){.start = number_end, .end = span.end}};
+  return parser_result_matched(
+      (Span){.start = number_end, .end = span.end},
+      make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR),
+      NULL);
 }
 
 /* binary_lit / octal_lit / hex_lit bind the shared scanner to one
@@ -305,10 +301,10 @@ static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
   size_t suf = try_int_suffix(parser, span, body_end);
   size_t number_end = suf ? suf : body_end;
 
-  return (ParserResult){.matched = true,
-                        .node = make_number_lit_node(parser, span, number_end,
-                                                     SYNTAX_KIND_INT_LIT_EXPR),
-                        .rem = (Span){.start = number_end, .end = span.end}};
+  return parser_result_matched(
+      (Span){.start = number_end, .end = span.end},
+      make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR),
+      NULL);
 }
 
 /**
@@ -342,11 +338,10 @@ static ParserResult parse_exponent_float_lit_expr(const Parser *parser,
   size_t suf = try_float_suffix(parser, span, exp);
   size_t number_end = suf ? suf : exp;
 
-  return (ParserResult){.matched = true,
-                        .node =
-                            make_number_lit_node(parser, span, number_end,
-                                                 SYNTAX_KIND_FLOAT_LIT_EXPR),
-                        .rem = (Span){.start = number_end, .end = span.end}};
+  return parser_result_matched((Span){.start = number_end, .end = span.end},
+                               make_number_lit_node(parser, span, number_end,
+                                                    SYNTAX_KIND_FLOAT_LIT_EXPR),
+                               NULL);
 }
 
 /**
@@ -373,11 +368,10 @@ static ParserResult parse_dot_float_lit_expr(const Parser *parser, Span span) {
   size_t suf = try_float_suffix(parser, span, after);
   size_t number_end = suf ? suf : after;
 
-  return (ParserResult){.matched = true,
-                        .node =
-                            make_number_lit_node(parser, span, number_end,
-                                                 SYNTAX_KIND_FLOAT_LIT_EXPR),
-                        .rem = (Span){.start = number_end, .end = span.end}};
+  return parser_result_matched((Span){.start = number_end, .end = span.end},
+                               make_number_lit_node(parser, span, number_end,
+                                                    SYNTAX_KIND_FLOAT_LIT_EXPR),
+                               NULL);
 }
 
 /**
@@ -397,10 +391,10 @@ static ParserResult parse_suffix_float_lit_expr(const Parser *parser,
   if (suf == 0)
     return parser_result_not_match(span);
 
-  return (ParserResult){.matched = true,
-                        .node = make_number_lit_node(
-                            parser, span, suf, SYNTAX_KIND_FLOAT_LIT_EXPR),
-                        .rem = (Span){.start = suf, .end = span.end}};
+  return parser_result_matched(
+      (Span){.start = suf, .end = span.end},
+      make_number_lit_node(parser, span, suf, SYNTAX_KIND_FLOAT_LIT_EXPR),
+      NULL);
 }
 
 /* int_lit realized as longest-match across the four radix leaves. The

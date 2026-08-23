@@ -93,7 +93,10 @@ ParserResult parse_program(const Parser *parser, Span span) {
     if (!res.matched)
       break;
 
-    syntax_errorlist_merge(&errors, &(res.errors));
+    // The nodes move into the accumulator; the emptied handle's
+    // lifetime ends here.
+    syntax_errorlist_merge(errors, res.errors);
+    syntax_errorlist_destroy(res.errors);
 
     if (res.node == NULL)
       continue;
@@ -107,7 +110,7 @@ ParserResult parse_program(const Parser *parser, Span span) {
   rem = skip_trivia(parser->source, rem);
 
   if (span_len(rem) > 0)
-    syntax_errorlist_append(&errors,
+    syntax_errorlist_append(errors,
                             syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
 
   return parser_result_matched(rem, (SyntaxNode *)program, errors);

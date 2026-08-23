@@ -38,7 +38,7 @@ static ParserResult parse_number(const char *text) {
 
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorList *e = r->errors; e; e = e->next)
+  for (const SyntaxErrorListNode *e = r->errors->head; e != NULL; e = e->next)
     n++;
   return n;
 }
@@ -48,7 +48,7 @@ static size_t error_count(const ParserResult *r) {
 static void expect_int(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(r.errors == NULL);
+  CHECK(syntax_errorlist_is_empty(r.errors));
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -61,7 +61,7 @@ static void expect_int(const char *text) {
 static void expect_float(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(r.errors == NULL);
+  CHECK(syntax_errorlist_is_empty(r.errors));
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -75,7 +75,7 @@ static void expect_float(const char *text) {
 static void expect_int_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(r.errors == NULL);
+  CHECK(syntax_errorlist_is_empty(r.errors));
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -88,7 +88,7 @@ static void expect_int_split(const char *text, size_t tok_len) {
 static void expect_float_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(r.errors == NULL);
+  CHECK(syntax_errorlist_is_empty(r.errors));
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -104,7 +104,7 @@ static void expect_malformed(const char *text) {
   CHECK(r.node == NULL); // nothing worth keeping
   CHECK(error_count(&r) == 1);
 
-  const SyntaxErrorList *e = r.errors;
+  const SyntaxErrorListNode *e = r.errors->head;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_NUMBER);
 }
 
@@ -179,7 +179,7 @@ static void test_boundaries(void) {
   ParserResult r = parse_number_lit_expr(g_parser, source_get_span(g_source));
   CHECK(!r.matched);
   CHECK(r.node == NULL);
-  CHECK(r.errors == NULL);
+  CHECK(r.errors == NULL); // convention: not-matched carries no list
   CHECK(r.rem.start == 0);
 
   // Underscore-separated hex digits keep working with a suffix.
@@ -197,7 +197,7 @@ static void test_boundaries(void) {
   begin("12 // c\nx");
   r = parse_number_lit_expr(g_parser, source_get_span(g_source));
   CHECK(r.matched);
-  CHECK(r.errors == NULL);
+  CHECK(syntax_errorlist_is_empty(r.errors));
   CHECK(r.node != NULL);
   CHECK(r.node->span.end == 2 && r.node->span.start == 0);
   CHECK(r.rem.start == 2);
