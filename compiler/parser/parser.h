@@ -11,13 +11,6 @@
 
 #include "ast.h"
 #include "source.h"
-#include "syntax_error.h"
-
-typedef struct SyntaxErrorLinkedList SyntaxErrorLinkedList;
-struct SyntaxErrorLinkedList {
-  SyntaxError error;
-  SyntaxErrorLinkedList *next;
-};
 
 /**
  * @brief Immutable scanning context.
@@ -33,6 +26,36 @@ typedef struct {
 
 Parser parser_create(const Source *source);
 
+void parser_destroy(Parser *parser);
+
+typedef enum {
+  SYNTAX_OK = 0x0000,
+  SYNTAX_EXPECTED_EOF = 0x0001,
+  SYNTAX_MALFORMED_NUMBER = 0x0002,
+} SyntaxErrorCode;
+
+typedef struct {
+  SyntaxErrorCode code;
+  Span span;
+} SyntaxError;
+
+SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
+
+typedef struct SyntaxErrorList SyntaxErrorList;
+
+struct SyntaxErrorList {
+  SyntaxError error;
+  SyntaxErrorList *next;
+};
+
+SyntaxErrorList *syntax_error_list_create();
+
+void syntax_error_list_append(SyntaxErrorList **list, SyntaxError error);
+
+void syntax_error_list_merge(SyntaxErrorList **dst, SyntaxErrorList **src);
+
+void syntax_error_list_free(SyntaxErrorList **list);
+
 /**
  * @struct ParserResult
  * @brief Outcome of parsing one construct (see per-function contracts).
@@ -45,7 +68,7 @@ Parser parser_create(const Source *source);
  *     is consumed only by parse_program, at the start of the unit and
  *     before every top-level declaration.
  *   - Postcondition on success: \p rem points just past the consumed
- *     text. Trailing whitespace and comments are NOT stripped â€?they
+ *     text. Trailing whitespace and comments are NOT stripped -> they
  *     belong to the enclosing sequence, which skips them between two
  *     juxtaposed elements (and re-tests separators or terminators on
  *     the skipped position). Consequences: rem.start - span.start is
@@ -61,7 +84,7 @@ Parser parser_create(const Source *source);
  *
  * Every parse_XXX(const Parser *, Span) follows the same contract:
  *
- *   matched == false â€?the construct does not start at \p span. Nothing
+ *   matched == false -> the construct does not start at \p span. Nothing
  *   is consumed and nothing is recorded:
  *       node == NULL, errors == NULL, rem == span.
  *   rem is returned exactly as received: the position was tested and
@@ -71,7 +94,7 @@ Parser parser_create(const Source *source);
  *   The caller may backtrack and try another alternative, or treat this
  *   as the end of the enclosing construct.
  *
- *   matched == true â€?the construct was recognized and its input was
+ *   matched == true -> the construct was recognized and its input was
  *   consumed (see the postconditions above).
  *       node != NULL -> a concrete AST node to keep (e.g. append it to
  *                       the enclosing node list);
@@ -84,64 +107,17 @@ Parser parser_create(const Source *source);
  *   the result: a combinator must either merge it upward into its own
  *   result (sequential acceptance) or free it together with the losing
  *   branch (longest-match selection adopts the winner's list and
- *   releases the losers' â€?winner-takes-errors). The top-level caller
+ *   releases the losers' -> winner-takes-errors). The top-level caller
  *   disposes of the final list with parser_result_free_errors().
  */
 typedef struct {
   bool matched;
-  SyntaxErrorLinkedList *errors;
   Span rem;
   SyntaxNode *node;
+  SyntaxErrorList *errors;
 } ParserResult;
 
-/**
- * @brief Prepends one diagnostic to @p result's owned error list.
- */
-void parser_result_push_error(ParserResult *result, Span span,
-                              SyntaxErrorCode code);
+ParserResult parser_result_not_match(Span span);
 
-/**
- * @brief Moves all nodes of @p src's error list onto @p dst's.
- * @param dst The adopting result.
- * @param src The donor result; its list is left empty.
- */
-void parser_result_merge_errors(ParserResult *dst, ParserResult *src);
-
-/**
- * @brief Releases every node in @p result's error list and empties it.
- */
-void parser_result_free_errors(ParserResult *result);
-
-/**
- * @brief Top-level entry: parses a whole translation unit.
- *
- * The only function that consumes leading trivia: once at the start of
- * the unit, and before every top-level declaration. Trailing trivia is
- * skipped before the final SYNTAX_EXPECTED_EOF check; any unconsumed
- * input is reported from there. The returned result owns both the
- * program node and the error list.
- */
-ParserResult parse_program(const Parser *parser, Span span);
-
-ParserResult parse_identifier(const Parser *parser, Span span);
-
-ParserResult parse_expr(const Parser *parser, Span span);
-
-ParserResult parse_decl(const Parser *parser, Span span);
-
-ParserResult parse_stmt(const Parser *parser, Span span);
-
-ParserResult parse_type(const Parser *parser, Span span);
-
-/**
- * @brief Parses an int_lit or float_lit token.
- *
- * See the Number Literals section of doc/syntax.md. Produces a
- * SyntaxNumberLitExpr whose kind distinguishes the two forms and whose
- * value holds the full raw token text.
- *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
-ParserResult parse_number_lit_expr(const Parser *parser, Span span);
+ParserResult parser_result_matched(Span rem, SyntaxNode *node,
+                                   SyntaxErrorList *errors);

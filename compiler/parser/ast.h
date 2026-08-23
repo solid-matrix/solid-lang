@@ -12,7 +12,138 @@
 
 #include "span.h"
 #include "string_view.h"
-#include "syntax_kind.h"
+
+/**
+ * @brief Kind of an AST node.
+ *
+ * Standalone nodes (program, fields, annotations, parameters) use plain
+ * values in the low byte; they have no category:
+ * (kind & SYNTAX_KIND_CATEGORY_MASK) == 0.
+ *
+ * Categorized nodes (type/expr/stmt/decl) are built as
+ * <CATEGORY_MASK> | <ordinal 0x01..0xFF>. Category membership is tested
+ * with (kind & SYNTAX_KIND_CATEGORY_MASK) == <CATEGORY_MASK>, or the bit
+ * test (kind & <CATEGORY_MASK>) != 0. Never compare a kind to a mask
+ * with ==: ordinal 0x00 is reserved for the masks themselves.
+ */
+typedef enum {
+  SYNTAX_KIND_INVALID = 0x0000,
+
+  /* standalone nodes */
+  SYNTAX_KIND_PROGRAM = 0x0001,
+
+  SYNTAX_KIND_CT_ANNOTATION = 0x0002,
+
+  SYNTAX_KIND_STRUCT_FIELD = 0x0003,
+
+  SYNTAX_KIND_ENUM_FIELD = 0x0004,
+
+  SYNTAX_KIND_UNION_FIELD = 0x0005,
+
+  SYNTAX_KIND_VARIANT_FIELD = 0x0006,
+
+  SYNTAX_KIND_GENERIC_PARAMETER = 0x0007,
+
+  SYNTAX_KIND_CALL_PARAMETER = 0x0008,
+
+  SYNTAX_KIND_CONTRACT_PARAMETER = 0x0009,
+
+  SYNTAX_KIND_STRUCT_LIT_FIELD = 0x000A,
+
+  SYNTAX_KIND_CONTRACT_ARGUMENT = 0x000B,
+
+  SYNTAX_KIND_IDENTIFIER = 0x000C,
+
+  /* category masks: one bit per category in the high byte */
+  SYNTAX_KIND_CATEGORY_MASK = 0xFF00,
+
+  SYNTAX_KIND_TYPE_MASK = 0x0100,
+
+  SYNTAX_KIND_EXPR_MASK = 0x0200,
+
+  SYNTAX_KIND_STMT_MASK = 0x0400,
+
+  SYNTAX_KIND_DECL_MASK = 0x0800,
+
+  /* type nodes */
+  SYNTAX_KIND_CONST_TYPE = SYNTAX_KIND_TYPE_MASK | 0x01,
+
+  SYNTAX_KIND_NAMED_TYPE = SYNTAX_KIND_TYPE_MASK | 0x02,
+
+  SYNTAX_KIND_REF_TYPE = SYNTAX_KIND_TYPE_MASK | 0x03,
+
+  SYNTAX_KIND_ARRAY_TYPE = SYNTAX_KIND_TYPE_MASK | 0x04,
+
+  SYNTAX_KIND_FUNC_TYPE = SYNTAX_KIND_TYPE_MASK | 0x05,
+
+  /* statement nodes */
+  SYNTAX_KIND_BODY_STMT = SYNTAX_KIND_STMT_MASK | 0x01,
+
+  SYNTAX_KIND_LET_STMT = SYNTAX_KIND_STMT_MASK | 0x02,
+
+  SYNTAX_KIND_ASSIGN_STMT = SYNTAX_KIND_STMT_MASK | 0x03,
+
+  SYNTAX_KIND_EXPR_STMT = SYNTAX_KIND_STMT_MASK | 0x04,
+
+  SYNTAX_KIND_IF_STMT = SYNTAX_KIND_STMT_MASK | 0x05,
+
+  SYNTAX_KIND_LOOP_STMT = SYNTAX_KIND_STMT_MASK | 0x06,
+
+  SYNTAX_KIND_BREAK_STMT = SYNTAX_KIND_STMT_MASK | 0x07,
+
+  SYNTAX_KIND_CONTINUE_STMT = SYNTAX_KIND_STMT_MASK | 0x08,
+
+  SYNTAX_KIND_RETURN_STMT = SYNTAX_KIND_STMT_MASK | 0x09,
+
+  SYNTAX_KIND_WHILE_STMT = SYNTAX_KIND_STMT_MASK | 0x0A,
+
+  /* expression nodes */
+  SYNTAX_KIND_INT_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x01,
+
+  SYNTAX_KIND_FLOAT_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x02,
+
+  SYNTAX_KIND_RUNE_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x03,
+
+  SYNTAX_KIND_STRING_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x04,
+
+  SYNTAX_KIND_STRUCT_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x05,
+
+  SYNTAX_KIND_ARRAY_LIT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x06,
+
+  SYNTAX_KIND_NAMED_EXPR = SYNTAX_KIND_EXPR_MASK | 0x07,
+
+  SYNTAX_KIND_UNARY_EXPR = SYNTAX_KIND_EXPR_MASK | 0x08,
+
+  SYNTAX_KIND_BINARY_EXPR = SYNTAX_KIND_EXPR_MASK | 0x09,
+
+  SYNTAX_KIND_DOT_EXPR = SYNTAX_KIND_EXPR_MASK | 0x0A,
+
+  SYNTAX_KIND_INDEX_EXPR = SYNTAX_KIND_EXPR_MASK | 0x0B,
+
+  SYNTAX_KIND_CALL_EXPR = SYNTAX_KIND_EXPR_MASK | 0x0C,
+
+  SYNTAX_KIND_CT_OPERATION_EXPR = SYNTAX_KIND_EXPR_MASK | 0x0D,
+
+  /* declaration nodes */
+  SYNTAX_KIND_NAMESPACE_DECL = SYNTAX_KIND_DECL_MASK | 0x01,
+
+  SYNTAX_KIND_USING_DECL = SYNTAX_KIND_DECL_MASK | 0x02,
+
+  SYNTAX_KIND_LET_DECL = SYNTAX_KIND_DECL_MASK | 0x03,
+
+  SYNTAX_KIND_STRUCT_DECL = SYNTAX_KIND_DECL_MASK | 0x04,
+
+  SYNTAX_KIND_ENUM_DECL = SYNTAX_KIND_DECL_MASK | 0x05,
+
+  SYNTAX_KIND_UNION_DECL = SYNTAX_KIND_DECL_MASK | 0x06,
+
+  SYNTAX_KIND_VARIANT_DECL = SYNTAX_KIND_DECL_MASK | 0x07,
+
+  SYNTAX_KIND_CONTRACT_DECL = SYNTAX_KIND_DECL_MASK | 0x08,
+
+  SYNTAX_KIND_FUNC_DECL = SYNTAX_KIND_DECL_MASK | 0x09,
+
+} SyntaxKind;
 
 typedef enum {
   SYNTAX_REF_KIND_READWRITE = 0,
@@ -70,10 +201,26 @@ typedef enum {
 
 } SyntaxOperator;
 
+static const char *const INT_SUFFIXES[] = {
+    "isize", "usize", "i128", "u128", "i64", "u64", "i32",
+    "u32",   "i16",   "u16",  "i8",   "u8",  "i",   "u"};
+
+static const char *const FLOAT_SUFFIXES[] = {"f32", "f64", "f", "d"};
+
+#define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
+
 typedef struct {
   SyntaxKind kind;
   Span span;
 } SyntaxNode;
+
+/**
+ * @brief Builds the common header shared by every AST node.
+ * @param kind The node kind.
+ * @param span The source range covered by the node.
+ * @return The initialized header.
+ */
+SyntaxNode syntax_node_header(SyntaxKind kind, Span span);
 
 typedef struct {
   size_t len;

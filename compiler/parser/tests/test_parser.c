@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "parse.h"
 #include "parser.h"
 #include "source.h"
 #include "test_util.h"
@@ -38,7 +39,7 @@ static ParserResult parse_number(const char *text) {
 
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorLinkedList *e = r->errors; e; e = e->next)
+  for (const SyntaxErrorList *e = r->errors; e; e = e->next)
     n++;
   return n;
 }
@@ -104,7 +105,7 @@ static void expect_malformed(const char *text) {
   CHECK(r.node == NULL); // nothing worth keeping
   CHECK(error_count(&r) == 1);
 
-  const SyntaxErrorLinkedList *e = r.errors;
+  const SyntaxErrorList *e = r.errors;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_NUMBER);
 }
 

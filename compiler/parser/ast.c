@@ -15,6 +15,10 @@
 #include "ast.h"
 #include "mem.h"
 
+SyntaxNode syntax_node_header(SyntaxKind kind, Span span) {
+  return (SyntaxNode){.kind = kind, .span = span};
+}
+
 SyntaxNodeList syntax_node_list_create(void) {
   SyntaxNodeList list;
   list.len = 0;

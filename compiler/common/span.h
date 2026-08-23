@@ -25,6 +25,14 @@ typedef struct {
 Span span_empty(void);
 
 /**
+ * @brief Builds a span from absolute offsets.
+ * @param start First byte offset of the range.
+ * @param end One past the last byte offset of the range.
+ * @return The half-open span [start, end).
+ */
+Span span_create(size_t start, size_t end);
+
+/**
  * @brief Length of the span.
  * @param span The span to measure.
  * @return end - start.

@@ -11,6 +11,10 @@
 
 Span span_empty(void) { return (Span){.start = 0, .end = 0}; }
 
+Span span_create(size_t start, size_t end) {
+  return (Span){.start = start, .end = end};
+}
+
 size_t span_len(Span span) {
   assert(span.start <= span.end);
   return span.end - span.start;
