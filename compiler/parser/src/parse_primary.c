@@ -1,8 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "parser.h"
-#include "xmem.h"
+#include "parse_shared.h"
 
 ParserResult parse_identifier(const Parser *parser, Span span) {
   if (span_is_empty(span))
