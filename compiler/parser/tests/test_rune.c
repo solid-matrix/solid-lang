@@ -32,11 +32,11 @@ static ParserResult parse(const char *text) {
   return parse_rune_lit_expr(g_parser, source_get_span(g_source));
 }
 
-static void release(ParserResult *r) { syntax_errorlist_destroy(r->errors); }
+static void release(ParserResult *r) { syntax_errorlist_destroy(&r->errors); }
 
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorListNode *e = r->errors->head; e != NULL; e = e->next)
+  for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
     n++;
   return n;
 }
@@ -53,7 +53,7 @@ static void expect_rune(const char *text) {
   CHECK(r.node->kind == SYNTAX_KIND_RUNE_LIT_EXPR);
   CHECK(strview_equals(((SyntaxRuneLitExpr *)r.node)->value,
                        strview_create((const uint8_t *)text, strlen(text))));
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.rem.start == strlen(text));
   release(&r);
 }
@@ -66,7 +66,7 @@ static void expect_malformed(const char *text) {
   CHECK(r.node == NULL); // nothing worth keeping
   CHECK(error_count(&r) == 1);
 
-  const SyntaxErrorListNode *e = r.errors->head;
+  const SyntaxErrorList *e = r.errors;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_RUNE);
   release(&r);
 }
@@ -81,13 +81,13 @@ static void expect_not_match(const char *text) {
 }
 
 static void test_valid(void) {
-  static const char *const SIMPLE[] = {"'a'",     "'字'", "'\\''", "'\\\"'",
-                                       "'\\\\'",  "'\\n'", "'\\r'", "'\\t'",
-                                       "'\\0'",   "'€'",  "'😀'"};
+  static const char *const SIMPLE[] = {"'a'",    "'字'",  "'\\''", "'\\\"'",
+                                       "'\\\\'", "'\\n'", "'\\r'", "'\\t'",
+                                       "'\\0'",  "'€'",   "'😀'"};
   static const char *const NUMERIC[] = {
-      "'\\x41'",        "'\\x30'",        "'\\x7f'",       "'\\u{41}'",
-      "'\\u{0}'",       "'\\u{1_F600}'",  "'\\u{10FFFF}'", "'\\u{10_FFFF}'",
-      "'\\u{00e9}'"};
+      "'\\x41'",       "'\\x30'",        "'\\x7f'",
+      "'\\u{41}'",     "'\\u{0}'",       "'\\u{1_F600}'",
+      "'\\u{10FFFF}'", "'\\u{10_FFFF}'", "'\\u{00e9}'"};
 
   for (size_t i = 0; i < sizeof(SIMPLE) / sizeof(SIMPLE[0]); i++)
     expect_rune(SIMPLE[i]);
@@ -97,28 +97,28 @@ static void test_valid(void) {
 
 static void test_invalid(void) {
   static const char *const CASES[] = {
-      "''",           // empty rune
-      "'''",          // unescaped single quote
-      "'ab'",         // more than one character
-      "'ab",          // unterminated
-      "'\\q'",        // unknown escape
-      "'\\x'",        // missing digits
-      "'\\x8'",       // one digit missing
-      "'\\x80'",      // out of ASCII range
-      "'\\x7G'",      // G is not a hexadecimal digit
-      "'\\u{}'",      // empty unicode escape
-      "'\\u{_41}'",   // leading underscore
-      "'\\u{41_}'",   // trailing underscore
-      "'\\u{1__F}'",  // consecutive underscores
-      "'\\u{D800}'",  // surrogate
-      "'\\u{DFFF}'",  // surrogate
-      "'\\u{110000}'",// out of Unicode scalar range
-      "'\\u{FFFFFF}'",// far out of range
-      "'\t'",         // raw horizontal tab
-      "'\n'",         // raw line feed
-      "'\r'",         // raw carriage return
-      "'\x80'",       // lone continuation byte
-      "'\xc0\xaf'",   // overlong encoding
+      "''",            // empty rune
+      "'''",           // unescaped single quote
+      "'ab'",          // more than one character
+      "'ab",           // unterminated
+      "'\\q'",         // unknown escape
+      "'\\x'",         // missing digits
+      "'\\x8'",        // one digit missing
+      "'\\x80'",       // out of ASCII range
+      "'\\x7G'",       // G is not a hexadecimal digit
+      "'\\u{}'",       // empty unicode escape
+      "'\\u{_41}'",    // leading underscore
+      "'\\u{41_}'",    // trailing underscore
+      "'\\u{1__F}'",   // consecutive underscores
+      "'\\u{D800}'",   // surrogate
+      "'\\u{DFFF}'",   // surrogate
+      "'\\u{110000}'", // out of Unicode scalar range
+      "'\\u{FFFFFF}'", // far out of range
+      "'\t'",          // raw horizontal tab
+      "'\n'",          // raw line feed
+      "'\r'",          // raw carriage return
+      "'\x80'",        // lone continuation byte
+      "'\xc0\xaf'",    // overlong encoding
   };
 
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)

@@ -24,3 +24,12 @@ set(STRING_CASES valid invalid boundaries)
 foreach(case_name IN LISTS STRING_CASES)
   add_test(NAME parser.string.${case_name} COMMAND test_string ${case_name})
 endforeach()
+
+add_executable(test_decl test_decl.c)
+target_link_libraries(test_decl PRIVATE solid-lang-parser
+                                        solid-lang-test-util)
+
+set(DECL_CASES namespace using malformed boundaries)
+foreach(case_name IN LISTS DECL_CASES)
+  add_test(NAME parser.decl.${case_name} COMMAND test_decl ${case_name})
+endforeach()

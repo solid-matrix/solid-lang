@@ -28,12 +28,12 @@ SyntaxProgram *parse(const Parser *parser) {
     return NULL;
   }
 
-  if (!syntax_errorlist_is_empty(parser_res.errors)) {
-    for (const SyntaxErrorListNode *n = parser_res.errors->head; n != NULL;
+  if (parser_res.errors != NULL) {
+    for (const SyntaxErrorList *n = parser_res.errors; n != NULL;
          n = n->next)
       fprintf(stderr, "error code: 0x%x\n", n->error.code);
 
-    syntax_errorlist_destroy(parser_res.errors);
+    syntax_errorlist_destroy(&parser_res.errors);
     return NULL;
   }
 

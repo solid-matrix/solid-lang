@@ -7,68 +7,56 @@ SyntaxError syntax_error_create(SyntaxErrorCode code, Span span) {
   return (SyntaxError){.code = code, .span = span};
 }
 
-SyntaxErrorList *syntax_errorlist_create(void) {
-  SyntaxErrorList *list = xmalloc(sizeof(SyntaxErrorList));
-  list->head = NULL;
-  return list;
-}
-
-bool syntax_errorlist_is_empty(const SyntaxErrorList *list) {
+void syntax_errorlist_append(SyntaxErrorList **list, SyntaxError error) {
   assert(list != NULL);
 
-  return list->head == NULL;
-}
+  SyntaxErrorList *node = xmalloc(sizeof(SyntaxErrorList));
+  *node = (SyntaxErrorList){.error = error, .next = NULL};
 
-void syntax_errorlist_append(SyntaxErrorList *list, SyntaxError error) {
-  assert(list != NULL);
-
-  SyntaxErrorListNode *node = xmalloc(sizeof(SyntaxErrorListNode));
-  *node = (SyntaxErrorListNode){.error = error, .next = NULL};
-
-  if (list->head == NULL) {
-    list->head = node;
+  if (*list == NULL) {
+    *list = node;
     return;
   }
 
-  SyntaxErrorListNode *tail = list->head;
+  SyntaxErrorList *tail = *list;
   while (tail->next != NULL)
     tail = tail->next;
 
   tail->next = node;
 }
 
-void syntax_errorlist_merge(SyntaxErrorList *dst, SyntaxErrorList *src) {
+void syntax_errorlist_merge(SyntaxErrorList **dst, SyntaxErrorList **src) {
   assert(dst != NULL);
   assert(src != NULL);
   assert(dst != src);
 
-  if (src->head == NULL)
+  if (*src == NULL)
     return;
 
-  if (dst->head == NULL) {
-    dst->head = src->head;
-    src->head = NULL;
+  if (*dst == NULL) {
+    *dst = *src;
+    *src = NULL;
     return;
   }
 
-  SyntaxErrorListNode *tail = dst->head;
+  SyntaxErrorList *tail = *dst;
   while (tail->next != NULL)
     tail = tail->next;
 
-  tail->next = src->head;
-  src->head = NULL;
+  tail->next = *src;
+  *src = NULL;
 }
 
-void syntax_errorlist_destroy(SyntaxErrorList *list) {
+void syntax_errorlist_destroy(SyntaxErrorList **list) {
   if (list == NULL)
     return;
 
-  SyntaxErrorListNode *node = list->head;
+  SyntaxErrorList *node = *list;
   while (node != NULL) {
-    SyntaxErrorListNode *next = node->next;
+    SyntaxErrorList *next = node->next;
     xfree(node);
     node = next;
   }
 
-  xfree(list);
+  *list = NULL;
 }

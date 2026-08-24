@@ -94,6 +94,37 @@ ParserResult parse_string_lit_expr(const Parser *parser, Span span);
 
 ParserResult parse_identifier(const Parser *parser, Span span);
 
+/**
+ * @brief Parses NamespaceDecl = "namespace" NamePath ";".
+ *
+ * See the Namespace Declarations section of doc/syntax.md. Produces a
+ * SyntaxNamespaceDecl owning the path segment nodes.
+ *
+ * A keyword hit with a broken tail (missing or unterminated path)
+ * reports SYNTAX_MALFORMED_NAMEPATH; a parsed path not followed by ";"
+ * reports SYNTAX_EXPECTED_SEMICOLON. Both are recovered: the result is
+ * matched with node == NULL and consumes up to the stray ";" or line
+ * terminator, so parse_program keeps making progress.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+ParserResult parse_namespace_decl(const Parser *parser, Span span);
+
+/**
+ * @brief Parses UsingDecl = "using" NamePath ";".
+ *
+ * Same shape, recovery semantics, and node ownership as
+ * parse_namespace_decl, anchored on the "using" keyword and producing
+ * a SyntaxUsingDecl.
+ *
+ * @param parser The parser performing the scan.
+ * @param span Position to test; leading trivia must already be skipped.
+ * @return Standard ParserResult contract (see the struct docs).
+ */
+ParserResult parse_using_decl(const Parser *parser, Span span);
+
 ParserResult parse_expr(const Parser *parser, Span span);
 
 ParserResult parse_decl(const Parser *parser, Span span);

@@ -1,10 +1,14 @@
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "parse_shared.h"
 #include "parser.h"
+#include "parser_result.h"
+#include "source.h"
 #include "span.h"
-#include "xmem.h"
+#include "strview.h"
+#include "syntax_error.h"
 
 bool is_letter_or_underscore(uint8_t c) {
   return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
@@ -74,6 +78,46 @@ Span span_consumed(Span span, Span rem) {
   return (Span){.start = span.start, .end = rem.start};
 }
 
+ParserResult match_keyword(const Parser *parser, Span span, Strview keyword) {
+  if (keyword.len == 0 || keyword.len > span_len(span))
+    return parser_result_not_match(span);
+
+  ParserResult res = parse_identifier(parser, span);
+
+  if (res.matched == false) {
+    syntax_errorlist_destroy(&res.errors);
+    return parser_result_not_match(span);
+  }
+
+  Span consumed = span_consumed(span, res.rem);
+
+  Strview id = source_strview_at(parser->source, consumed);
+
+  if (!strview_equals(id, keyword)) {
+    return parser_result_not_match(span);
+  }
+
+  return parser_result_matched(res.rem, NULL, res.errors);
+
+  // Strview part =
+  //     source_strview_at(parser->source, span_slice(span, 0, keyword.len));
+  // if (!strview_equals(part, keyword))
+  //   return parser_result_not_match(span);
+
+  // // Identifier boundary: "in" must not match the front of "input".
+  // size_t after = span.start + keyword.len;
+  // if (after < span.end &&
+  //     is_letter_digit_or_underscore(source_byte_at(parser->source, after)))
+  //   return parser_result_not_match(span);
+
+  // return (ParserResult){
+  //     .matched = true,
+  //     .rem = (Span){.start = after, .end = span.end},
+  //     .node = NULL,
+  //     .errors = NULL,
+  // };
+}
+
 ParserResult complete_longest_match(ParserResult *results, size_t count) {
   assert(count > 0);
 
@@ -86,9 +130,8 @@ ParserResult complete_longest_match(ParserResult *results, size_t count) {
   }
 
   for (size_t i = 0; i < count; i++) {
-    if (i != selected) {
-      syntax_errorlist_destroy(results[i].errors);
-    }
+    if (i != selected)
+      syntax_errorlist_destroy(&results[i].errors);
   }
 
   return results[selected];

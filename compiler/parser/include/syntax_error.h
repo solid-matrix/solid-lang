@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-
 #include "span.h"
 
 typedef enum {
@@ -10,6 +8,8 @@ typedef enum {
   SYNTAX_MALFORMED_NUMBER = 0x0002,
   SYNTAX_MALFORMED_RUNE = 0x0003,
   SYNTAX_MALFORMED_STRING = 0x0004,
+  SYNTAX_MALFORMED_NAMEPATH = 0x0005,
+  SYNTAX_EXPECTED_SEMICOLON = 0x0006,
 } SyntaxErrorCode;
 
 typedef struct {
@@ -20,60 +20,37 @@ typedef struct {
 SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
 
 /**
- * @brief One diagnostic in a SyntaxErrorList.
+ * @brief One diagnostic; a chain of these nodes IS the error list.
+ *
+ * The list is represented by its head pointer, so "no errors" is
+ * simply NULL and an empty list costs nothing.
  */
-typedef struct SyntaxErrorListNode SyntaxErrorListNode;
-struct SyntaxErrorListNode {
+typedef struct SyntaxErrorList SyntaxErrorList;
+struct SyntaxErrorList {
   SyntaxError error;
-  SyntaxErrorListNode *next;
+  SyntaxErrorList *next;
 };
 
 /**
- * @brief A heap-allocated handle owning a chain of error nodes.
- *
- * The stable address of the handle is what lets append/merge/destroy
- * take a single pointer: they mutate the chain through it. An empty
- * list has head == NULL; the handle itself is never NULL while alive.
- */
-typedef struct {
-  SyntaxErrorListNode *head; // first node, or NULL when empty
-} SyntaxErrorList;
-
-/**
- * @brief Allocates an empty list.
- * @return The new list, owned by the caller; released exactly once
- *         with syntax_errorlist_destroy().
- */
-SyntaxErrorList *syntax_errorlist_create(void);
-
-/**
- * @brief Tests whether the list holds no nodes.
- * @param list The list to test.
- * @return True when head == NULL.
- */
-bool syntax_errorlist_is_empty(const SyntaxErrorList *list);
-
-/**
  * @brief Appends @p error as the last node.
- * @param list The list to extend.
- * @param error The diagnostic to append.
+ * @param list The list slot to extend; may point at NULL (the empty
+ *             list), which this call fills.
  */
-void syntax_errorlist_append(SyntaxErrorList *list, SyntaxError error);
+void syntax_errorlist_append(SyntaxErrorList **list, SyntaxError error);
 
 /**
  * @brief Moves every node of @p src to the end of @p dst.
  *
- * Only ownership of the NODES moves: @p src is left as an empty list
- * and its handle stays valid; release it separately with
- * syntax_errorlist_destroy().
+ * Ownership of the nodes moves: *src is set to NULL, so the source
+ * slot is left as the empty list and cannot be double-released.
  * @param dst The list that receives the nodes.
  * @param src The list whose nodes are moved away; must differ from dst.
  */
-void syntax_errorlist_merge(SyntaxErrorList *dst, SyntaxErrorList *src);
+void syntax_errorlist_merge(SyntaxErrorList **dst, SyntaxErrorList **src);
 
 /**
- * @brief Frees every node, then the handle itself.
- * @param list The list to destroy; NULL is allowed and is a no-op, so
- *             callers may release lists unconditionally.
+ * @brief Frees every node and clears the slot.
+ * @param list The list slot to destroy; NULL is allowed and only
+ *             normalizes the slot, matching free()-style tolerance.
  */
-void syntax_errorlist_destroy(SyntaxErrorList *list);
+void syntax_errorlist_destroy(SyntaxErrorList **list);

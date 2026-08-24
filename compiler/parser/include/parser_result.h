@@ -43,8 +43,9 @@
  *
  *   matched == true -> the construct was recognized and its input was
  *   consumed (see the postconditions above).
- *       errors is ALWAYS a valid (possibly empty) list owned by the
- *       result: consumers never test it for NULL, only for emptiness.
+ *       errors == NULL means "no diagnostics" — the common case, at
+ *       no allocation cost; consumers test errors for NULL before
+ *       walking it.
  *       node != NULL -> a concrete AST node to keep (e.g. append it to
  *                       the enclosing node list);
  *       node == NULL -> nothing worth keeping (e.g. a dropped
@@ -77,9 +78,7 @@ ParserResult parser_result_not_match(Span span);
  * @brief Builds a matched outcome.
  * @param rem The position just past the consumed text.
  * @param node The AST node to keep, or NULL for a dropped construct.
- * @param errors Diagnostics to attach; NULL means "no diagnostics" and
- *               receives a fresh empty list, so the returned result
- *               always owns a valid (possibly empty) list.
+ * @param errors Diagnostics to attach; NULL means "no diagnostics".
  * @return The result.
  */
 ParserResult parser_result_matched(Span rem, SyntaxNode *node,

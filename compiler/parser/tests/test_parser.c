@@ -38,7 +38,7 @@ static ParserResult parse_number(const char *text) {
 
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorListNode *e = r->errors->head; e != NULL; e = e->next)
+  for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
     n++;
   return n;
 }
@@ -48,7 +48,7 @@ static size_t error_count(const ParserResult *r) {
 static void expect_int(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -61,7 +61,7 @@ static void expect_int(const char *text) {
 static void expect_float(const char *text) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -75,7 +75,7 @@ static void expect_float(const char *text) {
 static void expect_int_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -88,7 +88,7 @@ static void expect_int_split(const char *text, size_t tok_len) {
 static void expect_float_split(const char *text, size_t tok_len) {
   ParserResult r = parse_number(text);
   CHECK(r.matched);
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   if (!r.node)
     return;
@@ -104,24 +104,29 @@ static void expect_malformed(const char *text) {
   CHECK(r.node == NULL); // nothing worth keeping
   CHECK(error_count(&r) == 1);
 
-  const SyntaxErrorListNode *e = r.errors->head;
+  const SyntaxErrorList *e = r.errors;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_NUMBER);
 }
 
 static void test_int_valid(void) {
   static const char *const DECIMAL[] = {
-      "0",      "0i32",  "0_i32",  "1",        "1i32",     "1_i32",
-      "12",     "12i32", "12_i32", "1_2",      "1_2i32",   "1_2_i32",
-      "1_234_567", "0isize", "1u128", "1234567_u"};
+      "0",         "0i32",   "0_i32",  "1",         "1i32",   "1_i32",
+      "12",        "12i32",  "12_i32", "1_2",       "1_2i32", "1_2_i32",
+      "1_234_567", "0isize", "1u128",  "1234567_u",
+  };
   static const char *const BASES[] = {
-      "0b0",          "0b01",         "0b1",           "0b_0",
-      "0b_0000_1111", "0B_0000_1111_u8", "0b1010_1101", "0b1u8",
-      "0o0",          "0o17",         "0o_123",        "0O_123",
-      "0o7_i16",      "0x0",          "0xFF",          "0x_FFFF",
-      "0X_FFFF",      "0xDeAd_beEf",  "0xF_u32",       "0xFFu64"};
+      "0b0",         "0b01",         "0b1",
+      "0b_0",        "0b_0000_1111", "0B_0000_1111_u8",
+      "0b1010_1101", "0b1u8",        "0o0",
+      "0o17",        "0o_123",       "0O_123",
+      "0o7_i16",     "0x0",          "0xFF",
+      "0x_FFFF",     "0X_FFFF",      "0xDeAd_beEf",
+      "0xF_u32",     "0xFFu64",
+  };
   static const char *const SUFFIXED[] = {
       "0_i8", "0_i16", "0_i64",  "0_i128",  "0_isize", "0_i",
-      "0_u8", "0_u16", "0_u128", "0_usize", "0_u"};
+      "0_u8", "0_u16", "0_u128", "0_usize", "0_u",
+  };
 
   for (size_t i = 0; i < sizeof(DECIMAL) / sizeof(DECIMAL[0]); i++)
     expect_int(DECIMAL[i]);
@@ -133,13 +138,16 @@ static void test_int_valid(void) {
 
 static void test_float_valid(void) {
   static const char *const EXPONENT[] = {
-      "1e5", "1e5_f32", "1.5e5", "1.5e5_f32", "1e+5", "1e-5",
-      "1e_5", "1E5", "1E+5", "1E-5", "1e+_5", "1e-_5",
-      "0e0", "1_000e3", "1e5f64", "1.5e5_f64"};
-  static const char *const DOT[] = {"1.", "1.5", "1.5_f32", "1.5f32", "0.5",
-                                    "0.0", "12.75", "1.f32", "1.5d"};
-  static const char *const SUFFIXED[] = {"1f", "1f32", "1_f32", "0d",
-                                         "1f64", "0f"};
+      "1e5",  "1e5_f32", "1.5e5",  "1.5e5_f32", "1e+5",  "1e-5",
+      "1e_5", "1E5",     "1E+5",   "1E-5",      "1e+_5", "1e-_5",
+      "0e0",  "1_000e3", "1e5f64", "1.5e5_f64",
+  };
+  static const char *const DOT[] = {
+      "1.", "1.5", "1.5_f32", "1.5f32", "0.5", "0.0", "12.75", "1.f32", "1.5d",
+  };
+  static const char *const SUFFIXED[] = {
+      "1f", "1f32", "1_f32", "0d", "1f64", "0f",
+  };
 
   for (size_t i = 0; i < sizeof(EXPONENT) / sizeof(EXPONENT[0]); i++)
     expect_float(EXPONENT[i]);
@@ -152,9 +160,10 @@ static void test_float_valid(void) {
 static void test_malformed_prefixes(void) {
   // Base prefix without digits, underscore without digits, or a digit
   // outside the base: reported and recovered as one run.
-  static const char *const CASES[] = {"0b",  "0B",  "0x",   "0X",   "0o",
-                                      "0O",  "0x_", "0b_",  "0b__0", "0o8",
-                                      "0b2", "0o9", "0xG",  "0x_g"};
+  static const char *const CASES[] = {
+      "0b",  "0B",    "0x",  "0X",  "0o",  "0O",  "0x_",
+      "0b_", "0b__0", "0o8", "0b2", "0o9", "0xG", "0x_g",
+  };
 
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_malformed(CASES[i]);
@@ -226,7 +235,7 @@ static void test_boundaries(void) {
   begin("12 // c\nx");
   r = parse_number_lit_expr(g_parser, source_get_span(g_source));
   CHECK(r.matched);
-  CHECK(syntax_errorlist_is_empty(r.errors));
+  CHECK(r.errors == NULL);
   CHECK(r.node != NULL);
   CHECK(r.node->span.end == 2 && r.node->span.start == 0);
   CHECK(r.rem.start == 2);

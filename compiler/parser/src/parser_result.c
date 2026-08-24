@@ -11,12 +11,8 @@ ParserResult parser_result_not_match(Span span) {
 
 ParserResult parser_result_matched(Span rem, SyntaxNode *node,
                                    SyntaxErrorList *errors) {
-  // Invariant: a matched result always owns a valid list. Passing NULL
-  // here means "no diagnostics" and receives a fresh empty list, so
-  // consumers never need to test errors for NULL.
-  if (errors == NULL)
-    errors = syntax_errorlist_create();
-
+  // errors == NULL simply means "no diagnostics": the common case
+  // costs no allocation at all.
   return (ParserResult){
       .matched = true,
       .rem = rem,
