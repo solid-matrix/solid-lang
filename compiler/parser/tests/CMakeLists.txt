@@ -33,3 +33,23 @@ set(DECL_CASES namespace using malformed boundaries)
 foreach(case_name IN LISTS DECL_CASES)
   add_test(NAME parser.decl.${case_name} COMMAND test_decl ${case_name})
 endforeach()
+
+add_executable(test_syntaxerrorlist test_syntaxerrorlist.c)
+target_link_libraries(test_syntaxerrorlist PRIVATE solid-lang-parser
+                                                   solid-lang-test-util)
+
+set(ERRORLIST_CASES empty from_array persistence access reverse concat length)
+foreach(case_name IN LISTS ERRORLIST_CASES)
+  add_test(NAME parser.errorlist.${case_name}
+           COMMAND test_syntaxerrorlist ${case_name})
+endforeach()
+
+add_executable(test_syntaxnodelist test_syntaxnodelist.c)
+target_link_libraries(test_syntaxnodelist PRIVATE solid-lang-parser
+                                                  solid-lang-test-util)
+
+set(NODELIST_CASES empty from_array persistence access reverse concat length)
+foreach(case_name IN LISTS NODELIST_CASES)
+  add_test(NAME parser.nodelist.${case_name}
+           COMMAND test_syntaxnodelist ${case_name})
+endforeach()

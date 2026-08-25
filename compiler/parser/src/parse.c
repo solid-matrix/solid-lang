@@ -60,12 +60,12 @@ ParserResult parse_program(const Parser *parser, Span span) {
     assert(res.rem.start > rem.start);
     rem = res.rem;
 
-    syntax_errorlist_merge(&errors, &res.errors);
+    errors = syntax_errorlist_concat(parser->arena, errors, res.errors);
 
     if (res.node != NULL) {
       assert((res.node->kind & SYNTAX_KIND_DECL_MASK) != 0);
       // ownership of the node moves into the program's decl list
-      syntax_nodelist_append(parser->arena, &decls, res.node);
+      decls = syntax_nodelist_append(parser->arena, decls, res.node);
     }
   }
 
@@ -79,8 +79,9 @@ ParserResult parse_program(const Parser *parser, Span span) {
 
   rem = skip_trivia(parser->source, rem);
   if (!span_is_empty(rem))
-    syntax_errorlist_append(parser->arena, &errors,
-                            syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
+    errors = syntax_errorlist_append(
+        parser->arena, errors,
+        syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
 
   return parser_result_matched(rem, (SyntaxNode *)program, errors);
 }

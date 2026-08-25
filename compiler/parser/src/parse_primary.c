@@ -244,9 +244,9 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
     }
     Span bad = span_consumed(span, rem);
 
-    SyntaxErrorList *errors = NULL;
-    syntax_errorlist_append(parser->arena, &errors,
-                          syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
+    SyntaxErrorList *errors = syntax_errorlist_append(
+        parser->arena, NULL,
+        syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
     return parser_result_matched((Span){.start = bad.end, .end = span.end},
                                  NULL, errors);
   }
@@ -594,9 +594,9 @@ static ParserResult malformed_quoted_lit(const Parser *parser, Span span,
                                          SyntaxErrorCode code, uint8_t quote) {
   Span bad = scan_malformed_lit_run(parser, span, quote);
 
-  SyntaxErrorList *errors = NULL;
-  syntax_errorlist_append(parser->arena, &errors,
-                          syntax_error_create(code, bad));
+  SyntaxErrorList *errors =
+      syntax_errorlist_append(parser->arena, NULL,
+                              syntax_error_create(code, bad));
 
   return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
                                errors);

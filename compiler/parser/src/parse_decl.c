@@ -45,9 +45,9 @@ static ParserResult malformed_decl(const Parser *parser, Span span,
                                    size_t bad_start, SyntaxErrorCode code) {
   Span bad = scan_decl_tail(parser, span, bad_start);
 
-  SyntaxErrorList *errors = NULL;
-  syntax_errorlist_append(parser->arena, &errors,
-                          syntax_error_create(code, bad));
+  SyntaxErrorList *errors =
+      syntax_errorlist_append(parser->arena, NULL,
+                              syntax_error_create(code, bad));
 
   return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
                                errors);

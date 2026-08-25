@@ -20,14 +20,8 @@ typedef struct {
 
 SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
 
-/**
- * @brief One diagnostic; a chain of these nodes IS the error list.
- *
- * The list is represented by its head pointer, so "no errors" is
- * simply NULL and an empty list costs nothing. Nodes live in the
- * parse arena and are never released individually — there is no
- * destroy: reclamation happens with the whole arena.
- */
+#pragma region SYNTAX ERROR LIST
+
 typedef struct SyntaxErrorList SyntaxErrorList;
 struct SyntaxErrorList {
   SyntaxError error;
@@ -35,21 +29,69 @@ struct SyntaxErrorList {
 };
 
 /**
- * @brief Appends @p error as the last node, allocating it in @p arena.
- * @param arena The parse arena backing the new node.
- * @param list The list slot to extend; may point at NULL (the empty
- *             list), which this call fills.
- * @param error The diagnostic to append.
+ * @brief The empty list. Returns NULL; exists for explicit call sites.
  */
-void syntax_errorlist_append(Arena *arena, SyntaxErrorList **list,
-                             SyntaxError error);
+SyntaxErrorList *syntax_errorlist_empty(void);
 
 /**
- * @brief Moves every node of @p src to the end of @p dst.
- *
- * Ownership of the nodes moves: *src is set to NULL, so the source
- * slot is left as the empty list.
- * @param dst The list that receives the nodes.
- * @param src The list whose nodes are moved away; must differ from dst.
+ * @brief Builds a list holding @p count array elements, preserving
+ *        order. Returns NULL when @p count is zero.
  */
-void syntax_errorlist_merge(SyntaxErrorList **dst, SyntaxErrorList **src);
+SyntaxErrorList *syntax_errorlist_from_array(Arena *arena,
+                                             const SyntaxError *errors,
+                                             size_t count);
+
+/**
+ * @brief A list with @p error followed by all of @p list. O(1); shares
+ *        the whole old spine.
+ */
+SyntaxErrorList *syntax_errorlist_prepend(Arena *arena, SyntaxErrorList *list,
+                                          SyntaxError error);
+
+/**
+ * @brief A list with all elements of @p list followed by @p error.
+ *        Copies @p list's cells; the source stays valid and unchanged.
+ */
+SyntaxErrorList *syntax_errorlist_append(Arena *arena, SyntaxErrorList *list,
+                                         SyntaxError error);
+
+/**
+ * @brief The first error. Asserts non-empty.
+ */
+SyntaxError syntax_errorlist_head(SyntaxErrorList *list);
+
+/**
+ * @brief Every element except the first (NULL when length is one).
+ *        Asserts non-empty.
+ */
+SyntaxErrorList *syntax_errorlist_tail(SyntaxErrorList *list);
+
+/**
+ * @brief The error at zero-based position @p n. Asserts in range.
+ */
+SyntaxError syntax_errorlist_at(SyntaxErrorList *list, size_t n);
+
+/**
+ * @brief True when the list holds no errors.
+ */
+bool syntax_errorlist_is_empty(const SyntaxErrorList *list);
+
+/**
+ * @brief Fresh cells holding @p list's errors in reverse order; the
+ *        source stays valid and unchanged.
+ */
+SyntaxErrorList *syntax_errorlist_reverse(Arena *arena, SyntaxErrorList *list);
+
+/**
+ * @brief All errors of @p list_a followed by all of @p list_b. Copies
+ *        @p list_a's cells and shares @p list_b wholesale.
+ */
+SyntaxErrorList *syntax_errorlist_concat(Arena *arena, SyntaxErrorList *list_a,
+                                         SyntaxErrorList *list_b);
+
+/**
+ * @brief Number of errors. O(n).
+ */
+size_t syntax_errorlist_length(SyntaxErrorList *list);
+
+#pragma endregion

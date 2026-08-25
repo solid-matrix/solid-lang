@@ -204,7 +204,7 @@ typedef enum {
 
 } SyntaxOperator;
 
-typedef struct {
+typedef struct SyntaxNode {
   SyntaxKind kind;
   Span span;
 } SyntaxNode;
@@ -217,16 +217,8 @@ typedef struct {
  */
 SyntaxNode syntax_node_header(SyntaxKind kind, Span span);
 
-/**
- * @brief One child of an ordered node sequence; the chain of these
- *        nodes IS the list.
- *
- * Isomorphic to SyntaxErrorList: the list is represented by its head
- * pointer, so "no children" is simply NULL and an empty sequence costs
- * nothing. Nodes live in the parse arena and are never released
- * individually — there is no destroy: reclamation happens with the
- * whole arena.
- */
+#pragma region SYNTAX NODE LIST
+
 typedef struct SyntaxNodeList SyntaxNodeList;
 struct SyntaxNodeList {
   SyntaxNode *node;
@@ -234,23 +226,72 @@ struct SyntaxNodeList {
 };
 
 /**
- * @brief Allocates an empty list in @p arena.
- * @param arena The parse arena backing the list and its array.
- * @return The new list; never NULL.
+ * @brief The empty list. Returns NULL; exists for explicit call sites.
  */
+SyntaxNodeList *syntax_nodelist_empty(void);
+
 /**
- * @brief Appends @p node as the last element, allocating the chain
- *        node in @p arena.
- *
- * Elements are never released individually: the whole list is
- * reclaimed with the arena that backs the parse.
- * @param arena The parse arena backing the new chain node.
- * @param list The list slot to extend; may point at NULL (the empty
- *             list), which this call fills.
- * @param node The child node to append; ownership moves into the list.
+ * @brief Builds a list holding @p count array elements, preserving
+ *        order. Returns NULL when @p count is zero.
  */
-void syntax_nodelist_append(Arena *arena, SyntaxNodeList **list,
-                            SyntaxNode *node);
+SyntaxNodeList *syntax_nodelist_from_array(Arena *arena,
+                                           SyntaxNode *const *nodes,
+                                           size_t count);
+
+/**
+ * @brief A list with @p node followed by all of @p list. O(1); shares
+ *        the whole old spine.
+ */
+SyntaxNodeList *syntax_nodelist_prepend(Arena *arena, SyntaxNodeList *list,
+                                        SyntaxNode *node);
+
+/**
+ * @brief A list with all elements of @p list followed by @p node.
+ *        Copies @p list's cells; the source stays valid and unchanged.
+ */
+SyntaxNodeList *syntax_nodelist_append(Arena *arena, SyntaxNodeList *list,
+                                       SyntaxNode *node);
+
+/**
+ * @brief The first node. Asserts non-empty.
+ */
+SyntaxNode *syntax_nodelist_head(SyntaxNodeList *list);
+
+/**
+ * @brief Every element except the first (NULL when length is one).
+ *        Asserts non-empty.
+ */
+SyntaxNodeList *syntax_nodelist_tail(SyntaxNodeList *list);
+
+/**
+ * @brief The node at zero-based position @p n. Asserts in range.
+ */
+SyntaxNode *syntax_nodelist_at(SyntaxNodeList *list, size_t n);
+
+/**
+ * @brief True when the list holds no nodes.
+ */
+bool syntax_nodelist_is_empty(const SyntaxNodeList *list);
+
+/**
+ * @brief Fresh cells holding @p list's nodes in reverse order; the
+ *        source stays valid and unchanged.
+ */
+SyntaxNodeList *syntax_nodelist_reverse(Arena *arena, SyntaxNodeList *list);
+
+/**
+ * @brief All nodes of @p list_a followed by all of @p list_b. Copies
+ *        @p list_a's cells and shares @p list_b wholesale.
+ */
+SyntaxNodeList *syntax_nodelist_concat(Arena *arena, SyntaxNodeList *list_a,
+                                       SyntaxNodeList *list_b);
+
+/**
+ * @brief Number of nodes. O(n).
+ */
+size_t syntax_nodelist_length(SyntaxNodeList *list);
+
+#pragma endregion
 
 #pragma region COMMON NODES
 typedef struct {
@@ -273,8 +314,6 @@ typedef struct {
   SyntaxNode header;
   SyntaxNodeList *segments; // SyntaxIdentifier nodes
 } SyntaxNamePath;
-
-
 
 typedef struct {
   SyntaxNode header;
@@ -354,7 +393,7 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;             // SyntaxIdentifier nodes
+  SyntaxNamePath *path;              // SyntaxIdentifier nodes
   SyntaxNodeList *generic_arguments; // type nodes
 } SyntaxNamedType;
 
@@ -412,7 +451,7 @@ typedef struct {
   SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *behind_type; // type node
-  SyntaxNodeList *fields;   // SyntaxEnumField nodes
+  SyntaxNodeList *fields;  // SyntaxEnumField nodes
 } SyntaxEnumDecl;
 
 typedef struct {
@@ -427,7 +466,7 @@ typedef struct {
   SyntaxNode header;
   SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
-  SyntaxNode *behind_type;       // type node
+  SyntaxNode *behind_type;        // type node
   SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList *fields;         // SyntaxVariantField nodes
 } SyntaxVariantDecl;
@@ -438,7 +477,7 @@ typedef struct {
   SyntaxIdentifier *name;
   SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
   SyntaxNodeList *call_params;    // SyntaxCallParameter nodes
-  SyntaxNode *return_type;       // type node
+  SyntaxNode *return_type;        // type node
 } SyntaxContractDecl;
 
 typedef struct {
@@ -449,9 +488,9 @@ typedef struct {
   SyntaxNodeList *contract_params; // SyntaxContractParameter nodes
   SyntaxNodeList *call_params;     // SyntaxCallParameter nodes
   SyntaxCallConv callconv;
-  SyntaxNode *return_type; // type node
+  SyntaxNode *return_type;  // type node
   SyntaxNodeList *fulfills; // type nodes
-  SyntaxNode *body;        // SyntaxBodyStmt
+  SyntaxNode *body;         // SyntaxBodyStmt
 } SyntaxFuncDecl;
 
 #pragma endregion
@@ -533,19 +572,19 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNode *type;      // SyntaxNamedType
+  SyntaxNode *type;       // SyntaxNamedType
   SyntaxNodeList *fields; // SyntaxStructLitField
 } SyntaxStructLitExpr;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNode *type;        // SyntaxArrayType
+  SyntaxNode *type;         // SyntaxArrayType
   SyntaxNodeList *elements; // SyntaxExpr
 } SyntaxArrayLitExpr;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;              // SyntaxIdentifier nodes
+  SyntaxNamePath *path;               // SyntaxIdentifier nodes
   SyntaxNodeList *generic_arguments;  // type
   SyntaxNodeList *contract_arguments; // SyntaxContractArgument
 } SyntaxNamedExpr;
@@ -577,7 +616,7 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNode *callee;       // expr
+  SyntaxNode *callee;        // expr
   SyntaxNodeList *arguments; // expr nodes
 } SyntaxCallExpr;
 
@@ -588,12 +627,3 @@ typedef struct {
 } SyntaxCtOperationExpr;
 
 #pragma endregion
-
-/**
- * @brief Releases one syntax node and clears the slot.
- *
- * PLACEHOLDER: shallow — child nodes are not walked yet. Will either
- * grow kind-dispatched recursive destruction or be retired by an arena
- * allocator for the whole AST.
- * @param node The node slot; NULL is allowed and only normalizes it.
- */

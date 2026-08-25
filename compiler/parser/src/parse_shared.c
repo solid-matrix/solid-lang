@@ -128,7 +128,7 @@ ParserResult parse_name_path(const Parser *parser, Span span) {
     if (!seg.matched)
       break;
 
-    syntax_nodelist_append(parser->arena, &segments, seg.node);
+    segments = syntax_nodelist_append(parser->arena, segments, seg.node);
     confirmed = seg.rem;
     rem = seg.rem;
 
