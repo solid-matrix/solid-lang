@@ -1,6 +1,6 @@
 [submodule "compiler/vendor/mimalloc"]
 	path = compiler/vendor/mimalloc
 	url = https://github.com/microsoft/mimalloc.git
-[submodule "compiler/vendor/cmocka"]
-	path = compiler/vendor/cmocka
-	url = https://gitlab.com/cmocka/cmocka.git
+[submodule "compiler/vendor/unity"]
+	path = compiler/vendor/unity
+	url = https://github.com/ThrowTheSwitch/Unity.git

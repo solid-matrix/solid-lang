@@ -1,132 +1,128 @@
-/**
- * @file test_strview.c
- * @brief Tests for the Strview operations.
- * @author solid-matrix
- * @version 0.0.5
- */
-
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "strview.h"
-#include "test_util.h"
+#include "test_support.h"
 
-static void test_create_macro(void) {
+void test_create_macro(void) {
   Strview v = STRVIEW("hello");
-  CHECK(v.len == 5);
-  CHECK(v.data[0] == 'h' && v.data[4] == 'o');
+  TEST_ASSERT_EQUAL_size_t(5, v.len);
+  TEST_ASSERT_EQUAL_UINT8('h', v.data[0]);
+  TEST_ASSERT_EQUAL_UINT8('o', v.data[4]);
 
-  // Concatenated string literals are also literals and keep working.
   Strview c = STRVIEW("a"
-                    "b");
-  CHECK(c.len == 2);
-  CHECK(strview_equals(c, STRVIEW("ab")));
+                      "b");
+  TEST_ASSERT_EQUAL_size_t(2, c.len);
+  TEST_ASSERT_TRUE(strview_equals(c, STRVIEW("ab")));
 
-  // The empty literal produces an empty view.
   Strview e = STRVIEW("");
-  CHECK(e.len == 0);
+  TEST_ASSERT_EQUAL_size_t(0, e.len);
 
-  // Views never copy: writes to the underlying buffer are observable
-  // through the view (zero-copy semantics).
+  // Views never copy: writes to the buffer are visible through the view.
   char buf[3] = {'a', 'b', 'c'};
   Strview alias = strview_create((const uint8_t *)buf, 3);
   buf[0] = 'X';
-  CHECK(strview_byte_at(alias, 0) == 'X');
+  TEST_ASSERT_EQUAL_UINT8('X', strview_byte_at(alias, 0));
 }
 
-static void test_create_functions(void) {
+void test_create_functions(void) {
   Strview v = strview_create((const uint8_t *)"xyz", 3);
-  CHECK(v.len == 3 && v.data[0] == 'x');
+  TEST_ASSERT_EQUAL_size_t(3, v.len);
+  TEST_ASSERT_EQUAL_UINT8('x', v.data[0]);
 
   Strview e = strview_empty();
-  CHECK(e.data == NULL && e.len == 0);
+  TEST_ASSERT_NULL(e.data);
+  TEST_ASSERT_EQUAL_size_t(0, e.len);
 
   Strview s = strview_from_cstr("str");
-  CHECK(s.len == 3 && strview_equals(s, STRVIEW("str")));
+  TEST_ASSERT_EQUAL_size_t(3, s.len);
+  TEST_ASSERT_TRUE(strview_equals(s, STRVIEW("str")));
 }
 
-static void test_is_empty(void) {
-  CHECK(strview_is_empty(strview_empty()));
-  CHECK(!strview_is_empty(STRVIEW("a")));
+void test_is_empty(void) {
+  TEST_ASSERT_TRUE(strview_is_empty(strview_empty()));
+  TEST_ASSERT_FALSE(strview_is_empty(STRVIEW("a")));
 }
 
-static void test_equals(void) {
-  CHECK(strview_equals(STRVIEW("same"), STRVIEW("same")));
-  CHECK(!strview_equals(STRVIEW("same"), STRVIEW("sane")));
-  CHECK(!strview_equals(STRVIEW("short"), STRVIEW("shorter")));
-  CHECK(!strview_equals(STRVIEW("shorter"), STRVIEW("short")));
+void test_equals(void) {
+  TEST_ASSERT_TRUE(strview_equals(STRVIEW("same"), STRVIEW("same")));
+  TEST_ASSERT_FALSE(strview_equals(STRVIEW("same"), STRVIEW("sane")));
+  TEST_ASSERT_FALSE(strview_equals(STRVIEW("short"), STRVIEW("shorter")));
+  TEST_ASSERT_FALSE(strview_equals(STRVIEW("shorter"), STRVIEW("short")));
 
   // Equality is length-bounded: embedded NUL bytes are just bytes.
   uint8_t buf[3] = {'a', '\0', 'b'};
   Strview v = strview_create(buf, 3);
-  CHECK(strview_equals(v, v));
-  CHECK(!strview_equals(v, STRVIEW("a")));
-  CHECK(strview_equals(v, strview_slice(v, 0, 3)));
+  TEST_ASSERT_TRUE(strview_equals(v, v));
+  TEST_ASSERT_FALSE(strview_equals(v, STRVIEW("a")));
+  TEST_ASSERT_TRUE(strview_equals(v, strview_slice(v, 0, 3)));
 
-  // Two empty views are equal regardless of their data pointers.
-  CHECK(strview_equals(strview_empty(), STRVIEW("")));
+  TEST_ASSERT_TRUE(strview_equals(strview_empty(), STRVIEW("")));
 }
 
-static void test_compare(void) {
-  CHECK(strview_compare(STRVIEW("a"), STRVIEW("b")) < 0);
-  CHECK(strview_compare(STRVIEW("b"), STRVIEW("a")) > 0);
-  CHECK(strview_compare(STRVIEW("x"), STRVIEW("x")) == 0);
+void test_compare(void) {
+  TEST_ASSERT_LESS_THAN_INT(0, strview_compare(STRVIEW("a"), STRVIEW("b")));
+  TEST_ASSERT_GREATER_THAN_INT(0,
+                               strview_compare(STRVIEW("b"), STRVIEW("a")));
+  TEST_ASSERT_EQUAL_INT(0, strview_compare(STRVIEW("x"), STRVIEW("x")));
 
   // A proper prefix compares less than its extension.
-  CHECK(strview_compare(STRVIEW("ab"), STRVIEW("abc")) < 0);
-  CHECK(strview_compare(STRVIEW("abc"), STRVIEW("ab")) > 0);
+  TEST_ASSERT_LESS_THAN_INT(0, strview_compare(STRVIEW("ab"), STRVIEW("abc")));
+  TEST_ASSERT_GREATER_THAN_INT(
+      0, strview_compare(STRVIEW("abc"), STRVIEW("ab")));
 
-  CHECK(strview_compare(strview_empty(), strview_empty()) == 0);
-  CHECK(strview_compare(strview_empty(), STRVIEW("a")) < 0);
+  TEST_ASSERT_EQUAL_INT(0, strview_compare(strview_empty(), strview_empty()));
+  TEST_ASSERT_LESS_THAN_INT(0, strview_compare(strview_empty(), STRVIEW("a")));
 }
 
-static void test_starts_with(void) {
-  CHECK(strview_starts_with(STRVIEW("hello"), STRVIEW("he")));
-  CHECK(strview_starts_with(STRVIEW("hello"), STRVIEW("hello"))); // full match
-  CHECK(strview_starts_with(STRVIEW("hello"), STRVIEW("")));      // empty prefix
-  CHECK(!strview_starts_with(STRVIEW("hi"), STRVIEW("hello")));   // longer than the view
-  CHECK(!strview_starts_with(STRVIEW("hello"), STRVIEW("he!")));
-  CHECK(strview_starts_with(strview_empty(), STRVIEW(""))); // empty view + empty prefix
+void test_starts_with(void) {
+  TEST_ASSERT_TRUE(strview_starts_with(STRVIEW("hello"), STRVIEW("he")));
+  TEST_ASSERT_TRUE(strview_starts_with(STRVIEW("hello"), STRVIEW("hello")));
+  TEST_ASSERT_TRUE(strview_starts_with(STRVIEW("hello"), STRVIEW("")));
+  TEST_ASSERT_FALSE(strview_starts_with(STRVIEW("hi"), STRVIEW("hello")));
+  TEST_ASSERT_FALSE(strview_starts_with(STRVIEW("hello"), STRVIEW("he!")));
+  TEST_ASSERT_TRUE(strview_starts_with(strview_empty(), STRVIEW("")));
 }
 
-static void test_ends_with(void) {
-  CHECK(strview_ends_with(STRVIEW("hello"), STRVIEW("lo")));
-  CHECK(strview_ends_with(STRVIEW("hello"), STRVIEW("hello"))); // full match
-  CHECK(strview_ends_with(STRVIEW("hello"), STRVIEW("")));      // empty suffix
-  CHECK(!strview_ends_with(STRVIEW("lo"), STRVIEW("hello")));   // longer than the view
-  CHECK(!strview_ends_with(STRVIEW("hello"), STRVIEW("lo!")));
-  CHECK(strview_ends_with(strview_empty(), STRVIEW(""))); // empty view + empty suffix
+void test_ends_with(void) {
+  TEST_ASSERT_TRUE(strview_ends_with(STRVIEW("hello"), STRVIEW("lo")));
+  TEST_ASSERT_TRUE(strview_ends_with(STRVIEW("hello"), STRVIEW("hello")));
+  TEST_ASSERT_TRUE(strview_ends_with(STRVIEW("hello"), STRVIEW("")));
+  TEST_ASSERT_FALSE(strview_ends_with(STRVIEW("lo"), STRVIEW("hello")));
+  TEST_ASSERT_FALSE(strview_ends_with(STRVIEW("hello"), STRVIEW("lo!")));
+  TEST_ASSERT_TRUE(strview_ends_with(strview_empty(), STRVIEW("")));
 }
 
-static void test_slice(void) {
+void test_slice(void) {
   Strview base = STRVIEW("abcdef");
 
   Strview mid = strview_slice(base, 1, 4);
-  CHECK(mid.len == 4 && mid.data == base.data + 1);
-  CHECK(strview_equals(mid, STRVIEW("bcde")));
+  TEST_ASSERT_EQUAL_size_t(4, mid.len);
+  TEST_ASSERT_EQUAL_PTR(base.data + 1, mid.data);
+  TEST_ASSERT_TRUE(strview_equals(mid, STRVIEW("bcde")));
 
-  // A zero-length slice keeps pointing into the source buffer; it never
-  // falls back to a NULL-data empty view.
+  // A zero-length slice keeps pointing into the source buffer.
   Strview z = strview_slice(base, 3, 0);
-  CHECK(z.len == 0 && z.data == base.data + 3);
+  TEST_ASSERT_EQUAL_size_t(0, z.len);
+  TEST_ASSERT_EQUAL_PTR(base.data + 3, z.data);
 
-  // Slicing at offset len is valid and yields the same zero-length shape.
   Strview tail = strview_slice(base, base.len, 0);
-  CHECK(tail.len == 0 && tail.data == base.data + base.len);
+  TEST_ASSERT_EQUAL_size_t(0, tail.len);
+  TEST_ASSERT_EQUAL_PTR(base.data + base.len, tail.data);
 
-  // Full-length slice reproduces the original.
-  CHECK(strview_equals(strview_slice(base, 0, base.len), base));
+  TEST_ASSERT_TRUE(strview_equals(strview_slice(base, 0, base.len), base));
 }
 
-static void test_byte_at(void) {
+void test_byte_at(void) {
   Strview v = STRVIEW("abc");
-  CHECK(strview_byte_at(v, 0) == 'a');
-  CHECK(strview_byte_at(v, 2) == 'c');
+  TEST_ASSERT_EQUAL_UINT8('a', strview_byte_at(v, 0));
+  TEST_ASSERT_EQUAL_UINT8('c', strview_byte_at(v, 2));
 }
 
-static void test_write(void) {
+void test_write(void) {
   FILE *f = tmpfile();
-  CHECK(f != NULL);
+  TEST_ASSERT_NOT_NULL(f);
   if (!f)
     return;
 
@@ -134,43 +130,41 @@ static void test_write(void) {
   rewind(f);
   char out[8] = {0};
   size_t n = fread(out, 1, sizeof(out), f);
-  CHECK(n == 5);
-  CHECK(memcmp(out, "hello", 5) == 0);
+  TEST_ASSERT_EQUAL_size_t(5, n);
+  TEST_ASSERT_EQUAL_MEMORY("hello", out, 5);
   fclose(f);
 
-  // Writing an empty view writes nothing.
   f = tmpfile();
-  CHECK(f != NULL);
+  TEST_ASSERT_NOT_NULL(f);
   if (!f)
     return;
   strview_write(strview_empty(), f);
   rewind(f);
   n = fread(out, 1, sizeof(out), f);
-  CHECK(n == 0);
+  TEST_ASSERT_EQUAL_size_t(0, n);
   fclose(f);
 }
 
-static void test_copy(void) {
+void test_copy(void) {
   uint8_t dst[6];
 
-  // Fits exactly: content plus terminating NUL.
   strview_copy(STRVIEW("hello"), dst, sizeof(dst));
-  CHECK(memcmp(dst, "hello", 5) == 0 && dst[5] == '\0');
+  TEST_ASSERT_EQUAL_MEMORY("hello", dst, 5);
+  TEST_ASSERT_EQUAL_UINT8('\0', dst[5]);
 
-  // Truncates silently to dst_size - 1 content bytes.
   strview_copy(STRVIEW("truncated"), dst, 3);
-  CHECK(dst[0] == 't' && dst[1] == 'r' && dst[2] == '\0');
+  TEST_ASSERT_EQUAL_UINT8('t', dst[0]);
+  TEST_ASSERT_EQUAL_UINT8('r', dst[1]);
+  TEST_ASSERT_EQUAL_UINT8('\0', dst[2]);
 
-  // Shorter source NUL-terminates early.
   uint8_t small[8];
   strview_copy(STRVIEW("ab"), small, sizeof(small));
-  CHECK(small[2] == '\0');
+  TEST_ASSERT_EQUAL_UINT8('\0', small[2]);
 
-  // Zero-size destination is a no-op.
-  strview_copy(STRVIEW("ignored"), NULL, 0);
+  strview_copy(STRVIEW("ignored"), NULL, 0); // zero-size dst is a no-op
 }
 
-static const TestEntry ENTRIES[] = {
+static const TestDispatchEntry ENTRIES[] = {
     {"create_macro", test_create_macro},
     {"create_functions", test_create_functions},
     {"is_empty", test_is_empty},
@@ -184,4 +178,4 @@ static const TestEntry ENTRIES[] = {
     {"copy", test_copy},
 };
 
-TEST_MAIN(ENTRIES)
+TEST_DISPATCH_MAIN(ENTRIES)

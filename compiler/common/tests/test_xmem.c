@@ -1,50 +1,37 @@
-/**
- * @file test_xmem.c
- * @brief Tests for the fatal-failure allocation wrappers.
- * @author solid-matrix
- * @version 0.0.5
- *
- * The failure paths (OOM -> abort, size == 0 asserts) terminate the
- * process and are intentionally not exercised here; these tests cover
- * the success-path contracts only.
- */
-
 #include <stdint.h>
 #include <string.h>
 
 #include "xmem.h"
-#include "test_util.h"
+#include "test_support.h"
 
-static void test_malloc(void) {
+void test_malloc(void) {
   uint8_t *a = xmalloc(16);
-  CHECK(a != NULL);
+  TEST_ASSERT_NOT_NULL(a);
 
-  // Two allocations do not alias.
   uint8_t *b = xmalloc(16);
-  CHECK(b != NULL && a != b);
+  TEST_ASSERT_NOT_NULL(b);
+  TEST_ASSERT_NOT_EQUAL(a, b);
 
-  // The blocks are writable.
   memset(a, 0xAB, 16);
-  CHECK(a[0] == 0xAB && a[15] == 0xAB);
+  TEST_ASSERT_EQUAL_UINT8(0xAB, a[0]);
+  TEST_ASSERT_EQUAL_UINT8(0xAB, a[15]);
 
   xfree(a);
   xfree(b);
 }
 
-static void test_calloc_zeroes(void) {
+void test_calloc_zeroes(void) {
   const size_t n = 4, size = 8;
   uint8_t *p = xcalloc(n, size);
-  CHECK(p != NULL);
+  TEST_ASSERT_NOT_NULL(p);
 
-  int all_zero = 1;
   for (size_t i = 0; i < n * size; i++)
-    all_zero &= (p[i] == 0);
-  CHECK(all_zero);
+    TEST_ASSERT_EQUAL_UINT8(0, p[i]);
 
   xfree(p);
 }
 
-static void test_realloc_grow(void) {
+void test_realloc_grow(void) {
   const size_t old_size = 8;
   uint8_t *p = xmalloc(old_size);
   memset(p, 0x5A, old_size);
@@ -53,48 +40,41 @@ static void test_realloc_grow(void) {
   p = xrealloc(p, new_size);
 
   // Contents up to the old size survive the resize.
-  for (size_t i = 0; i < old_size; i++) {
-    if (p[i] != 0x5A) {
-      CHECK(!"xrealloc lost data while growing");
-      break;
-    }
-  }
+  for (size_t i = 0; i < old_size; i++)
+    TEST_ASSERT_EQUAL_UINT8(0x5A, p[i]);
 
-  // The grown tail is writable.
   memset(p + old_size, 0xC3, new_size - old_size);
-  CHECK(p[new_size - 1] == 0xC3);
+  TEST_ASSERT_EQUAL_UINT8(0xC3, p[new_size - 1]);
 
   xfree(p);
 }
 
-static void test_realloc_shrink(void) {
+void test_realloc_shrink(void) {
   uint8_t *p = xmalloc(32);
   memset(p, 1, 32);
 
   p = xrealloc(p, 4);
-  CHECK(p != NULL);
-  CHECK(p[3] == 1); // surviving prefix byte
+  TEST_ASSERT_NOT_NULL(p);
+  TEST_ASSERT_EQUAL_UINT8(1, p[3]); // surviving prefix byte
 
   xfree(p);
 }
 
-static void test_realloc_null_is_malloc(void) {
+void test_realloc_null_is_malloc(void) {
   uint8_t *p = xrealloc(NULL, 4);
-  CHECK(p != NULL);
+  TEST_ASSERT_NOT_NULL(p);
 
   p[0] = 7;
-  CHECK(p[0] == 7);
+  TEST_ASSERT_EQUAL_UINT8(7, p[0]);
 
   xfree(p);
 }
 
-static void test_free_null_noop(void) {
-  // Documented: NULL is allowed and does nothing.
-  xfree(NULL);
-  CHECK(1);
+void test_free_null_noop(void) {
+  xfree(NULL); // documented: NULL is allowed and does nothing
 }
 
-static const TestEntry ENTRIES[] = {
+static const TestDispatchEntry ENTRIES[] = {
     {"malloc", test_malloc},
     {"calloc_zeroes", test_calloc_zeroes},
     {"realloc_grow", test_realloc_grow},
@@ -103,4 +83,4 @@ static const TestEntry ENTRIES[] = {
     {"free_null_noop", test_free_null_noop},
 };
 
-TEST_MAIN(ENTRIES)
+TEST_DISPATCH_MAIN(ENTRIES)

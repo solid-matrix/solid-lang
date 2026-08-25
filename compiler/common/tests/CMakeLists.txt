@@ -1,21 +1,27 @@
-# Registers one CTest entry per unit-test case so failures are reported
-# individually. Case names must stay in sync with the TestEntry tables in
-# the corresponding test_*.c sources.
+# One CTest entry per unit-test case; case names must stay in sync with
+# the TestDispatchEntry tables in the corresponding test_*.c sources.
+# Test files mirror common/src one-to-one.
 
-set(COMMON_TEST_MODULES strview xmem span source)
+set(COMMON_TEST_MODULES arena strview xmem span source)
 
-# Shared test-surface header (test_util.h); kept out of the library's
-# public include path on purpose: only test executables may see it.
-add_library(solid-lang-test-util INTERFACE)
-target_include_directories(solid-lang-test-util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(solid-lang-test-support INTERFACE)
+target_include_directories(solid-lang-test-support
+                           INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(solid-lang-test-support INTERFACE unity::framework)
 
 foreach(module IN LISTS COMMON_TEST_MODULES)
   add_executable(test_${module} test_${module}.c)
   target_link_libraries(test_${module} PRIVATE solid-lang-common
-                                               solid-lang-test-util)
+                                               solid-lang-test-support)
   # The MSVC CRT deprecates standard functions (e.g. tmpfile) that the
   # tests use deliberately; silence those diagnostics only for tests.
   target_compile_definitions(test_${module} PRIVATE _CRT_SECURE_NO_WARNINGS)
+endforeach()
+
+set(ARENA_CASES alloc_distinct_and_writable realloc_grow_preserves_content
+                realloc_null_is_alloc destroy_cycles destroy_null_safe)
+foreach(case_name IN LISTS ARENA_CASES)
+  add_test(NAME common.arena.${case_name} COMMAND test_arena ${case_name})
 endforeach()
 
 set(STRVIEW_CASES
@@ -39,7 +45,7 @@ endforeach()
 
 set(SOURCE_CASES lines_lf lines_crlf lines_lone_cr lines_mixed
                  empty_source bom_stripped get_position accessors owns_bytes
-                 destroy from_file from_file_bom_and_empty)
+                 destroy_cycles from_file from_file_bom_and_empty)
 foreach(case_name IN LISTS SOURCE_CASES)
   add_test(NAME common.source.${case_name} COMMAND test_source ${case_name})
 endforeach()
