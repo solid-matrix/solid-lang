@@ -4,12 +4,9 @@ add_library(solid-lang-parser STATIC
   src/syntax_node.c
   src/syntax_error.c
   src/parse_shared.c
-  src/parse_common.c
-  src/parse_type.c
-  src/parse_expr.c
-  src/parse_stmt.c
   src/parse_decl.c
-  src/parse_primary.c)
+  src/parse_primary.c
+  src/parse.c)
 
 target_include_directories(solid-lang-parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

@@ -78,44 +78,24 @@ Span span_consumed(Span span, Span rem) {
   return (Span){.start = span.start, .end = rem.start};
 }
 
-ParserResult match_keyword(const Parser *parser, Span span, Strview keyword) {
+bool match_keyword(const Source *source, Span span, Strview keyword) {
   if (keyword.len == 0 || keyword.len > span_len(span))
-    return parser_result_not_match(span);
+    return false;
 
-  ParserResult res = parse_identifier(parser, span);
+  Strview token = source_strview_at(source, span_slice(span, 0, keyword.len));
 
-  if (res.matched == false) {
-    syntax_errorlist_destroy(&res.errors);
-    return parser_result_not_match(span);
+  if (!strview_equals(keyword, token)) {
+    return false;
   }
 
-  Span consumed = span_consumed(span, res.rem);
+  Span rem = span_advance(span, keyword.len);
 
-  Strview id = source_strview_at(parser->source, consumed);
-
-  if (!strview_equals(id, keyword)) {
-    return parser_result_not_match(span);
+  if (!span_is_empty(rem) &&
+      is_letter_digit_or_underscore(source_first_byte_at(source, rem))) {
+    return false;
   }
 
-  return parser_result_matched(res.rem, NULL, res.errors);
-
-  // Strview part =
-  //     source_strview_at(parser->source, span_slice(span, 0, keyword.len));
-  // if (!strview_equals(part, keyword))
-  //   return parser_result_not_match(span);
-
-  // // Identifier boundary: "in" must not match the front of "input".
-  // size_t after = span.start + keyword.len;
-  // if (after < span.end &&
-  //     is_letter_digit_or_underscore(source_byte_at(parser->source, after)))
-  //   return parser_result_not_match(span);
-
-  // return (ParserResult){
-  //     .matched = true,
-  //     .rem = (Span){.start = after, .end = span.end},
-  //     .node = NULL,
-  //     .errors = NULL,
-  // };
+  return true;
 }
 
 ParserResult complete_longest_match(ParserResult *results, size_t count) {
@@ -129,10 +109,53 @@ ParserResult complete_longest_match(ParserResult *results, size_t count) {
     }
   }
 
-  for (size_t i = 0; i < count; i++) {
-    if (i != selected)
-      syntax_errorlist_destroy(&results[i].errors);
+  // Losing alternatives are abandoned on purpose: their nodes and
+  // diagnostics live in the parse arena and die with it.
+  return results[selected];
+}
+
+ParserResult parse_name_path(const Parser *parser, Span span) {
+  SyntaxNodeList *segments = NULL;
+
+  // Best-prefix semantics: a "::" not followed by an identifier ends
+  // the path BEFORE the separator (trivia rolled back with it), so the
+  // enclosing construct sees an unconsumed "::". confirmed tracks the
+  // position after the last accepted segment for that rollback.
+  Span rem = span;
+  Span confirmed = span;
+  while (true) {
+    ParserResult seg = parse_identifier(parser, rem);
+    if (!seg.matched)
+      break;
+
+    syntax_nodelist_append(parser->arena, &segments, seg.node);
+    confirmed = seg.rem;
+    rem = seg.rem;
+
+    Span probe = skip_trivia(parser->source, rem);
+    if (!(span_len(probe) >= 2 &&
+          source_byte_at(parser->source, probe.start) == ':' &&
+          source_byte_at(parser->source, probe.start + 1) == ':'))
+      break; // trivia stays with the enclosing construct
+
+    // Tentatively step over "::"; a failing segment below rolls back
+    // to the pre-separator position via confirmed.
+    rem = skip_trivia(
+        parser->source,
+        (Span){.start = probe.start + 2, .end = probe.end});
   }
 
-  return results[selected];
+  if (confirmed.start == span.start) { // not even one segment
+    return parser_result_not_match(span); // the empty list dies with arena
+  }
+  rem = confirmed;
+
+  SyntaxNamePath *path = arena_alloc(parser->arena, sizeof(SyntaxNamePath));
+  *path = (SyntaxNamePath){
+      .header =
+          syntax_node_header(SYNTAX_KIND_NAME_PATH, span_consumed(span, rem)),
+      .segments = segments,
+  };
+
+  return parser_result_matched(rem, (SyntaxNode *)path, NULL);
 }

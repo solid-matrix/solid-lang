@@ -7,6 +7,7 @@
 
 #include "irgen.h"
 #include "parser.h"
+#include "parser_result.h"
 #include "source.h"
 #include "syntax_node.h"
 #include <stdio.h>
@@ -29,12 +30,10 @@ SyntaxProgram *parse(const Parser *parser) {
   }
 
   if (parser_res.errors != NULL) {
-    for (const SyntaxErrorList *n = parser_res.errors; n != NULL;
-         n = n->next)
+    for (const SyntaxErrorList *n = parser_res.errors; n != NULL; n = n->next)
       fprintf(stderr, "error code: 0x%x\n", n->error.code);
 
-    syntax_errorlist_destroy(&parser_res.errors);
-    return NULL;
+    return NULL; // the list dies with the parse arena
   }
 
   return (SyntaxProgram *)parser_res.node;
@@ -46,7 +45,10 @@ int main(int argc, char *argv[]) {
 
   SyntaxProgram *program = parse(parser);
   if (program != NULL) {
-    printf("top level declaration count = %zu\n", program->top_levels.len);
+    size_t count = 0;
+    for (const SyntaxNodeList *n = program->top_levels; n != NULL; n = n->next)
+      count++;
+    printf("top level declaration count = %zu\n", count);
   }
 
   // int _ = irgen_example();

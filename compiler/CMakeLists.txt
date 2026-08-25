@@ -28,6 +28,7 @@ else()
     message(STATUS "Using LLVM components: ${SOLID_LLVM}")
 endif()
 
+add_subdirectory(vendor)
 add_subdirectory(common)
 add_subdirectory(parser)
 add_subdirectory(sema)

@@ -53,13 +53,11 @@
  *                       in errors.
  *
  *   errors carries every SyntaxError produced while recognizing this
- *   construct, directly or by nested constructs. The list is owned by
- *   the result: a combinator must either merge it upward into its own
- *   result (sequential acceptance; the emptied source handle is
- *   released separately) or free it together with the losing branch
- *   (longest-match selection adopts the winner's list and releases the
- *   losers' -> winner-takes-errors). The top-level caller disposes of
- *   the final list with syntax_errorlist_destroy().
+ *   construct, directly or by nested constructs. The list lives in the
+ *   parse arena: a combinator must merge it upward into its own result
+ *   (sequential acceptance; merge empties the source slot), and losing
+ *   branches of longest-match selection are simply abandoned — every
+ *   list is reclaimed with the arena.
  */
 typedef struct {
   bool matched;
@@ -83,3 +81,11 @@ ParserResult parser_result_not_match(Span span);
  */
 ParserResult parser_result_matched(Span rem, SyntaxNode *node,
                                    SyntaxErrorList *errors);
+
+/**
+ * @brief True when the attempt succeeded and produced no diagnostics.
+ *
+ * Convenience for the common success shape: matched == true with
+ * errors == NULL.
+ */
+bool parser_result_is_ok(ParserResult result);

@@ -32,8 +32,6 @@ static ParserResult parse(const char *text) {
   return parse_string_lit_expr(g_parser, source_get_span(g_source));
 }
 
-static void release(ParserResult *r) { syntax_errorlist_destroy(&r->errors); }
-
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
   for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
@@ -47,15 +45,13 @@ static void expect_string(const char *text) {
   CHECK(r.matched);
   CHECK(r.node != NULL);
   if (!r.node) {
-    release(&r);
-    return;
+      return;
   }
   CHECK(r.node->kind == SYNTAX_KIND_STRING_LIT_EXPR);
   CHECK(strview_equals(((SyntaxStringLitExpr *)r.node)->value,
                        strview_create((const uint8_t *)text, strlen(text))));
   CHECK(r.errors == NULL);
   CHECK(r.rem.start == strlen(text));
-  release(&r);
 }
 
 /* Asserts that text is consumed as a recovery run carrying exactly one
@@ -68,7 +64,6 @@ static void expect_malformed(const char *text) {
 
   const SyntaxErrorList *e = r.errors;
   CHECK(e != NULL && e->error.code == SYNTAX_MALFORMED_STRING);
-  release(&r);
 }
 
 /* Asserts that text does not start a string attempt at all. */

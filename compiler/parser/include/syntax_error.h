@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arena.h"
 #include "span.h"
 
 typedef enum {
@@ -23,7 +24,9 @@ SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
  * @brief One diagnostic; a chain of these nodes IS the error list.
  *
  * The list is represented by its head pointer, so "no errors" is
- * simply NULL and an empty list costs nothing.
+ * simply NULL and an empty list costs nothing. Nodes live in the
+ * parse arena and are never released individually — there is no
+ * destroy: reclamation happens with the whole arena.
  */
 typedef struct SyntaxErrorList SyntaxErrorList;
 struct SyntaxErrorList {
@@ -32,25 +35,21 @@ struct SyntaxErrorList {
 };
 
 /**
- * @brief Appends @p error as the last node.
+ * @brief Appends @p error as the last node, allocating it in @p arena.
+ * @param arena The parse arena backing the new node.
  * @param list The list slot to extend; may point at NULL (the empty
  *             list), which this call fills.
+ * @param error The diagnostic to append.
  */
-void syntax_errorlist_append(SyntaxErrorList **list, SyntaxError error);
+void syntax_errorlist_append(Arena *arena, SyntaxErrorList **list,
+                             SyntaxError error);
 
 /**
  * @brief Moves every node of @p src to the end of @p dst.
  *
  * Ownership of the nodes moves: *src is set to NULL, so the source
- * slot is left as the empty list and cannot be double-released.
+ * slot is left as the empty list.
  * @param dst The list that receives the nodes.
  * @param src The list whose nodes are moved away; must differ from dst.
  */
 void syntax_errorlist_merge(SyntaxErrorList **dst, SyntaxErrorList **src);
-
-/**
- * @brief Frees every node and clears the slot.
- * @param list The list slot to destroy; NULL is allowed and only
- *             normalizes the slot, matching free()-style tolerance.
- */
-void syntax_errorlist_destroy(SyntaxErrorList **list);

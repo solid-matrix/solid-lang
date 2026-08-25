@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 
+#include "arena.h"
 #include "parser_result.h"
 #include "source.h"
 
@@ -22,6 +23,7 @@
  */
 typedef struct {
   const Source *source;
+  Arena *arena; // backs every syntax node of the parses driven here
 } Parser;
 
 /**
@@ -33,113 +35,128 @@ typedef struct {
 Parser *parser_create(const Source *source);
 
 /**
- * @brief Frees a Parser created by parser_create().
+ * @brief Frees a Parser created by parser_create(), together with its
+ *        arena — and through it, every syntax node the parse produced.
  * @param parser The Parser to destroy; must come from parser_create()
  *               and be destroyed exactly once. The Source is not
  *               touched: it is not owned by the Parser.
  */
 void parser_destroy(Parser *parser);
 
-/**
- * @brief Parses an int_lit or float_lit token.
- *
- * See the Number Literals section of doc/syntax.md. Produces a
- * SyntaxNumberLitExpr whose kind distinguishes the two forms and whose
- * value holds the full raw token text.
- *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
-ParserResult parse_number_lit_expr(const Parser *parser, Span span);
-
-/**
- * @brief Parses a rune_lit token: one Unicode code point (raw or
- *        escaped) between single quotes.
- *
- * See the Rune Literals section of doc/syntax.md. Produces a
- * SyntaxRuneLitExpr whose value holds the full raw token text; escape
- * decoding belongs to semantic analysis.
- *
- * A malformed form (empty or multi-character content, unknown or
- * out-of-range escape, unterminated quote, invalid UTF-8) is reported
- * as SYNTAX_MALFORMED_RUNE over a recovery span and consumes it: the
- * result is matched with node == NULL, so longest-match selection
- * treats the error path like any other alternative.
- *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
-ParserResult parse_rune_lit_expr(const Parser *parser, Span span);
-
-/**
- * @brief Parses a string_lit token: a UTF-8 encoded sequence of raw or
- *        escaped characters between double quotes.
- *
- * See the String Literals section of doc/syntax.md. The escapes are
- * those defined for rune literals. Produces a SyntaxStringLitExpr
- * whose value holds the full raw token text.
- *
- * A malformed form (unterminated or multi-line literal, unknown or
- * malformed escape, invalid UTF-8, raw tab/line feed/carriage return)
- * is reported as SYNTAX_MALFORMED_STRING over a recovery span and
- * consumes it: the result is matched with node == NULL.
- *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
-ParserResult parse_string_lit_expr(const Parser *parser, Span span);
+#pragma region COMMON PARSE
 
 ParserResult parse_identifier(const Parser *parser, Span span);
 
 /**
- * @brief Parses NamespaceDecl = "namespace" NamePath ";".
+ * @brief Parses NamePath = identifier { "::" identifier }, producing a
+ *        single SyntaxNamePath node whose span covers the whole path.
  *
- * See the Namespace Declarations section of doc/syntax.md. Produces a
- * SyntaxNamespaceDecl owning the path segment nodes.
+ * See the NamePath section of doc/syntax.md. Trivia is skipped at the
+ * junctions between "::" and the segments; the leading trivia of @p
+ * span itself must already be skipped.
  *
- * A keyword hit with a broken tail (missing or unterminated path)
- * reports SYNTAX_MALFORMED_NAMEPATH; a parsed path not followed by ";"
- * reports SYNTAX_EXPECTED_SEMICOLON. Both are recovered: the result is
- * matched with node == NULL and consumes up to the stray ";" or line
- * terminator, so parse_program keeps making progress.
+ * Best-prefix semantics: a "::" not followed by an identifier ends the
+ * path BEFORE the separator (trivia rolled back with it), leaving it
+ * unconsumed for the enclosing construct.
  *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
-ParserResult parse_namespace_decl(const Parser *parser, Span span);
-
-/**
- * @brief Parses UsingDecl = "using" NamePath ";".
- *
- * Same shape, recovery semantics, and node ownership as
- * parse_namespace_decl, anchored on the "using" keyword and producing
- * a SyntaxUsingDecl.
+ * Never produces diagnostics: a missing first segment yields the plain
+ * not-match outcome, while callers report component errors (e.g.
+ * SYNTAX_MALFORMED_NAMEPATH) themselves.
  *
  * @param parser The parser performing the scan.
  * @param span Position to test; leading trivia must already be skipped.
  * @return Standard ParserResult contract (see the struct docs).
  */
-ParserResult parse_using_decl(const Parser *parser, Span span);
+ParserResult parse_name_path(const Parser *parser, Span span);
 
-ParserResult parse_expr(const Parser *parser, Span span);
+ParserResult parse_compile_time(const Parser *parser, Span span);
 
-ParserResult parse_decl(const Parser *parser, Span span);
+ParserResult parse_program(const Parser *parser, Span span);
 
-ParserResult parse_stmt(const Parser *parser, Span span);
+#pragma endregion
+
+#pragma region TYPE PARSE
 
 ParserResult parse_type(const Parser *parser, Span span);
 
-/**
- * @brief Top-level entry: parses a whole translation unit.
- *
- * The only function that consumes leading trivia: once at the start of
- * the unit, and before every top-level declaration. Trailing trivia is
- * skipped before the final SYNTAX_EXPECTED_EOF check; any unconsumed
- * input is reported from there. The returned result owns both the
- * program node and the error list.
- */
-ParserResult parse_program(const Parser *parser, Span span);
+ParserResult parse_named_type(const Parser *parser, Span span);
+
+ParserResult parse_ref_type(const Parser *parser, Span span);
+
+ParserResult parse_array_type(const Parser *parser, Span span);
+
+ParserResult parse_func_type(const Parser *parser, Span span);
+
+#pragma endregion
+
+#pragma region DECL PARSE
+
+ParserResult parse_decl(const Parser *parser, Span span);
+
+ParserResult parse_namespace_decl(const Parser *parser, Span span);
+
+ParserResult parse_using_decl(const Parser *parser, Span span);
+
+ParserResult parse_let_decl(const Parser *parser, Span span);
+
+ParserResult parse_struct_decl(const Parser *parser, Span span);
+
+ParserResult parse_enum_decl(const Parser *parser, Span span);
+
+ParserResult parse_union_decl(const Parser *parser, Span span);
+
+ParserResult parse_variant_decl(const Parser *parser, Span span);
+
+ParserResult parse_contract_decl(const Parser *parser, Span span);
+
+ParserResult parse_func_decl(const Parser *parser, Span span);
+
+#pragma endregion
+
+#pragma region STMT PARSE
+
+ParserResult parse_stmt(const Parser *parser, Span span);
+
+ParserResult parse_body_stmt(const Parser *parser, Span span);
+
+ParserResult parse_let_stmt(const Parser *parser, Span span);
+
+ParserResult parse_set_stmt(const Parser *parser, Span span);
+
+ParserResult parse_expr_stmt(const Parser *parser, Span span);
+
+ParserResult parse_if_stmt(const Parser *parser, Span span);
+
+ParserResult parse_loop_stmt(const Parser *parser, Span span);
+
+ParserResult parse_break_stmt(const Parser *parser, Span span);
+
+ParserResult parse_continue_stmt(const Parser *parser, Span span);
+
+ParserResult parse_return_stmt(const Parser *parser, Span span);
+
+ParserResult parse_while_stmt(const Parser *parser, Span span);
+
+#pragma endregion
+
+#pragma region EXPR PARSE
+
+ParserResult parse_expr(const Parser *parser, Span span);
+
+ParserResult parse_number_lit_expr(const Parser *parser, Span span);
+
+ParserResult parse_rune_lit_expr(const Parser *parser, Span span);
+
+ParserResult parse_string_lit_expr(const Parser *parser, Span span);
+
+ParserResult parse_struct_lit_expr(const Parser *parser, Span span);
+
+ParserResult parse_array_lit_expr(const Parser *parser, Span span);
+
+ParserResult parse_named_expr(const Parser *parser, Span span);
+
+ParserResult parse_sub_expr(const Parser *parser, Span span);
+
+ParserResult parse_operand_expr(const Parser *parser, Span span);
+
+#pragma endregion

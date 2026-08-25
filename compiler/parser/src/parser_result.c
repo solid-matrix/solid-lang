@@ -20,3 +20,7 @@ ParserResult parser_result_matched(Span rem, SyntaxNode *node,
       .errors = errors,
   };
 }
+
+bool parser_result_is_ok(ParserResult result) {
+  return result.matched && result.errors == NULL;
+}

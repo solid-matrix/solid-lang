@@ -26,8 +26,6 @@ static void begin(const char *text) {
   g_active = true;
 }
 
-static void release(ParserResult *r) { syntax_errorlist_destroy(&r->errors); }
-
 static size_t error_count(const ParserResult *r) {
   size_t n = 0;
   for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
@@ -44,21 +42,31 @@ static void check_paths(ParserResult *r, const char *const *segments,
 
   CHECK(r->node->kind == kind);
 
-  const SyntaxNodeList *paths =
+  const SyntaxNamePath *path =
       kind == SYNTAX_KIND_NAMESPACE_DECL
-          ? &((const SyntaxNamespaceDecl *)r->node)->paths
-          : &((const SyntaxUsingDecl *)r->node)->paths;
-  CHECK(paths->len == count);
-  if (paths->len != count)
+          ? ((const SyntaxNamespaceDecl *)r->node)->path
+          : ((const SyntaxUsingDecl *)r->node)->path;
+  CHECK(path != NULL);
+  if (!path)
     return;
 
+  CHECK(path->header.kind == SYNTAX_KIND_NAME_PATH);
+
+  // Walk the chain in source order, comparing each segment.
+  const SyntaxNodeList *n = path->segments;
   for (size_t i = 0; i < count; i++) {
-    const SyntaxIdentifier *id = (const SyntaxIdentifier *)paths->nodes[i];
+    CHECK(n != NULL);
+    if (!n)
+      return;
+
+    const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->node;
     CHECK(id->header.kind == SYNTAX_KIND_IDENTIFIER);
-    CHECK(strview_equals(id->strview,
-                         strview_create((const uint8_t *)segments[i],
-                                        strlen(segments[i]))));
+    CHECK(
+        strview_equals(id->strview, strview_create((const uint8_t *)segments[i],
+                                                   strlen(segments[i]))));
+    n = n->next;
   }
+  CHECK(n == NULL); // exactly @p count segments
 }
 
 /* Asserts a fully formed namespace/using declaration. */
@@ -66,8 +74,7 @@ static void expect_decl(bool use_namespace, const char *text,
                         const char *const *segments, size_t count) {
   begin(text);
   ParserResult r =
-      use_namespace ? parse_namespace_decl(g_parser,
-                                          source_get_span(g_source))
+      use_namespace ? parse_namespace_decl(g_parser, source_get_span(g_source))
                     : parse_using_decl(g_parser, source_get_span(g_source));
 
   CHECK(r.matched);
@@ -76,7 +83,6 @@ static void expect_decl(bool use_namespace, const char *text,
   check_paths(&r, segments, count,
               use_namespace ? SYNTAX_KIND_NAMESPACE_DECL
                             : SYNTAX_KIND_USING_DECL);
-  release(&r);
 }
 
 /* Asserts a recovered declaration carrying exactly one diagnostic. */
@@ -84,8 +90,7 @@ static void expect_malformed(bool use_namespace, const char *text,
                              SyntaxErrorCode code) {
   begin(text);
   ParserResult r =
-      use_namespace ? parse_namespace_decl(g_parser,
-                                          source_get_span(g_source))
+      use_namespace ? parse_namespace_decl(g_parser, source_get_span(g_source))
                     : parse_using_decl(g_parser, source_get_span(g_source));
 
   CHECK(r.matched);      // recovered
@@ -94,15 +99,13 @@ static void expect_malformed(bool use_namespace, const char *text,
 
   const SyntaxErrorList *e = r.errors;
   CHECK(e != NULL && e->error.code == code);
-  release(&r);
 }
 
 /* Asserts that text does not start this declaration at all. */
 static void expect_not_match(bool use_namespace, const char *text) {
   begin(text);
   ParserResult r =
-      use_namespace ? parse_namespace_decl(g_parser,
-                                          source_get_span(g_source))
+      use_namespace ? parse_namespace_decl(g_parser, source_get_span(g_source))
                     : parse_using_decl(g_parser, source_get_span(g_source));
 
   CHECK(!r.matched);

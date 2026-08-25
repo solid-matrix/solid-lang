@@ -8,6 +8,7 @@
  */
 
 #include <assert.h>
+#include <mimalloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -16,7 +17,7 @@
 void *xmalloc(size_t size) {
   assert(size > 0);
 
-  void *p = malloc(size);
+  void *p = mi_malloc(size);
   if (p == NULL) {
     fprintf(stderr, "xmalloc: out of memory requesting %zu bytes\n", size);
     abort();
@@ -27,7 +28,7 @@ void *xmalloc(size_t size) {
 void *xrealloc(void *ptr, size_t size) {
   assert(size > 0);
 
-  void *p = realloc(ptr, size);
+  void *p = mi_realloc(ptr, size);
   if (p == NULL) {
     fprintf(stderr, "xrealloc: out of memory resizing to %zu bytes\n", size);
     abort();
@@ -39,13 +40,13 @@ void *xcalloc(size_t num, size_t size) {
   assert(num > 0);
   assert(size > 0);
 
-  void *p = calloc(num, size);
+  void *p = mi_calloc(num, size);
   if (p == NULL) {
-    fprintf(stderr, "xcalloc: out of memory requesting %zu * %zu bytes\n",
-            num, size);
+    fprintf(stderr, "xcalloc: out of memory requesting %zu * %zu bytes\n", num,
+            size);
     abort();
   }
   return p;
 }
 
-void xfree(void *ptr) { free(ptr); }
+void xfree(void *ptr) { mi_free(ptr); }

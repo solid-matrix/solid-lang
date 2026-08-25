@@ -2,60 +2,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "parse_common.h"
 #include "parse_shared.h"
+#include "parser.h"
+#include "parser_result.h"
+#include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 #include "xmem.h"
 
 #define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
-
-ParserResult parse_program(const Parser *parser, Span span) {
-
-  span = skip_trivia(parser->source, span);
-
-  SyntaxProgram *program = xmalloc(sizeof(SyntaxProgram));
-
-  *program = (SyntaxProgram){
-      .header = syntax_node_header(SYNTAX_KIND_PROGRAM, span_empty()),
-      .top_levels = syntax_node_list_create(),
-  };
-
-  Span rem = span;
-  SyntaxErrorList *errors = NULL;
-
-  while (true) {
-    // Layout between top-level declarations is this loop's duty; the
-    // last skip also positions the SYNTAX_EXPECTED_EOF check below.
-    rem = skip_trivia(parser->source, rem);
-
-    ParserResult res = parse_decl(parser, rem);
-    rem = res.rem;
-
-    if (!res.matched)
-      break;
-
-    // The nodes move into the accumulator; the source slot is left
-    // empty by the merge itself.
-    syntax_errorlist_merge(&errors, &res.errors);
-
-    if (res.node == NULL)
-      continue;
-
-    assert((res.node->kind & SYNTAX_KIND_DECL_MASK) != 0);
-    syntax_node_list_append(&(program->top_levels), res.node);
-  }
-
-  program->header.span = span_create(span.start, rem.start);
-
-  rem = skip_trivia(parser->source, rem);
-
-  if (span_len(rem) > 0)
-    syntax_errorlist_append(&errors,
-                            syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
-
-  return parser_result_matched(rem, (SyntaxNode *)program, errors);
-}
 
 /**
  * @brief Recovery span for a malformed declaration tail: from
@@ -90,7 +46,8 @@ static ParserResult malformed_decl(const Parser *parser, Span span,
   Span bad = scan_decl_tail(parser, span, bad_start);
 
   SyntaxErrorList *errors = NULL;
-  syntax_errorlist_append(&errors, syntax_error_create(code, bad));
+  syntax_errorlist_append(parser->arena, &errors,
+                          syntax_error_create(code, bad));
 
   return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
                                errors);
@@ -109,42 +66,43 @@ static ParserResult malformed_decl(const Parser *parser, Span span,
  */
 static ParserResult parse_path_decl(const Parser *parser, Span span,
                                     Strview keyword, SyntaxKind kind) {
-  ParserResult kw = match_keyword(parser, span, keyword);
-  if (!kw.matched)
+  if (!match_keyword(parser->source, span, keyword))
     return parser_result_not_match(span);
 
-  Span rem = skip_trivia(parser->source, kw.rem);
+  Span after_kw = span_advance(span, keyword.len);
+  Span rem = skip_trivia(parser->source, after_kw);
 
-  SyntaxNodeList paths = syntax_node_list_create();
-  size_t path_end;
-  if (!parse_name_path(parser, rem, &paths, &path_end)) {
-    syntax_node_list_destroy(&paths);
-    return malformed_decl(parser, span, kw.rem.start,
+  ParserResult path_res = parse_name_path(parser, rem);
+  if (!path_res.matched)
+    return malformed_decl(parser, span, after_kw.start,
                           SYNTAX_MALFORMED_NAMEPATH);
-  }
-  rem = (Span){.start = path_end, .end = span.end};
 
-  rem = skip_trivia(parser->source, rem);
+  SyntaxNamePath *path = (SyntaxNamePath *)path_res.node;
+  rem = skip_trivia(parser->source, path_res.rem);
+
   if (!(span_len(rem) > 0 &&
         source_first_byte_at(parser->source, rem) == ';')) {
-    syntax_node_list_destroy(&paths);
+    // The abandoned path stays reachable until arena_destroy: nothing
+    // to release by hand.
     return malformed_decl(parser, span, rem.start, SYNTAX_EXPECTED_SEMICOLON);
   }
   rem = span_advance(rem, 1); // consume ";"
 
   if (kind == SYNTAX_KIND_NAMESPACE_DECL) {
-    SyntaxNamespaceDecl *decl = xmalloc(sizeof(SyntaxNamespaceDecl));
+    SyntaxNamespaceDecl *decl =
+        arena_alloc(parser->arena, sizeof(SyntaxNamespaceDecl));
     *decl = (SyntaxNamespaceDecl){
         .header = syntax_node_header(kind, span_consumed(span, rem)),
-        .paths = paths,
+        .path = path,
     };
     return parser_result_matched(rem, (SyntaxNode *)decl, NULL);
   }
 
-  SyntaxUsingDecl *decl = xmalloc(sizeof(SyntaxUsingDecl));
+  SyntaxUsingDecl *decl =
+      arena_alloc(parser->arena, sizeof(SyntaxUsingDecl));
   *decl = (SyntaxUsingDecl){
       .header = syntax_node_header(kind, span_consumed(span, rem)),
-      .paths = paths,
+      .path = path,
   };
   return parser_result_matched(rem, (SyntaxNode *)decl, NULL);
 }
@@ -157,13 +115,4 @@ ParserResult parse_namespace_decl(const Parser *parser, Span span) {
 ParserResult parse_using_decl(const Parser *parser, Span span) {
   return parse_path_decl(parser, span, STRVIEW("using"),
                          SYNTAX_KIND_USING_DECL);
-}
-
-ParserResult parse_decl(const Parser *parser, Span span) {
-  ParserResult results[] = {
-      parse_namespace_decl(parser, span),
-      parse_using_decl(parser, span),
-  };
-
-  return complete_longest_match(results, COUNT_OF(results));
 }

@@ -1,0 +1,3 @@
+[submodule "compiler/vendor/mimalloc"]
+	path = compiler/vendor/mimalloc
+	url = git@github.com:microsoft/mimalloc.git

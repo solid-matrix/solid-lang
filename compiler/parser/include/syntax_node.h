@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "arena.h"
 #include "span.h"
 #include "strview.h"
 
@@ -53,6 +54,8 @@ typedef enum {
   SYNTAX_KIND_CONTRACT_ARGUMENT = 0x000B,
 
   SYNTAX_KIND_IDENTIFIER = 0x000C,
+
+  SYNTAX_KIND_NAME_PATH = 0x000D,
 
   /* category masks: one bit per category in the high byte */
   SYNTAX_KIND_CATEGORY_MASK = 0xFF00,
@@ -214,19 +217,45 @@ typedef struct {
  */
 SyntaxNode syntax_node_header(SyntaxKind kind, Span span);
 
-typedef struct {
-  size_t len;
-  size_t cap;
-  SyntaxNode **nodes;
-} SyntaxNodeList;
+/**
+ * @brief One child of an ordered node sequence; the chain of these
+ *        nodes IS the list.
+ *
+ * Isomorphic to SyntaxErrorList: the list is represented by its head
+ * pointer, so "no children" is simply NULL and an empty sequence costs
+ * nothing. Nodes live in the parse arena and are never released
+ * individually — there is no destroy: reclamation happens with the
+ * whole arena.
+ */
+typedef struct SyntaxNodeList SyntaxNodeList;
+struct SyntaxNodeList {
+  SyntaxNode *node;
+  SyntaxNodeList *next;
+};
 
-SyntaxNodeList syntax_node_list_create(void);
-void syntax_node_list_append(SyntaxNodeList *list, SyntaxNode *node);
-void syntax_node_list_destroy(SyntaxNodeList *list);
+/**
+ * @brief Allocates an empty list in @p arena.
+ * @param arena The parse arena backing the list and its array.
+ * @return The new list; never NULL.
+ */
+/**
+ * @brief Appends @p node as the last element, allocating the chain
+ *        node in @p arena.
+ *
+ * Elements are never released individually: the whole list is
+ * reclaimed with the arena that backs the parse.
+ * @param arena The parse arena backing the new chain node.
+ * @param list The list slot to extend; may point at NULL (the empty
+ *             list), which this call fills.
+ * @param node The child node to append; ownership moves into the list.
+ */
+void syntax_nodelist_append(Arena *arena, SyntaxNodeList **list,
+                            SyntaxNode *node);
 
+#pragma region COMMON NODES
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList top_levels; // decl nodes
+  SyntaxNodeList *top_levels; // decl nodes
 } SyntaxProgram;
 
 typedef struct {
@@ -234,57 +263,70 @@ typedef struct {
   Strview strview;
 } SyntaxIdentifier;
 
+/**
+ * @brief NamePath = identifier { "::" identifier }, as one node.
+ *
+ * @var segments One SyntaxIdentifier node per "::"-separated segment,
+ *               in source order.
+ */
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *segments; // SyntaxIdentifier nodes
+} SyntaxNamePath;
+
+
+
 typedef struct {
   SyntaxNode header;
   SyntaxIdentifier *name;
-  SyntaxNodeList arguments; // expr nodes
+  SyntaxNodeList *arguments; // expr nodes
 } SyntaxCtAnnotation;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxStructField;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *value; // expr node
 } SyntaxEnumField;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxUnionField;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxVariantField;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxGenericParameter;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxCallParameter;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
 } SyntaxContractParameter;
@@ -301,7 +343,9 @@ typedef struct {
   SyntaxNode *value; // expr node
 } SyntaxContractArgument;
 
-#pragma region TYPE
+#pragma endregion
+
+#pragma region TYPE NODES
 
 typedef struct {
   SyntaxNode header;
@@ -310,8 +354,8 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList paths;             // SyntaxIdentifier nodes
-  SyntaxNodeList generic_arguments; // type nodes
+  SyntaxNamePath *path;             // SyntaxIdentifier nodes
+  SyntaxNodeList *generic_arguments; // type nodes
 } SyntaxNamedType;
 
 typedef struct {
@@ -328,18 +372,95 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList call_params; // SyntaxCallParameter nodes
+  SyntaxNodeList *call_params; // SyntaxCallParameter nodes
   SyntaxCallConv callconv;
   SyntaxNode *return_type; // type node
 } SyntaxFuncType;
 
 #pragma endregion
 
-#pragma region STATEMENT
+#pragma region DECL NODES
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList stmts; // stmt nodes
+  SyntaxNamePath *path;
+} SyntaxNamespaceDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNamePath *path;
+} SyntaxUsingDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNode *type;  // type node
+  SyntaxNode *value; // expr node
+} SyntaxLetDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList *fields;         // SyntaxStructField nodes
+} SyntaxStructDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNode *behind_type; // type node
+  SyntaxNodeList *fields;   // SyntaxEnumField nodes
+} SyntaxEnumDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList *fields;         // SyntaxUnionField nodes
+} SyntaxUnionDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNode *behind_type;       // type node
+  SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList *fields;         // SyntaxVariantField nodes
+} SyntaxVariantDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNodeList *generic_params; // SyntaxGenericParameter nodes
+  SyntaxNodeList *call_params;    // SyntaxCallParameter nodes
+  SyntaxNode *return_type;       // type node
+} SyntaxContractDecl;
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
+  SyntaxIdentifier *name;
+  SyntaxNodeList *generic_params;  // SyntaxGenericParameter nodes
+  SyntaxNodeList *contract_params; // SyntaxContractParameter nodes
+  SyntaxNodeList *call_params;     // SyntaxCallParameter nodes
+  SyntaxCallConv callconv;
+  SyntaxNode *return_type; // type node
+  SyntaxNodeList *fulfills; // type nodes
+  SyntaxNode *body;        // SyntaxBodyStmt
+} SyntaxFuncDecl;
+
+#pragma endregion
+
+#pragma region STMT NODES
+
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *stmts; // stmt nodes
 } SyntaxBodyStmt;
 
 typedef struct {
@@ -393,7 +514,7 @@ typedef struct {
 
 #pragma endregion
 
-#pragma region EXPRESSION
+#pragma region EXPR NODES
 
 typedef struct {
   SyntaxNode header;
@@ -413,20 +534,20 @@ typedef struct {
 typedef struct {
   SyntaxNode header;
   SyntaxNode *type;      // SyntaxNamedType
-  SyntaxNodeList fields; // SyntaxStructLitField
+  SyntaxNodeList *fields; // SyntaxStructLitField
 } SyntaxStructLitExpr;
 
 typedef struct {
   SyntaxNode header;
   SyntaxNode *type;        // SyntaxArrayType
-  SyntaxNodeList elements; // SyntaxExpr
+  SyntaxNodeList *elements; // SyntaxExpr
 } SyntaxArrayLitExpr;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList paths;              // SyntaxIdentifier nodes
-  SyntaxNodeList generic_arguments;  // type
-  SyntaxNodeList contract_arguments; // SyntaxContractArgument
+  SyntaxNamePath *path;              // SyntaxIdentifier nodes
+  SyntaxNodeList *generic_arguments;  // type
+  SyntaxNodeList *contract_arguments; // SyntaxContractArgument
 } SyntaxNamedExpr;
 
 typedef struct {
@@ -457,90 +578,22 @@ typedef struct {
 typedef struct {
   SyntaxNode header;
   SyntaxNode *callee;       // expr
-  SyntaxNodeList arguments; // expr nodes
+  SyntaxNodeList *arguments; // expr nodes
 } SyntaxCallExpr;
 
 typedef struct {
   SyntaxNode header;
   SyntaxIdentifier *name;
-  SyntaxNodeList arguments; // expr nodes
+  SyntaxNodeList *arguments; // expr nodes
 } SyntaxCtOperationExpr;
 
 #pragma endregion
 
-#pragma region DECLARATION
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList paths; // SyntaxIdentifier nodes
-} SyntaxNamespaceDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList paths; // SyntaxIdentifier nodes
-} SyntaxUsingDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNode *type;  // type node
-  SyntaxNode *value; // expr node
-} SyntaxLetDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
-  SyntaxNodeList fields;         // SyntaxStructField nodes
-} SyntaxStructDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNode *behind_type; // type node
-  SyntaxNodeList fields;   // SyntaxEnumField nodes
-} SyntaxEnumDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
-  SyntaxNodeList fields;         // SyntaxUnionField nodes
-} SyntaxUnionDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNode *behind_type;       // type node
-  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
-  SyntaxNodeList fields;         // SyntaxVariantField nodes
-} SyntaxVariantDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNodeList generic_params; // SyntaxGenericParameter nodes
-  SyntaxNodeList call_params;    // SyntaxCallParameter nodes
-  SyntaxNode *return_type;       // type node
-} SyntaxContractDecl;
-
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList annotations; // SyntaxCtAnnotation nodes
-  SyntaxIdentifier *name;
-  SyntaxNodeList generic_params;  // SyntaxGenericParameter nodes
-  SyntaxNodeList contract_params; // SyntaxContractParameter nodes
-  SyntaxNodeList call_params;     // SyntaxCallParameter nodes
-  SyntaxCallConv callconv;
-  SyntaxNode *return_type; // type node
-  SyntaxNodeList fulfills; // type nodes
-  SyntaxNode *body;        // SyntaxBodyStmt
-} SyntaxFuncDecl;
-
-#pragma endregion
+/**
+ * @brief Releases one syntax node and clears the slot.
+ *
+ * PLACEHOLDER: shallow — child nodes are not walked yet. Will either
+ * grow kind-dispatched recursive destruction or be retired by an arena
+ * allocator for the whole AST.
+ * @param node The node slot; NULL is allowed and only normalizes it.
+ */

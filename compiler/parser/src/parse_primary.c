@@ -18,33 +18,6 @@ static const char *const INT_SUFFIXES[] = {
 
 static const char *const FLOAT_SUFFIXES[] = {"f32", "f64", "f", "d"};
 
-ParserResult parse_identifier(const Parser *parser, Span span) {
-  if (span_is_empty(span))
-    return parser_result_not_match(span);
-
-  uint8_t c = source_first_byte_at(parser->source, span);
-  if (!is_letter_or_underscore(c))
-    return parser_result_not_match(span);
-
-  Span rem = span_advance(span, 1);
-  while (span_len(rem) > 0) {
-    c = source_first_byte_at(parser->source, rem);
-    if (!is_letter_digit_or_underscore(c))
-      break;
-
-    rem = span_advance(rem, 1);
-  }
-
-  SyntaxIdentifier *id = xmalloc(sizeof(SyntaxIdentifier));
-  *id = (SyntaxIdentifier){
-      .header =
-          syntax_node_header(SYNTAX_KIND_IDENTIFIER, span_consumed(span, rem)),
-      .strview = source_strview_at(parser->source, span_consumed(span, rem)),
-  };
-
-  return parser_result_matched(rem, (SyntaxNode *)id, NULL);
-}
-
 /**
  * @brief Scans digit { ["_"] digit } for @p base starting at @p start.
  *
@@ -187,7 +160,8 @@ static size_t try_exponent(const Parser *parser, Span span, size_t pos) {
  */
 static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
                                         size_t number_end, SyntaxKind kind) {
-  SyntaxNumberLitExpr *lit = xmalloc(sizeof(SyntaxNumberLitExpr));
+  SyntaxNumberLitExpr *lit =
+      arena_alloc(parser->arena, sizeof(SyntaxNumberLitExpr));
   Span lit_span = {.start = span.start, .end = number_end};
   *lit = (SyntaxNumberLitExpr){
       .header = {.kind = kind, .span = lit_span},
@@ -271,8 +245,8 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
     Span bad = span_consumed(span, rem);
 
     SyntaxErrorList *errors = NULL;
-    syntax_errorlist_append(&errors,
-                            syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
+    syntax_errorlist_append(parser->arena, &errors,
+                          syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
     return parser_result_matched((Span){.start = bad.end, .end = span.end},
                                  NULL, errors);
   }
@@ -621,7 +595,8 @@ static ParserResult malformed_quoted_lit(const Parser *parser, Span span,
   Span bad = scan_malformed_lit_run(parser, span, quote);
 
   SyntaxErrorList *errors = NULL;
-  syntax_errorlist_append(&errors, syntax_error_create(code, bad));
+  syntax_errorlist_append(parser->arena, &errors,
+                          syntax_error_create(code, bad));
 
   return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
                                errors);
@@ -657,7 +632,8 @@ ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
     return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
   rem = span_advance(rem, 1); // consume the closing quote
 
-  SyntaxRuneLitExpr *rune = xmalloc(sizeof(SyntaxRuneLitExpr));
+  SyntaxRuneLitExpr *rune =
+      arena_alloc(parser->arena, sizeof(SyntaxRuneLitExpr));
   *rune = (SyntaxRuneLitExpr){
       .header = syntax_node_header(SYNTAX_KIND_RUNE_LIT_EXPR,
                                    span_consumed(span, rem)),
@@ -681,7 +657,8 @@ ParserResult parse_string_lit_expr(const Parser *parser, Span span) {
     if (c == '"') {
       rem = span_advance(rem, 1); // consume the closing quote
 
-      SyntaxStringLitExpr *string = xmalloc(sizeof(SyntaxStringLitExpr));
+      SyntaxStringLitExpr *string =
+          arena_alloc(parser->arena, sizeof(SyntaxStringLitExpr));
       *string = (SyntaxStringLitExpr){
           .header = syntax_node_header(SYNTAX_KIND_STRING_LIT_EXPR,
                                        span_consumed(span, rem)),

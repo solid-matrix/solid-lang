@@ -1,16 +1,17 @@
 #include <assert.h>
 
 #include "syntax_error.h"
-#include "xmem.h"
 
 SyntaxError syntax_error_create(SyntaxErrorCode code, Span span) {
   return (SyntaxError){.code = code, .span = span};
 }
 
-void syntax_errorlist_append(SyntaxErrorList **list, SyntaxError error) {
+void syntax_errorlist_append(Arena *arena, SyntaxErrorList **list,
+                             SyntaxError error) {
+  assert(arena != NULL);
   assert(list != NULL);
 
-  SyntaxErrorList *node = xmalloc(sizeof(SyntaxErrorList));
+  SyntaxErrorList *node = arena_alloc(arena, sizeof(SyntaxErrorList));
   *node = (SyntaxErrorList){.error = error, .next = NULL};
 
   if (*list == NULL) {
@@ -45,18 +46,4 @@ void syntax_errorlist_merge(SyntaxErrorList **dst, SyntaxErrorList **src) {
 
   tail->next = *src;
   *src = NULL;
-}
-
-void syntax_errorlist_destroy(SyntaxErrorList **list) {
-  if (list == NULL)
-    return;
-
-  SyntaxErrorList *node = *list;
-  while (node != NULL) {
-    SyntaxErrorList *next = node->next;
-    xfree(node);
-    node = next;
-  }
-
-  *list = NULL;
 }
