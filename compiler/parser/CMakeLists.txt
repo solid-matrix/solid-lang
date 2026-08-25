@@ -4,7 +4,6 @@ add_library(solid-lang-parser STATIC
   src/syntax_node.c
   src/syntax_error.c
   src/parse_shared.c
-  src/parse_decl.c
   src/parse_primary.c
   src/parse.c)
 

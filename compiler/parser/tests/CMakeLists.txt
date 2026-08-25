@@ -53,3 +53,13 @@ foreach(case_name IN LISTS NODELIST_CASES)
   add_test(NAME parser.nodelist.${case_name}
            COMMAND test_syntaxnodelist ${case_name})
 endforeach()
+
+add_executable(test_namepath test_namepath.c)
+target_link_libraries(test_namepath PRIVATE solid-lang-parser
+                                            solid-lang-test-util)
+
+set(NAMEPATH_CASES single multi trivia trailing_sep trailing_sep_trivia no_first_segment)
+foreach(case_name IN LISTS NAMEPATH_CASES)
+  add_test(NAME parser.namepath.${case_name}
+           COMMAND test_namepath ${case_name})
+endforeach()

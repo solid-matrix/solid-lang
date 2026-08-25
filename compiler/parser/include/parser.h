@@ -47,26 +47,6 @@ void parser_destroy(Parser *parser);
 
 ParserResult parse_identifier(const Parser *parser, Span span);
 
-/**
- * @brief Parses NamePath = identifier { "::" identifier }, producing a
- *        single SyntaxNamePath node whose span covers the whole path.
- *
- * See the NamePath section of doc/syntax.md. Trivia is skipped at the
- * junctions between "::" and the segments; the leading trivia of @p
- * span itself must already be skipped.
- *
- * Best-prefix semantics: a "::" not followed by an identifier ends the
- * path BEFORE the separator (trivia rolled back with it), leaving it
- * unconsumed for the enclosing construct.
- *
- * Never produces diagnostics: a missing first segment yields the plain
- * not-match outcome, while callers report component errors (e.g.
- * SYNTAX_MALFORMED_NAMEPATH) themselves.
- *
- * @param parser The parser performing the scan.
- * @param span Position to test; leading trivia must already be skipped.
- * @return Standard ParserResult contract (see the struct docs).
- */
 ParserResult parse_name_path(const Parser *parser, Span span);
 
 ParserResult parse_compile_time(const Parser *parser, Span span);

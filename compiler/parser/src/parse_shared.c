@@ -91,7 +91,7 @@ bool match_keyword(const Source *source, Span span, Strview keyword) {
   Span rem = span_advance(span, keyword.len);
 
   if (!span_is_empty(rem) &&
-      is_letter_digit_or_underscore(source_first_byte_at(source, rem))) {
+      is_letter_digit_or_underscore(source_byte_at(source, rem.start))) {
     return false;
   }
 
@@ -109,53 +109,5 @@ ParserResult complete_longest_match(ParserResult *results, size_t count) {
     }
   }
 
-  // Losing alternatives are abandoned on purpose: their nodes and
-  // diagnostics live in the parse arena and die with it.
   return results[selected];
-}
-
-ParserResult parse_name_path(const Parser *parser, Span span) {
-  SyntaxNodeList *segments = NULL;
-
-  // Best-prefix semantics: a "::" not followed by an identifier ends
-  // the path BEFORE the separator (trivia rolled back with it), so the
-  // enclosing construct sees an unconsumed "::". confirmed tracks the
-  // position after the last accepted segment for that rollback.
-  Span rem = span;
-  Span confirmed = span;
-  while (true) {
-    ParserResult seg = parse_identifier(parser, rem);
-    if (!seg.matched)
-      break;
-
-    segments = syntax_nodelist_append(parser->arena, segments, seg.node);
-    confirmed = seg.rem;
-    rem = seg.rem;
-
-    Span probe = skip_trivia(parser->source, rem);
-    if (!(span_len(probe) >= 2 &&
-          source_byte_at(parser->source, probe.start) == ':' &&
-          source_byte_at(parser->source, probe.start + 1) == ':'))
-      break; // trivia stays with the enclosing construct
-
-    // Tentatively step over "::"; a failing segment below rolls back
-    // to the pre-separator position via confirmed.
-    rem = skip_trivia(
-        parser->source,
-        (Span){.start = probe.start + 2, .end = probe.end});
-  }
-
-  if (confirmed.start == span.start) { // not even one segment
-    return parser_result_not_match(span); // the empty list dies with arena
-  }
-  rem = confirmed;
-
-  SyntaxNamePath *path = arena_alloc(parser->arena, sizeof(SyntaxNamePath));
-  *path = (SyntaxNamePath){
-      .header =
-          syntax_node_header(SYNTAX_KIND_NAME_PATH, span_consumed(span, rem)),
-      .segments = segments,
-  };
-
-  return parser_result_matched(rem, (SyntaxNode *)path, NULL);
 }

@@ -33,7 +33,8 @@ static size_t error_count(const ParserResult *r) {
   return n;
 }
 
-/* Asserts that the path segments of a parsed decl match expectations. */
+/* Asserts that the path segments of a parsed decl match expectations.
+ * A NULL @p segments asserts that the decl carries no path at all. */
 static void check_paths(ParserResult *r, const char *const *segments,
                         size_t count, SyntaxKind kind) {
   CHECK(r->node != NULL);
@@ -46,24 +47,33 @@ static void check_paths(ParserResult *r, const char *const *segments,
       kind == SYNTAX_KIND_NAMESPACE_DECL
           ? ((const SyntaxNamespaceDecl *)r->node)->path
           : ((const SyntaxUsingDecl *)r->node)->path;
+
+  if (segments == NULL) {
+    CHECK(path == NULL);
+    return;
+  }
+
   CHECK(path != NULL);
   if (!path)
     return;
 
   CHECK(path->header.kind == SYNTAX_KIND_NAME_PATH);
 
-  // Walk the chain in source order, comparing each segment.
+  // Lists accumulate newest-at-head, so the chain holds the path in
+  // reverse source order: chain[i] corresponds to
+  // segments[count - 1 - i].
   const SyntaxNodeList *n = path->segments;
   for (size_t i = 0; i < count; i++) {
     CHECK(n != NULL);
     if (!n)
       return;
 
+    const char *expected = segments[count - 1 - i];
     const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->node;
     CHECK(id->header.kind == SYNTAX_KIND_IDENTIFIER);
-    CHECK(
-        strview_equals(id->strview, strview_create((const uint8_t *)segments[i],
-                                                   strlen(segments[i]))));
+    CHECK(strview_equals(id->strview,
+                         strview_create((const uint8_t *)expected,
+                                        strlen(expected))));
     n = n->next;
   }
   CHECK(n == NULL); // exactly @p count segments
@@ -85,20 +95,40 @@ static void expect_decl(bool use_namespace, const char *text,
                             : SYNTAX_KIND_USING_DECL);
 }
 
-/* Asserts a recovered declaration carrying exactly one diagnostic. */
-static void expect_malformed(bool use_namespace, const char *text,
-                             SyntaxErrorCode code) {
+/* Asserts a recovered declaration whose diagnostics are exactly
+ * @p codes in order (codes[0] is the head, i.e. the newest), whose
+ * path holds exactly @p segments (or is NULL when @p segments is
+ * NULL), and which consumed up to @p rem_at bytes. */
+static void expect_bad(bool use_namespace, const char *text,
+                       const char *const *segments, size_t count,
+                       const SyntaxErrorCode *codes, size_t code_count,
+                       size_t rem_at) {
   begin(text);
   ParserResult r =
       use_namespace ? parse_namespace_decl(g_parser, source_get_span(g_source))
                     : parse_using_decl(g_parser, source_get_span(g_source));
 
-  CHECK(r.matched);      // recovered
-  CHECK(r.node == NULL); // nothing worth keeping
-  CHECK(error_count(&r) == 1);
+  CHECK(r.matched); // recovered
 
+  SyntaxKind kind =
+      use_namespace ? SYNTAX_KIND_NAMESPACE_DECL : SYNTAX_KIND_USING_DECL;
+  CHECK(r.node != NULL && r.node->kind == kind); // decl shell always kept
+  CHECK(r.rem.start == rem_at);
+
+  // Diagnostics: newest-at-head, exact multiset in exact order.
+  CHECK(error_count(&r) == code_count);
   const SyntaxErrorList *e = r.errors;
-  CHECK(e != NULL && e->error.code == code);
+  for (size_t i = 0; i < code_count; i++) {
+    CHECK(e != NULL && e->error.code == codes[i]);
+    if (!e)
+      return;
+    e = e->next;
+  }
+  CHECK(e == NULL);
+
+  check_paths(&r, segments, count,
+              use_namespace ? SYNTAX_KIND_NAMESPACE_DECL
+                            : SYNTAX_KIND_USING_DECL);
 }
 
 /* Asserts that text does not start this declaration at all. */
@@ -123,6 +153,8 @@ static void test_namespace(void) {
   expect_decl(true, "namespace a::b::c;", THREE, 3);
   // Trivia at the junctions of the path is part of the contract.
   expect_decl(true, "namespace std :: io ;", TWO, 2);
+  // Trivia before the semicolon: the check reads the post-trivia byte.
+  expect_decl(true, "namespace std ;", ONE, 1);
 }
 
 static void test_using(void) {
@@ -132,20 +164,39 @@ static void test_using(void) {
   expect_decl(false, "using std;", ONE, 1);
   expect_decl(false, "using std::io;", TWO, 2);
   expect_decl(false, "using std :: io ;", TWO, 2);
+  expect_decl(false, "using std ;", ONE, 1);
 }
 
 static void test_malformed(void) {
-  // Keyword hit but no path: SYNTAX_MALFORMED_NAMEPATH.
-  expect_malformed(true, "namespace ;", SYNTAX_MALFORMED_NAMEPATH);
-  expect_malformed(true, "namespace", SYNTAX_MALFORMED_NAMEPATH);
-  expect_malformed(false, "using", SYNTAX_MALFORMED_NAMEPATH);
+  static const char *const NONE_PATH[] = {"std"};
+  static const char *const A[] = {"a"};
 
-  // Path parsed but no ";": SYNTAX_EXPECTED_SEMICOLON.
-  expect_malformed(true, "namespace std io", SYNTAX_EXPECTED_SEMICOLON);
-  expect_malformed(true, "namespace std", SYNTAX_EXPECTED_SEMICOLON);
-  // Best-prefix rollback: "::" is where ";" was expected.
-  expect_malformed(true, "namespace a::", SYNTAX_EXPECTED_SEMICOLON);
-  expect_malformed(false, "using a::;", SYNTAX_EXPECTED_SEMICOLON);
+  static const SyntaxErrorCode NAME_PATH[] = {SYNTAX_EXPECTED_NAME_PATH};
+  static const SyntaxErrorCode SEMI[] = {SYNTAX_EXPECTED_SEMICOLON};
+  static const SyntaxErrorCode IDENT[] = {SYNTAX_EXPECTED_IDENTIFIER};
+  static const SyntaxErrorCode SEMI_THEN_IDENT[] = {
+      SYNTAX_EXPECTED_SEMICOLON, SYNTAX_EXPECTED_IDENTIFIER};
+
+  // Keyword hit but no usable path: decl shell with NULL path.
+  expect_bad(true, "namespace ;", NULL, 0, NAME_PATH, 1, strlen("namespace"));
+  expect_bad(true, "namespace", NULL, 0, NAME_PATH, 1, strlen("namespace"));
+  expect_bad(false, "using", NULL, 0, NAME_PATH, 1, strlen("using"));
+
+  // Path parsed but no ";": one EXPECTED_SEMICOLON.
+  expect_bad(true, "namespace std io", NONE_PATH, 1, SEMI, 1,
+             strlen("namespace std"));
+  expect_bad(true, "namespace std", NONE_PATH, 1, SEMI, 1,
+             strlen("namespace std"));
+
+  // Trailing "::" is consumed by the path and reports
+  // EXPECTED_IDENTIFIER; here it also ate the input, so the missing
+  // ";" stacks a second diagnostic on top (newest first).
+  expect_bad(true, "namespace a::", A, 1, SEMI_THEN_IDENT, 2,
+             strlen("namespace a::"));
+
+  // Same dangling "::", but a well-formed ";" follows: the declaration
+  // closes cleanly and carries only the identifier diagnostic.
+  expect_bad(false, "using a::;", A, 1, IDENT, 1, strlen("using a::;"));
 }
 
 static void test_boundaries(void) {

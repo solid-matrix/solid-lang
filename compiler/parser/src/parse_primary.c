@@ -38,13 +38,12 @@ static size_t scan_digits(const Parser *parser, Span span, size_t start,
   size_t digits = 0;
 
   while (span_len(rem) > 0) {
-    uint8_t c = source_first_byte_at(parser->source, rem);
+    uint8_t c = source_byte_at(parser->source, rem.start);
     if (is_base_digit(c, base)) {
       digits++;
     } else if (c == '_' && span_len(rem) > 1 &&
-               is_base_digit(
-                   source_first_byte_at(parser->source, span_advance(rem, 1)),
-                   base)) {
+               is_base_digit(source_byte_at(parser->source, rem.start + 1),
+                             base)) {
       rem = span_advance(rem, 1); // "_" is consumed with its digit
       digits++;
     } else {
@@ -180,7 +179,7 @@ static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (!is_decimal_digit(source_first_byte_at(parser->source, span)))
+  if (!is_decimal_digit(source_byte_at(parser->source, span.start)))
     return parser_result_not_match(span);
 
   size_t body_end = scan_decimal_lit(parser, span, span.start);
@@ -220,23 +219,23 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
   if (source_byte_at(parser->source, span.start) != '0')
     return parser_result_not_match(span);
 
-  uint8_t marker = source_first_byte_at(parser->source, span_advance(span, 1));
+  uint8_t marker = source_byte_at(parser->source, span.start + 1);
   if (marker != lo && marker != hi)
     return parser_result_not_match(span);
 
   // One optional separator is allowed before the first digit.
   Span body = span_advance(span, 2);
-  if (span_len(body) > 0 && source_first_byte_at(parser->source, body) == '_')
+  if (span_len(body) > 0 && source_byte_at(parser->source, body.start) == '_')
     body = span_advance(body, 1);
 
   if (span_len(body) == 0 ||
-      !is_base_digit(source_first_byte_at(parser->source, body), base)) {
+      !is_base_digit(source_byte_at(parser->source, body.start), base)) {
     // Malformed prefix: recover over the maximal identifier/number-
     // looking run, so a discarded alternative can never leak into the
     // result and the error beats the shorter decimal reading.
     Span rem = span;
     while (span_len(rem) > 0) {
-      uint8_t c = source_first_byte_at(parser->source, rem);
+      uint8_t c = source_byte_at(parser->source, rem.start);
       if (!is_letter_digit_or_underscore(c) && c != '.')
         break;
 
@@ -245,8 +244,7 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
     Span bad = span_consumed(span, rem);
 
     SyntaxErrorList *errors = syntax_errorlist_append(
-        parser->arena, NULL,
-        syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
+        parser->arena, NULL, syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
     return parser_result_matched((Span){.start = bad.end, .end = span.end},
                                  NULL, errors);
   }
@@ -293,7 +291,7 @@ static ParserResult parse_exponent_float_lit_expr(const Parser *parser,
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (!is_decimal_digit(source_first_byte_at(parser->source, span)))
+  if (!is_decimal_digit(source_byte_at(parser->source, span.start)))
     return parser_result_not_match(span);
 
   size_t pos = scan_decimal_lit(parser, span, span.start);
@@ -329,7 +327,7 @@ static ParserResult parse_dot_float_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (!is_decimal_digit(source_first_byte_at(parser->source, span)))
+  if (!is_decimal_digit(source_byte_at(parser->source, span.start)))
     return parser_result_not_match(span);
 
   size_t pos = scan_decimal_lit(parser, span, span.start);
@@ -359,7 +357,7 @@ static ParserResult parse_suffix_float_lit_expr(const Parser *parser,
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (!is_decimal_digit(source_first_byte_at(parser->source, span)))
+  if (!is_decimal_digit(source_byte_at(parser->source, span.start)))
     return parser_result_not_match(span);
 
   size_t body_end = scan_decimal_lit(parser, span, span.start);
@@ -400,7 +398,7 @@ ParserResult parse_number_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (!is_decimal_digit(source_first_byte_at(parser->source, span)))
+  if (!is_decimal_digit(source_byte_at(parser->source, span.start)))
     return parser_result_not_match(span);
 
   ParserResult results[] = {
@@ -574,7 +572,7 @@ static Span scan_malformed_lit_run(const Parser *parser, Span span,
   Span rem = span_advance(span, 1); // skip the opening quote
 
   while (span_len(rem) > 0) {
-    uint8_t c = source_first_byte_at(parser->source, rem);
+    uint8_t c = source_byte_at(parser->source, rem.start);
     if (c == quote || c == '\n' || c == '\r')
       break;
 
@@ -594,9 +592,8 @@ static ParserResult malformed_quoted_lit(const Parser *parser, Span span,
                                          SyntaxErrorCode code, uint8_t quote) {
   Span bad = scan_malformed_lit_run(parser, span, quote);
 
-  SyntaxErrorList *errors =
-      syntax_errorlist_append(parser->arena, NULL,
-                              syntax_error_create(code, bad));
+  SyntaxErrorList *errors = syntax_errorlist_append(
+      parser->arena, NULL, syntax_error_create(code, bad));
 
   return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
                                errors);
@@ -606,14 +603,14 @@ ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (source_first_byte_at(parser->source, span) != '\'')
+  if (source_byte_at(parser->source, span.start) != '\'')
     return parser_result_not_match(span);
 
   Span rem = span_advance(span, 1); // consume the opening quote
-  if (span_len(rem) == 0 || source_first_byte_at(parser->source, rem) == '\'')
+  if (span_len(rem) == 0 || source_byte_at(parser->source, rem.start) == '\'')
     return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
 
-  uint8_t c = source_first_byte_at(parser->source, rem);
+  uint8_t c = source_byte_at(parser->source, rem.start);
   size_t content_end;
   bool scanned;
   if (c == '\\') {
@@ -628,7 +625,7 @@ ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
     return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
 
   rem = (Span){.start = content_end, .end = rem.end};
-  if (span_len(rem) == 0 || source_first_byte_at(parser->source, rem) != '\'')
+  if (span_len(rem) == 0 || source_byte_at(parser->source, rem.start) != '\'')
     return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
   rem = span_advance(rem, 1); // consume the closing quote
 
@@ -647,12 +644,12 @@ ParserResult parse_string_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
-  if (source_first_byte_at(parser->source, span) != '"')
+  if (source_byte_at(parser->source, span.start) != '"')
     return parser_result_not_match(span);
 
   Span rem = span_advance(span, 1); // consume the opening quote
   while (span_len(rem) > 0) {
-    uint8_t c = source_first_byte_at(parser->source, rem);
+    uint8_t c = source_byte_at(parser->source, rem.start);
 
     if (c == '"') {
       rem = span_advance(rem, 1); // consume the closing quote

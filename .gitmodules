@@ -1,3 +1,6 @@
 [submodule "compiler/vendor/mimalloc"]
 	path = compiler/vendor/mimalloc
-	url = git@github.com:microsoft/mimalloc.git
+	url = https://github.com/microsoft/mimalloc.git
+[submodule "compiler/vendor/cmocka"]
+	path = compiler/vendor/cmocka
+	url = https://gitlab.com/cmocka/cmocka.git

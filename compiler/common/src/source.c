@@ -203,9 +203,3 @@ uint8_t source_byte_at(const Source *source, size_t pos) {
   assert(pos < source->len);
   return source->bytes[pos];
 }
-
-uint8_t source_first_byte_at(const Source *source, Span span) {
-  assert(!span_is_empty(span));
-  assert(span.start < source->len);
-  return source->bytes[span.start];
-}
