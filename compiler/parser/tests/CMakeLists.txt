@@ -30,7 +30,15 @@ set(PARSE_CASES
     namespace_decl_valid_forms using_decl_valid_forms decl_keyword_boundary
     namespace_decl_malforms using_decl_malforms
     program_accumulates_decls_newest_first
-    program_junk_tail_reports_expected_eof program_empty_and_trivia_only)
+    program_junk_tail_reports_expected_eof program_empty_and_trivia_only
+    expr_precedence_mul_over_add expr_parens_override_grouping
+    expr_left_associativity expr_unary_binds_tighter_than_mul
+    expr_all_unary_operators expr_postfix_chain_on_literal
+    expr_call_empty_args expr_float_dot_beats_member_access
+    expr_malformed_missing_right_hand_side expr_malformed_unclosed_paren
+    expr_malformed_missing_rhs_logical_or expr_malformed_dangling_call_comma
+    expr_malformed_empty_parens expr_malformed_dangling_unary expr_relational_two_byte_forms
+    expr_full_ladder_shape)
 foreach(case_name IN LISTS PARSE_CASES)
   add_test(NAME parser.parse.${case_name} COMMAND test_parse ${case_name})
 endforeach()

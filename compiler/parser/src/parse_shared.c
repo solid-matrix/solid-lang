@@ -98,6 +98,13 @@ bool match_keyword(const Source *source, Span span, Strview keyword) {
   return true;
 }
 
+bool match(const Source *source, Span span, Strview strview) {
+  if (strview.len == 0 || strview.len > span_len(span))
+    return false;
+  Strview token = source_strview_at(source, span_slice(span, 0, strview.len));
+  return strview_equals(strview, token);
+}
+
 ParserResult complete_longest_match(ParserResult *results, size_t count) {
   assert(count > 0);
 

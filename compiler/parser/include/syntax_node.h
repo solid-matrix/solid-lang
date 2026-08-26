@@ -202,6 +202,8 @@ typedef enum {
   SYNTAX_OPERATOR_SHL, // <<
   SYNTAX_OPERATOR_SHR, // >>
 
+  SYNTAX_OPERATOR_DEREF, // *
+
 } SyntaxOperator;
 
 typedef struct SyntaxNode {

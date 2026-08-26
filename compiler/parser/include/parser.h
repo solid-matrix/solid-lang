@@ -133,10 +133,4 @@ ParserResult parse_struct_lit_expr(const Parser *parser, Span span);
 
 ParserResult parse_array_lit_expr(const Parser *parser, Span span);
 
-ParserResult parse_named_expr(const Parser *parser, Span span);
-
-ParserResult parse_sub_expr(const Parser *parser, Span span);
-
-ParserResult parse_operand_expr(const Parser *parser, Span span);
-
 #pragma endregion

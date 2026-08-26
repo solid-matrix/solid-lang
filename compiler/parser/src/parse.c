@@ -38,10 +38,6 @@ ParserResult parse_identifier(const Parser *parser, Span span) {
 }
 
 ParserResult parse_name_path(const Parser *parser, Span span) {
-  // Semantics: segments accumulate newest-at-head. A trailing "::" is
-  // consumed into the path and reports exactly one EXPECTED_IDENTIFIER
-  // pointing past the separator; a missing FIRST segment is a silent
-  // not_match (the enclosing construct reports EXPECTED_NAME_PATH).
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
@@ -404,12 +400,7 @@ ParserResult parse_while_stmt(const Parser *parser, Span span) {
   return parser_result_not_match(span);
 }
 
-ParserResult parse_expr(const Parser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return parser_result_not_match(span);
-}
+ParserResult parse_expr(const Parser *parser, Span span);
 
 ParserResult parse_number_lit_expr(const Parser *parser, Span span);
 
@@ -420,9 +411,3 @@ ParserResult parse_string_lit_expr(const Parser *parser, Span span);
 ParserResult parse_struct_lit_expr(const Parser *parser, Span span);
 
 ParserResult parse_array_lit_expr(const Parser *parser, Span span);
-
-ParserResult parse_named_expr(const Parser *parser, Span span);
-
-ParserResult parse_sub_expr(const Parser *parser, Span span);
-
-ParserResult parse_operand_expr(const Parser *parser, Span span);

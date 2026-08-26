@@ -263,6 +263,259 @@ void test_using_decl_malforms(void) {
                   1, IDENT, 1, strlen("using a::;"));
 }
 
+/* ---- expressions ------------------------------------------------------ */
+
+static const SyntaxNumberLitExpr *as_int(const SyntaxNode *n,
+                                         const char *text) {
+  TEST_ASSERT_NOT_NULL(n);
+  if (!n)
+    return NULL;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, n->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxNumberLitExpr *)n)->value, text);
+  return (const SyntaxNumberLitExpr *)n;
+}
+
+static const SyntaxBinaryExpr *as_bin(const SyntaxNode *n,
+                                      SyntaxOperator op) {
+  TEST_ASSERT_NOT_NULL(n);
+  if (!n)
+    return NULL;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, n->kind);
+  TEST_ASSERT_EQUAL_HEX32(op, ((const SyntaxBinaryExpr *)n)->operator);
+  return (const SyntaxBinaryExpr *)n;
+}
+
+static const SyntaxUnaryExpr *as_unary(const SyntaxNode *n,
+                                       SyntaxOperator op) {
+  TEST_ASSERT_NOT_NULL(n);
+  if (!n)
+    return NULL;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_UNARY_EXPR, n->kind);
+  TEST_ASSERT_EQUAL_HEX32(op, ((const SyntaxUnaryExpr *)n)->operator);
+  return (const SyntaxUnaryExpr *)n;
+}
+
+static ParserResult run_expr(const char *text) {
+  fx_begin(text);
+  return parse_expr(fx_parser, source_get_span(fx_source));
+}
+
+void test_expr_precedence_mul_over_add(void) {
+  ParserResult r = run_expr("1+2*3");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *add = as_bin(r.node, SYNTAX_OPERATOR_ADD);
+  as_int(add->left, "1");
+  const SyntaxBinaryExpr *mul =
+      as_bin(add->right, SYNTAX_OPERATOR_MUL);
+  as_int(mul->left, "2");
+  as_int(mul->right, "3");
+}
+
+void test_expr_parens_override_grouping(void) {
+  // Transparent parens: the inner node surfaces unchanged.
+  ParserResult r = run_expr("(1+2)*3");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *mul = as_bin(r.node, SYNTAX_OPERATOR_MUL);
+  const SyntaxBinaryExpr *add = as_bin(mul->left, SYNTAX_OPERATOR_ADD);
+  as_int(add->left, "1");
+  as_int(add->right, "2");
+  as_int(mul->right, "3");
+}
+
+void test_expr_left_associativity(void) {
+  ParserResult r = run_expr("1-2-3");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxBinaryExpr *outer = as_bin(r.node, SYNTAX_OPERATOR_SUB);
+  const SyntaxBinaryExpr *inner = as_bin(outer->left, SYNTAX_OPERATOR_SUB);
+  as_int(inner->left, "1");
+  as_int(inner->right, "2");
+  as_int(outer->right, "3");
+}
+
+void test_expr_unary_binds_tighter_than_mul(void) {
+  ParserResult r = run_expr("-2*3");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxBinaryExpr *mul = as_bin(r.node, SYNTAX_OPERATOR_MUL);
+  const SyntaxUnaryExpr *neg = as_unary(mul->left, SYNTAX_OPERATOR_MINUS);
+  as_int(neg->operand, "2");
+  as_int(mul->right, "3");
+}
+
+void test_expr_all_unary_operators(void) {
+  static const struct {
+    const char *text;
+    SyntaxOperator op;
+  } CASES[] = {
+      {"-1", SYNTAX_OPERATOR_MINUS}, {"+1", SYNTAX_OPERATOR_PLUS},
+      {"!0", SYNTAX_OPERATOR_LNOT},  {"~0", SYNTAX_OPERATOR_BNOT},
+      {"*1", SYNTAX_OPERATOR_DEREF},
+  };
+
+  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+    ParserResult r = run_expr(CASES[i].text);
+    TEST_ASSERT_TRUE(r.matched);
+    TEST_ASSERT_NULL(r.errors);
+    const SyntaxUnaryExpr *u = as_unary(r.node, CASES[i].op);
+    as_int(u->operand, &CASES[i].text[1]);
+  }
+}
+
+void test_expr_postfix_chain_on_literal(void) {
+  // (((1)[2])(3)).x -- every postfix form applied once, in order.
+  ParserResult r = run_expr("(1)[2](3).x");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxDotExpr *dot = (const SyntaxDotExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_DOT_EXPR, r.node->kind);
+  TEST_ASSERT_STRVIEW_EQ(dot->name->strview, "x");
+
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)dot->receiver;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, call->header.kind);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(call->arguments));
+
+  const SyntaxIndexExpr *index = (const SyntaxIndexExpr *)call->callee;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INDEX_EXPR, index->header.kind);
+  as_int(index->receiver, "1");
+  as_int(index->index, "2");
+
+  as_int(call->arguments->node, "3");
+}
+
+void test_expr_call_empty_args(void) {
+  ParserResult r = run_expr("(1)()");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(call->arguments));
+  as_int(call->callee, "1");
+}
+
+void test_expr_float_dot_beats_member_access(void) {
+  // Longest match at the primary: "5." is a float; ".x" is left over.
+  ParserResult r = run_expr("5.x");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, r.node->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxNumberLitExpr *)r.node)->value,
+                         "5.");
+  TEST_ASSERT_EQUAL_size_t(2, r.rem.start);
+}
+
+void test_expr_malformed_missing_right_hand_side(void) {
+  // Recovery doctrine: the dangling operator itself is consumed.
+  ParserResult r = run_expr("1+");
+  TEST_ASSERT_TRUE(r.matched);      // partial tree kept
+  TEST_ASSERT_NOT_NULL(r.node);     // the left operand survives
+  as_int(r.node, "1");
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(2, r.rem.start); // past the "+"
+}
+
+void test_expr_malformed_missing_rhs_logical_or(void) {
+  ParserResult r = run_expr("1||");
+  TEST_ASSERT_TRUE(r.matched);
+  as_int(r.node, "1");
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(3, r.rem.start); // past the "||"
+}
+
+void test_expr_malformed_dangling_call_comma(void) {
+  // The trailing "," is consumed as a recovery run; the call itself is
+  // abandoned back to its receiver.
+  ParserResult r = run_expr("(1)(2,)");
+  TEST_ASSERT_TRUE(r.matched);
+  as_int(r.node, "1");
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+}
+
+void test_expr_malformed_unclosed_paren(void) {
+  ParserResult r = run_expr("(1");
+  TEST_ASSERT_TRUE(r.matched);
+  as_int(r.node, "1"); // transparent parens keep the inner node
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(2, r.rem.start);
+}
+
+void test_expr_malformed_empty_parens(void) {
+  ParserResult r = run_expr("()");
+  TEST_ASSERT_TRUE(r.matched);  // recovery run
+  TEST_ASSERT_NULL(r.node);
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+}
+
+void test_expr_malformed_dangling_unary(void) {
+  // The operator frame survives with a NULL operand; one diagnostic.
+  ParserResult r = run_expr("*");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxUnaryExpr *u = as_unary(r.node, SYNTAX_OPERATOR_DEREF);
+  if (u)
+    TEST_ASSERT_NULL(u->operand);
+
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+}
+
+void test_expr_relational_two_byte_forms(void) {
+  // "<=" / ">=" must win over their single-byte prefixes "<" / ">".
+  ParserResult r = run_expr("1<=2");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *lte = as_bin(r.node, SYNTAX_OPERATOR_LTE);
+  as_int(lte->left, "1");
+  as_int(lte->right, "2");
+
+  r = run_expr("1>=2");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *gte = as_bin(r.node, SYNTAX_OPERATOR_GTE);
+  as_int(gte->left, "1");
+  as_int(gte->right, "2");
+}
+
+void test_expr_full_ladder_shape(void) {
+  // 1|2 ^^ 3 && 4 == 5<<6+7 || 8
+  // = LOR( LXOR( BOR(1,2), LAND( 3, EQ( 4, SHL( 5, ADD(6,7) ) ) ) ), 8 )
+  // ^^ is looser than &&, so the whole "3 && ..." lands on its RIGHT.
+  ParserResult r = run_expr("1|2^^3&&4==5<<6+7||8");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *lor = as_bin(r.node, SYNTAX_OPERATOR_LOR);
+  as_int(lor->right, "8");
+
+  const SyntaxBinaryExpr *lxor = as_bin(lor->left, SYNTAX_OPERATOR_LXOR);
+  const SyntaxBinaryExpr *bor = as_bin(lxor->left, SYNTAX_OPERATOR_BOR);
+  as_int(bor->left, "1");
+  as_int(bor->right, "2");
+
+  const SyntaxBinaryExpr *land = as_bin(lxor->right, SYNTAX_OPERATOR_LAND);
+  as_int(land->left, "3");
+  const SyntaxBinaryExpr *eq = as_bin(land->right, SYNTAX_OPERATOR_EQ);
+  as_int(eq->left, "4");
+  const SyntaxBinaryExpr *shl = as_bin(eq->right, SYNTAX_OPERATOR_SHL);
+  as_int(shl->left, "5");
+  const SyntaxBinaryExpr *add = as_bin(shl->right, SYNTAX_OPERATOR_ADD);
+  as_int(add->left, "6");
+  as_int(add->right, "7");
+}
+
 /* ---- parse_program --------------------------------------------------- */
 
 static size_t top_level_count(const SyntaxProgram *p) {
@@ -332,6 +585,27 @@ static const TestDispatchEntry ENTRIES[] = {
     {"decl_keyword_boundary", test_decl_keyword_boundary},
     {"namespace_decl_malforms", test_namespace_decl_malforms},
     {"using_decl_malforms", test_using_decl_malforms},
+    {"expr_precedence_mul_over_add", test_expr_precedence_mul_over_add},
+    {"expr_parens_override_grouping", test_expr_parens_override_grouping},
+    {"expr_left_associativity", test_expr_left_associativity},
+    {"expr_unary_binds_tighter_than_mul",
+     test_expr_unary_binds_tighter_than_mul},
+    {"expr_all_unary_operators", test_expr_all_unary_operators},
+    {"expr_postfix_chain_on_literal", test_expr_postfix_chain_on_literal},
+    {"expr_call_empty_args", test_expr_call_empty_args},
+    {"expr_float_dot_beats_member_access",
+     test_expr_float_dot_beats_member_access},
+    {"expr_malformed_missing_right_hand_side",
+     test_expr_malformed_missing_right_hand_side},
+    {"expr_malformed_missing_rhs_logical_or",
+     test_expr_malformed_missing_rhs_logical_or},
+    {"expr_malformed_dangling_call_comma",
+     test_expr_malformed_dangling_call_comma},
+    {"expr_malformed_unclosed_paren", test_expr_malformed_unclosed_paren},
+    {"expr_malformed_empty_parens", test_expr_malformed_empty_parens},
+    {"expr_malformed_dangling_unary", test_expr_malformed_dangling_unary},
+    {"expr_relational_two_byte_forms", test_expr_relational_two_byte_forms},
+    {"expr_full_ladder_shape", test_expr_full_ladder_shape},
     {"program_accumulates_decls_newest_first",
      test_program_accumulates_decls_newest_first},
     {"program_junk_tail_reports_expected_eof",
