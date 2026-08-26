@@ -378,14 +378,15 @@ void test_expr_postfix_chain_on_literal(void) {
 
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)dot->receiver;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, call->header.kind);
-  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(call->arguments));
+  TEST_ASSERT_EQUAL_size_t(1,
+                            syntax_nodelist_length(call->arguments->exprs));
 
   const SyntaxIndexExpr *index = (const SyntaxIndexExpr *)call->callee;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INDEX_EXPR, index->header.kind);
   as_int(index->receiver, "1");
   as_int(index->index, "2");
 
-  as_int(call->arguments->node, "3");
+  as_int(call->arguments->exprs->node, "3");
 }
 
 void test_expr_call_empty_args(void) {
@@ -395,7 +396,8 @@ void test_expr_call_empty_args(void) {
 
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
-  TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(call->arguments));
+  TEST_ASSERT_EQUAL_size_t(0,
+                            syntax_nodelist_length(call->arguments->exprs));
   as_int(call->callee, "1");
 }
 
@@ -431,13 +433,21 @@ void test_expr_malformed_missing_rhs_logical_or(void) {
 }
 
 void test_expr_malformed_dangling_call_comma(void) {
-  // The trailing "," is consumed as a recovery run; the call itself is
-  // abandoned back to its receiver.
+  // The dangling "," is consumed as a recovery run; the call frame
+  // survives holding every argument parsed before it.
   ParserResult r = run_expr("(1)(2,)");
   TEST_ASSERT_TRUE(r.matched);
-  as_int(r.node, "1");
+
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  as_int(call->callee, "1");
+  TEST_ASSERT_EQUAL_size_t(1,
+                           syntax_nodelist_length(call->arguments->exprs));
+  as_int(call->arguments->exprs->node, "2");
+
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("(1)(2,)"), r.rem.start); // past it all
 }
 
 void test_expr_malformed_unclosed_paren(void) {
@@ -487,6 +497,72 @@ void test_expr_relational_two_byte_forms(void) {
   const SyntaxBinaryExpr *gte = as_bin(r.node, SYNTAX_OPERATOR_GTE);
   as_int(gte->left, "1");
   as_int(gte->right, "2");
+}
+
+void test_expr_call_args_reverse_order(void) {
+  // Arguments accumulate newest-at-head: chain holds [3, 2].
+  ParserResult r = run_expr("(1)(2,3)");
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  TEST_ASSERT_EQUAL_size_t(2,
+                           syntax_nodelist_length(call->arguments->exprs));
+  as_int(call->arguments->exprs->node, "3");
+  as_int(call->arguments->exprs->next->node, "2");
+}
+
+void test_expr_dot_missing_identifier_frame(void) {
+  // The dot frame survives with a NULL name; one diagnostic.
+  ParserResult r = run_expr("(1).!");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxDotExpr *dot = (const SyntaxDotExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_DOT_EXPR, r.node->kind);
+  TEST_ASSERT_NULL(dot->name);
+  as_int(dot->receiver, "1");
+
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("(1)."), r.rem.start); // at the fault
+}
+
+void test_expr_index_frames(void) {
+  // Missing "]": frame keeps the parsed index, one RBRACKET diagnostic.
+  ParserResult r = run_expr("(1)[2");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxIndexExpr *ix = (const SyntaxIndexExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INDEX_EXPR, r.node->kind);
+  as_int(ix->receiver, "1");
+  as_int(ix->index, "2");
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->error.code);
+
+  // Missing index expression: NULL-index frame, single EXPR diagnostic.
+  r = run_expr("(1)[");
+  TEST_ASSERT_TRUE(r.matched);
+  ix = (const SyntaxIndexExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INDEX_EXPR, r.node->kind);
+  TEST_ASSERT_NULL(ix->index);
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+}
+
+void test_expr_call_missing_rparen_frame(void) {
+  ParserResult r = run_expr("(1)(2");
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  as_int(call->callee, "1");
+  TEST_ASSERT_EQUAL_size_t(1,
+                           syntax_nodelist_length(call->arguments->exprs));
+  as_int(call->arguments->exprs->node, "2");
+
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
 }
 
 void test_expr_full_ladder_shape(void) {
@@ -605,6 +681,11 @@ static const TestDispatchEntry ENTRIES[] = {
     {"expr_malformed_empty_parens", test_expr_malformed_empty_parens},
     {"expr_malformed_dangling_unary", test_expr_malformed_dangling_unary},
     {"expr_relational_two_byte_forms", test_expr_relational_two_byte_forms},
+    {"expr_call_args_reverse_order", test_expr_call_args_reverse_order},
+    {"expr_dot_missing_identifier_frame",
+     test_expr_dot_missing_identifier_frame},
+    {"expr_index_frames", test_expr_index_frames},
+    {"expr_call_missing_rparen_frame", test_expr_call_missing_rparen_frame},
     {"expr_full_ladder_shape", test_expr_full_ladder_shape},
     {"program_accumulates_decls_newest_first",
      test_program_accumulates_decls_newest_first},

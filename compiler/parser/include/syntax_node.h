@@ -57,6 +57,8 @@ typedef enum {
 
   SYNTAX_KIND_NAME_PATH = 0x000D,
 
+  SYNTAX_KIND_CALL_ARGUMENTS = 0x000E,
+
   /* category masks: one bit per category in the high byte */
   SYNTAX_KIND_CATEGORY_MASK = 0xFF00,
 
@@ -367,6 +369,11 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
+  SyntaxNodeList *exprs; // SyntaxExpr nodes
+} SyntaxCallArguments;
+
+typedef struct {
+  SyntaxNode header;
   SyntaxNodeList *annotations; // SyntaxCtAnnotation nodes
   SyntaxIdentifier *name;
   SyntaxNode *type; // type node
@@ -618,8 +625,8 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNode *callee;        // expr
-  SyntaxNodeList *arguments; // expr nodes
+  SyntaxNode *callee;             // expr
+  SyntaxCallArguments *arguments; // expr nodes
 } SyntaxCallExpr;
 
 typedef struct {

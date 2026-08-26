@@ -28,3 +28,40 @@ bool match(const Source *source, Span span, Strview strview);
 Span span_consumed(Span span, Span rem);
 
 ParserResult complete_longest_match(ParserResult *results, size_t count);
+
+static const Strview OPERATOR_LOR = STRVIEW("||");
+static const Strview OPERATOR_LXOR = STRVIEW("^^");
+static const Strview OPERATOR_LAND = STRVIEW("&&");
+
+static const Strview OPERATOR_EQ = STRVIEW("==");
+static const Strview OPERATOR_NEQ = STRVIEW("!=");
+static const Strview OPERATOR_LT = STRVIEW("<");
+static const Strview OPERATOR_GT = STRVIEW(">");
+static const Strview OPERATOR_LTE = STRVIEW("<=");
+static const Strview OPERATOR_GTE = STRVIEW(">=");
+
+static const Strview OPERATOR_BOR = STRVIEW("|");
+static const Strview OPERATOR_BXOR = STRVIEW("^");
+static const Strview OPERATOR_BAND = STRVIEW("&");
+
+static const Strview OPERATOR_SHL = STRVIEW("<<");
+static const Strview OPERATOR_SHR = STRVIEW(">>");
+
+static const Strview OPERATOR_ADD = STRVIEW("+");
+static const Strview OPERATOR_SUB = STRVIEW("-");
+static const Strview OPERATOR_MUL = STRVIEW("*");
+static const Strview OPERATOR_DIV = STRVIEW("/");
+static const Strview OPERATOR_MOD = STRVIEW("%");
+
+static const Strview OPERATOR_PLUS = STRVIEW("+");
+static const Strview OPERATOR_MINUS = STRVIEW("-");
+static const Strview OPERATOR_LNOT = STRVIEW("!");
+static const Strview OPERATOR_BNOT = STRVIEW("~");
+static const Strview OPERATOR_DEREF = STRVIEW("*");
+
+static const Strview PUNCTUATION_DOT = STRVIEW(".");
+static const Strview PUNCTUATION_COMMA = STRVIEW(",");
+static const Strview PUNCTUATION_LBRACKET = STRVIEW("[");
+static const Strview PUNCTUATION_RBRACKET = STRVIEW("]");
+static const Strview PUNCTUATION_LPAREN = STRVIEW("(");
+static const Strview PUNCTUATION_RPAREN = STRVIEW(")");

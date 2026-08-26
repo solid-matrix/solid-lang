@@ -38,6 +38,8 @@ set(PARSE_CASES
     expr_malformed_missing_right_hand_side expr_malformed_unclosed_paren
     expr_malformed_missing_rhs_logical_or expr_malformed_dangling_call_comma
     expr_malformed_empty_parens expr_malformed_dangling_unary expr_relational_two_byte_forms
+    expr_call_args_reverse_order expr_dot_missing_identifier_frame
+    expr_index_frames expr_call_missing_rparen_frame
     expr_full_ladder_shape)
 foreach(case_name IN LISTS PARSE_CASES)
   add_test(NAME parser.parse.${case_name} COMMAND test_parse ${case_name})
