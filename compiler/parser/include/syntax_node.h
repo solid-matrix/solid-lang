@@ -238,23 +238,19 @@ SyntaxNodeList *syntax_nodelist_empty(void);
  * @brief Builds a list holding @p count array elements, preserving
  *        order. Returns NULL when @p count is zero.
  */
-SyntaxNodeList *syntax_nodelist_from_array(Arena *arena,
-                                           SyntaxNode *const *nodes,
-                                           size_t count);
+SyntaxNodeList *syntax_nodelist_from_array(Arena *arena, SyntaxNode *const *nodes, size_t count);
 
 /**
  * @brief A list with @p node followed by all of @p list. O(1); shares
  *        the whole old spine.
  */
-SyntaxNodeList *syntax_nodelist_prepend(Arena *arena, SyntaxNodeList *list,
-                                        SyntaxNode *node);
+SyntaxNodeList *syntax_nodelist_prepend(Arena *arena, SyntaxNodeList *list, SyntaxNode *node);
 
 /**
  * @brief A list with all elements of @p list followed by @p node.
  *        Copies @p list's cells; the source stays valid and unchanged.
  */
-SyntaxNodeList *syntax_nodelist_append(Arena *arena, SyntaxNodeList *list,
-                                       SyntaxNode *node);
+SyntaxNodeList *syntax_nodelist_append(Arena *arena, SyntaxNodeList *list, SyntaxNode *node);
 
 /**
  * @brief The first node. Asserts non-empty.
@@ -287,8 +283,7 @@ SyntaxNodeList *syntax_nodelist_reverse(Arena *arena, SyntaxNodeList *list);
  * @brief All nodes of @p list_a followed by all of @p list_b. Copies
  *        @p list_a's cells and shares @p list_b wholesale.
  */
-SyntaxNodeList *syntax_nodelist_concat(Arena *arena, SyntaxNodeList *list_a,
-                                       SyntaxNodeList *list_b);
+SyntaxNodeList *syntax_nodelist_concat(Arena *arena, SyntaxNodeList *list_a, SyntaxNodeList *list_b);
 
 /**
  * @brief Number of nodes. O(n).
@@ -367,10 +362,10 @@ typedef struct {
   SyntaxNode *type; // type node
 } SyntaxCallParameter;
 
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList *exprs; // SyntaxExpr nodes
-} SyntaxCallArguments;
+// typedef struct {
+//   SyntaxNode header;
+//   SyntaxNodeList *exprs; // SyntaxExpr nodes
+// } SyntaxCallArguments;
 
 typedef struct {
   SyntaxNode header;
@@ -625,8 +620,8 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNode *callee;             // expr
-  SyntaxCallArguments *arguments; // expr nodes
+  SyntaxNode *receiver; // expr
+  SyntaxNodeList *args; // expr nodes
 } SyntaxCallExpr;
 
 typedef struct {

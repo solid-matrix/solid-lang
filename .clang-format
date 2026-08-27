@@ -1,2 +1,3 @@
 BasedOnStyle: LLVM
 Language: C
+ColumnLimit: 120
