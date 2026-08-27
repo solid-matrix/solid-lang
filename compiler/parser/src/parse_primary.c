@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "parse_shared.h"
+#include "parse_internal.h"
 #include "parser_result.h"
 #include "source.h"
 #include "span.h"
@@ -12,9 +12,8 @@
 
 #define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
 
-static const char *const INT_SUFFIXES[] = {
-    "isize", "usize", "i128", "u128", "i64", "u64", "i32",
-    "u32",   "i16",   "u16",  "i8",   "u8",  "i",   "u"};
+static const char *const INT_SUFFIXES[] = {"isize", "usize", "i128", "u128", "i64", "u64", "i32",
+                                           "u32",   "i16",   "u16",  "i8",   "u8",  "i",   "u"};
 
 static const char *const FLOAT_SUFFIXES[] = {"f32", "f64", "f", "d"};
 
@@ -32,8 +31,7 @@ static const char *const FLOAT_SUFFIXES[] = {"f32", "f64", "f", "d"};
  * @param end Receives the position just past the run.
  * @return The number of digits consumed.
  */
-static size_t scan_digits(const Parser *parser, Span span, size_t start,
-                          int base, size_t *end) {
+static size_t scan_digits(const Parser *parser, Span span, size_t start, int base, size_t *end) {
   Span rem = span_slice(span, start - span.start, span_len(span));
   size_t digits = 0;
 
@@ -41,9 +39,7 @@ static size_t scan_digits(const Parser *parser, Span span, size_t start,
     uint8_t c = source_byte_at(parser->source, rem.start);
     if (is_base_digit(c, base)) {
       digits++;
-    } else if (c == '_' && span_len(rem) > 1 &&
-               is_base_digit(source_byte_at(parser->source, rem.start + 1),
-                             base)) {
+    } else if (c == '_' && span_len(rem) > 1 && is_base_digit(source_byte_at(parser->source, rem.start + 1), base)) {
       rem = span_advance(rem, 1); // "_" is consumed with its digit
       digits++;
     } else {
@@ -85,8 +81,7 @@ static size_t scan_decimal_lit(const Parser *parser, Span span, size_t start) {
  * @param count Number of entries in @p candidates.
  * @return The position just past the matched candidate, or 0.
  */
-static size_t try_suffix(const Parser *parser, Span span, size_t pos,
-                         const char *const *candidates, size_t count) {
+static size_t try_suffix(const Parser *parser, Span span, size_t pos, const char *const *candidates, size_t count) {
   if (pos < span.end && source_byte_at(parser->source, pos) == '_')
     pos++; // one optional separator before the suffix
 
@@ -96,8 +91,7 @@ static size_t try_suffix(const Parser *parser, Span span, size_t pos,
     if (rel + len > span_len(span))
       continue;
 
-    Strview part =
-        source_strview_at(parser->source, span_slice(span, rel, rel + len));
+    Strview part = source_strview_at(parser->source, span_slice(span, rel, rel + len));
     Strview cand = strview_create((const uint8_t *)candidates[k], len);
     if (strview_equals(part, cand))
       return pos + len;
@@ -112,8 +106,7 @@ static size_t try_int_suffix(const Parser *parser, Span span, size_t pos) {
 
 /* [ "_" ] float_lit_suffix ; returns the end position or 0. */
 static size_t try_float_suffix(const Parser *parser, Span span, size_t pos) {
-  return try_suffix(parser, span, pos, FLOAT_SUFFIXES,
-                    COUNT_OF(FLOAT_SUFFIXES));
+  return try_suffix(parser, span, pos, FLOAT_SUFFIXES, COUNT_OF(FLOAT_SUFFIXES));
 }
 
 /*
@@ -157,15 +150,11 @@ static size_t try_exponent(const Parser *parser, Span span, size_t pos) {
 /**
  * @brief Builds the node for a literal covering [span.start, number_end).
  */
-static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
-                                        size_t number_end, SyntaxKind kind) {
-  SyntaxNumberLitExpr *lit =
-      arena_alloc(parser->arena, sizeof(SyntaxNumberLitExpr));
+static SyntaxNode *make_number_lit_node(const Parser *parser, Span span, size_t number_end, SyntaxKind kind) {
+  SyntaxNumberLitExpr *lit = arena_alloc(parser->arena, sizeof(SyntaxNumberLitExpr));
   Span lit_span = {.start = span.start, .end = number_end};
-  *lit = (SyntaxNumberLitExpr){
-      .header = {.kind = kind, .span = lit_span},
-      .value = source_strview_at(parser->source, lit_span),
-  };
+  lit->header = syntax_node_header(kind, lit_span);
+  lit->value = source_strview_at(parser->source, lit_span);
   return (SyntaxNode *)lit;
 }
 
@@ -174,8 +163,7 @@ static SyntaxNode *make_number_lit_node(const Parser *parser, Span span,
  *
  *   decimal_lit = "0" | ( "1" .. "9" ) [ "_" ] decimal_digits .
  */
-static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
-                                               Span span) {
+static ParserResult parse_decimal_int_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
@@ -187,10 +175,8 @@ static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
   size_t suf = try_int_suffix(parser, span, body_end);
   size_t number_end = suf ? suf : body_end;
 
-  return parser_result_matched(
-      (Span){.start = number_end, .end = span.end},
-      make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR),
-      NULL);
+  return parser_result_matched((Span){.start = number_end, .end = span.end},
+                               make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR), NULL);
 }
 
 /**
@@ -210,9 +196,7 @@ static ParserResult parse_decimal_int_lit_expr(const Parser *parser,
  * @param base Digit base: 2, 8, or 16.
  * @return Standard ParserResult contract (see parser_result.h).
  */
-static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
-                                                uint8_t lo, uint8_t hi,
-                                                int base) {
+static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span, uint8_t lo, uint8_t hi, int base) {
   if (span_len(span) < 2)
     return parser_result_not_match(span);
 
@@ -228,8 +212,7 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
   if (span_len(body) > 0 && source_byte_at(parser->source, body.start) == '_')
     body = span_advance(body, 1);
 
-  if (span_len(body) == 0 ||
-      !is_base_digit(source_byte_at(parser->source, body.start), base)) {
+  if (span_len(body) == 0 || !is_base_digit(source_byte_at(parser->source, body.start), base)) {
     // Malformed prefix: recover over the maximal identifier/number-
     // looking run, so a discarded alternative can never leak into the
     // result and the error beats the shorter decimal reading.
@@ -243,10 +226,9 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
     }
     Span bad = span_consumed(span, rem);
 
-    SyntaxErrorList *errors = syntax_errorlist_append(
-        parser->arena, NULL, syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
-    return parser_result_matched((Span){.start = bad.end, .end = span.end},
-                                 NULL, errors);
+    SyntaxErrorList *errors =
+        syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_MALFORMED_NUMBER, bad));
+    return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL, errors);
   }
 
   size_t body_end;
@@ -255,10 +237,8 @@ static ParserResult parse_base_prefixed_int_lit(const Parser *parser, Span span,
   size_t suf = try_int_suffix(parser, span, body_end);
   size_t number_end = suf ? suf : body_end;
 
-  return parser_result_matched(
-      (Span){.start = number_end, .end = span.end},
-      make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR),
-      NULL);
+  return parser_result_matched((Span){.start = number_end, .end = span.end},
+                               make_number_lit_node(parser, span, number_end, SYNTAX_KIND_INT_LIT_EXPR), NULL);
 }
 
 /* binary_lit / octal_lit / hex_lit bind the shared scanner to one
@@ -286,8 +266,7 @@ static ParserResult parse_hex_int_lit_expr(const Parser *parser, Span span) {
  * not consumed and the exponent must sit directly at the body end, so
  * "1.e5" fails here and splits via the dot branch instead.
  */
-static ParserResult parse_exponent_float_lit_expr(const Parser *parser,
-                                                  Span span) {
+static ParserResult parse_exponent_float_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
@@ -310,9 +289,7 @@ static ParserResult parse_exponent_float_lit_expr(const Parser *parser,
   size_t number_end = suf ? suf : exp;
 
   return parser_result_matched((Span){.start = number_end, .end = span.end},
-                               make_number_lit_node(parser, span, number_end,
-                                                    SYNTAX_KIND_FLOAT_LIT_EXPR),
-                               NULL);
+                               make_number_lit_node(parser, span, number_end, SYNTAX_KIND_FLOAT_LIT_EXPR), NULL);
 }
 
 /**
@@ -342,9 +319,7 @@ static ParserResult parse_dot_float_lit_expr(const Parser *parser, Span span) {
   size_t number_end = suf ? suf : after;
 
   return parser_result_matched((Span){.start = number_end, .end = span.end},
-                               make_number_lit_node(parser, span, number_end,
-                                                    SYNTAX_KIND_FLOAT_LIT_EXPR),
-                               NULL);
+                               make_number_lit_node(parser, span, number_end, SYNTAX_KIND_FLOAT_LIT_EXPR), NULL);
 }
 
 /**
@@ -352,8 +327,7 @@ static ParserResult parse_dot_float_lit_expr(const Parser *parser, Span span) {
  *
  *   decimal_lit [ "_" ] float_lit_suffix .
  */
-static ParserResult parse_suffix_float_lit_expr(const Parser *parser,
-                                                Span span) {
+static ParserResult parse_suffix_float_lit_expr(const Parser *parser, Span span) {
   if (span_is_empty(span))
     return parser_result_not_match(span);
 
@@ -366,10 +340,8 @@ static ParserResult parse_suffix_float_lit_expr(const Parser *parser,
   if (suf == 0)
     return parser_result_not_match(span);
 
-  return parser_result_matched(
-      (Span){.start = suf, .end = span.end},
-      make_number_lit_node(parser, span, suf, SYNTAX_KIND_FLOAT_LIT_EXPR),
-      NULL);
+  return parser_result_matched((Span){.start = suf, .end = span.end},
+                               make_number_lit_node(parser, span, suf, SYNTAX_KIND_FLOAT_LIT_EXPR), NULL);
 }
 
 static ParserResult parse_int_lit_expr(const Parser *parser, Span span) {
@@ -422,8 +394,7 @@ ParserResult parse_number_lit_expr(const Parser *parser, Span span) {
  * @param end Receives the position just past the code point.
  * @return True when a valid code point was scanned.
  */
-static bool scan_utf8_char(const Parser *parser, Span span, size_t pos,
-                           size_t *end) {
+static bool scan_utf8_char(const Parser *parser, Span span, size_t pos, size_t *end) {
   if (pos >= span.end)
     return false;
 
@@ -489,8 +460,7 @@ static bool scan_utf8_char(const Parser *parser, Span span, size_t pos,
  * @param end Receives the position just past the escape.
  * @return True when an escape was scanned.
  */
-static bool try_escape(const Parser *parser, Span span, size_t pos,
-                       size_t *end) {
+static bool try_escape(const Parser *parser, Span span, size_t pos, size_t *end) {
   if (pos + 1 >= span.end || source_byte_at(parser->source, pos) != '\\')
     return false;
 
@@ -535,9 +505,7 @@ static bool try_escape(const Parser *parser, Span span, size_t pos,
       }
 
       if (is_base_digit(d, 16)) {
-        value =
-            value * 16 +
-            (uint32_t)(is_decimal_digit(d) ? d - '0' : (d | 0x20) - 'a' + 10);
+        value = value * 16 + (uint32_t)(is_decimal_digit(d) ? d - '0' : (d | 0x20) - 'a' + 10);
         if (value > 0x10FFFF)
           return false; // the value can only grow; avoid wraparound
         i++;
@@ -545,8 +513,7 @@ static bool try_escape(const Parser *parser, Span span, size_t pos,
       }
 
       if (d == '_') { // allowed only between two hex digits
-        if (i + 1 >= span.end ||
-            !is_base_digit(source_byte_at(parser->source, i + 1), 16))
+        if (i + 1 >= span.end || !is_base_digit(source_byte_at(parser->source, i + 1), 16))
           return false;
         i++;
         continue;
@@ -567,8 +534,7 @@ static bool try_escape(const Parser *parser, Span span, size_t pos,
  *        raw line terminator, whichever comes first. Escapes are not
  *        honored here: the run only bounds the diagnostic.
  */
-static Span scan_malformed_lit_run(const Parser *parser, Span span,
-                                   uint8_t quote) {
+static Span scan_malformed_lit_run(const Parser *parser, Span span, uint8_t quote) {
   Span rem = span_advance(span, 1); // skip the opening quote
 
   while (span_len(rem) > 0) {
@@ -588,15 +554,12 @@ static Span scan_malformed_lit_run(const Parser *parser, Span span,
  *        it, so longest-match selection treats the error path like any
  *        other alternative (matched with node == NULL).
  */
-static ParserResult malformed_quoted_lit(const Parser *parser, Span span,
-                                         SyntaxErrorCode code, uint8_t quote) {
+static ParserResult malformed_quoted_lit(const Parser *parser, Span span, SyntaxErrorCode code, uint8_t quote) {
   Span bad = scan_malformed_lit_run(parser, span, quote);
 
-  SyntaxErrorList *errors = syntax_errorlist_append(
-      parser->arena, NULL, syntax_error_create(code, bad));
+  SyntaxErrorList *errors = syntax_errorlist_append(parser->arena, NULL, syntax_error_create(code, bad));
 
-  return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL,
-                               errors);
+  return parser_result_matched((Span){.start = bad.end, .end = span.end}, NULL, errors);
 }
 
 ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
@@ -629,13 +592,9 @@ ParserResult parse_rune_lit_expr(const Parser *parser, Span span) {
     return malformed_quoted_lit(parser, span, SYNTAX_MALFORMED_RUNE, '\'');
   rem = span_advance(rem, 1); // consume the closing quote
 
-  SyntaxRuneLitExpr *rune =
-      arena_alloc(parser->arena, sizeof(SyntaxRuneLitExpr));
-  *rune = (SyntaxRuneLitExpr){
-      .header = syntax_node_header(SYNTAX_KIND_RUNE_LIT_EXPR,
-                                   span_consumed(span, rem)),
-      .value = source_strview_at(parser->source, span_consumed(span, rem)),
-  };
+  SyntaxRuneLitExpr *rune = arena_alloc(parser->arena, sizeof(SyntaxRuneLitExpr));
+  rune->header = syntax_node_header(SYNTAX_KIND_RUNE_LIT_EXPR, span_consumed(span, rem));
+  rune->value = source_strview_at(parser->source, span_consumed(span, rem));
 
   return parser_result_matched(rem, (SyntaxNode *)rune, NULL);
 }
@@ -654,13 +613,9 @@ ParserResult parse_string_lit_expr(const Parser *parser, Span span) {
     if (c == '"') {
       rem = span_advance(rem, 1); // consume the closing quote
 
-      SyntaxStringLitExpr *string =
-          arena_alloc(parser->arena, sizeof(SyntaxStringLitExpr));
-      *string = (SyntaxStringLitExpr){
-          .header = syntax_node_header(SYNTAX_KIND_STRING_LIT_EXPR,
-                                       span_consumed(span, rem)),
-          .value = source_strview_at(parser->source, span_consumed(span, rem)),
-      };
+      SyntaxStringLitExpr *string = arena_alloc(parser->arena, sizeof(SyntaxStringLitExpr));
+      string->header = syntax_node_header(SYNTAX_KIND_STRING_LIT_EXPR, span_consumed(span, rem));
+      string->value = source_strview_at(parser->source, span_consumed(span, rem));
       return parser_result_matched(rem, (SyntaxNode *)string, NULL);
     }
 

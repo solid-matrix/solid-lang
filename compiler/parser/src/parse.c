@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "arena.h"
-#include "parse_shared.h"
+#include "parse_internal.h"
 #include "parser.h"
 #include "parser_result.h"
 #include "span.h"
@@ -29,10 +29,8 @@ ParserResult parse_identifier(const Parser *parser, Span span) {
   }
 
   SyntaxIdentifier *id = arena_alloc(parser->arena, sizeof(SyntaxIdentifier));
-  *id = (SyntaxIdentifier){
-      .header = syntax_node_header(SYNTAX_KIND_IDENTIFIER, span_consumed(span, rem)),
-      .strview = source_strview_at(parser->source, span_consumed(span, rem)),
-  };
+  id->header = syntax_node_header(SYNTAX_KIND_IDENTIFIER, span_consumed(span, rem));
+  id->strview = source_strview_at(parser->source, span_consumed(span, rem));
 
   return parser_result_matched(rem, (SyntaxNode *)id, NULL);
 }
@@ -45,41 +43,36 @@ ParserResult parse_name_path(const Parser *parser, Span span) {
   SyntaxNodeList *segments = syntax_nodelist_empty();
   SyntaxErrorList *errors = syntax_errorlist_empty();
 
-  ParserResult id_res = parse_identifier(parser, rem);
-
-  if (!id_res.matched)
+  ParserResult res = parse_identifier(parser, rem);
+  if (!res.matched)
     return parser_result_not_match(span);
 
-  segments = syntax_nodelist_prepend(parser->arena, segments, id_res.node);
-  rem = id_res.rem;
+  rem = res.rem;
+  segments = syntax_nodelist_prepend(parser->arena, segments, res.node);
+  errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
 
   while (true) {
-
     Span adv = skip_trivia(parser->source, rem);
-    if (!(span_len(adv) >= 2 && source_byte_at(parser->source, adv.start) == ':' &&
-          source_byte_at(parser->source, adv.start + 1) == ':')) {
+
+    if (!match(parser->source, adv, PUNCTUATION_SCOPE)) {
       break;
     }
-    rem = span_advance(adv, 2);
+    rem = span_advance(adv, PUNCTUATION_SCOPE.len);
 
-    adv = skip_trivia(parser->source, rem);
-    id_res = parse_identifier(parser, adv);
-
-    if (!id_res.matched) {
-      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
-
-      break;
+    res = parse_identifier(parser, skip_trivia(parser->source, rem));
+    if (!res.matched) {
+      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+    } else {
+      rem = res.rem;
+      segments = syntax_nodelist_prepend(parser->arena, segments, res.node);
+      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
     }
-
-    segments = syntax_nodelist_prepend(parser->arena, segments, id_res.node);
-    rem = id_res.rem;
   }
 
   SyntaxNamePath *path = arena_alloc(parser->arena, sizeof(SyntaxNamePath));
-  *path = (SyntaxNamePath){
-      .header = syntax_node_header(SYNTAX_KIND_NAME_PATH, span_consumed(span, rem)),
-      .segments = segments,
-  };
+  path->header = syntax_node_header(SYNTAX_KIND_NAME_PATH, span_consumed(span, rem));
+  path->segments = segments;
 
   return parser_result_matched(rem, (SyntaxNode *)path, errors);
 }
@@ -170,10 +163,8 @@ ParserResult parse_program(const Parser *parser, Span span) {
   }
 
   SyntaxProgram *program = arena_alloc(parser->arena, sizeof(SyntaxProgram));
-  *program = (SyntaxProgram){
-      .header = syntax_node_header(SYNTAX_KIND_PROGRAM, span_consumed(span, rem)),
-      .top_levels = decls,
-  };
+  program->header = syntax_node_header(SYNTAX_KIND_PROGRAM, span_consumed(span, rem));
+  program->top_levels = decls;
 
   rem = skip_trivia(parser->source, rem);
 
@@ -184,10 +175,13 @@ ParserResult parse_program(const Parser *parser, Span span) {
 }
 
 ParserResult parse_type(const Parser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return parser_result_not_match(span);
+  ParserResult results[] = {
+      parse_named_type(parser, span),
+      parse_ref_type(parser, span),
+      parse_array_type(parser, span),
+      parse_func_type(parser, span),
+  };
+  return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
 }
 
 ParserResult parse_named_type(const Parser *parser, Span span) {
@@ -257,10 +251,8 @@ ParserResult parse_namespace_decl(const Parser *parser, Span span) {
 
   SyntaxNamespaceDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxNamespaceDecl));
 
-  *decl = (SyntaxNamespaceDecl){
-      .header = syntax_node_header(SYNTAX_KIND_NAMESPACE_DECL, span_consumed(span, rem)),
-      .path = (SyntaxNamePath *)np_res.node,
-  };
+  decl->header = syntax_node_header(SYNTAX_KIND_NAMESPACE_DECL, span_consumed(span, rem));
+  decl->path = (SyntaxNamePath *)np_res.node;
 
   return parser_result_matched(rem, (SyntaxNode *)decl, errors);
 }
@@ -294,10 +286,8 @@ ParserResult parse_using_decl(const Parser *parser, Span span) {
 
   SyntaxUsingDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxUsingDecl));
 
-  *decl = (SyntaxUsingDecl){
-      .header = syntax_node_header(SYNTAX_KIND_USING_DECL, span_consumed(span, rem)),
-      .path = (SyntaxNamePath *)np_res.node,
-  };
+  decl->header = syntax_node_header(SYNTAX_KIND_USING_DECL, span_consumed(span, rem));
+  decl->path = (SyntaxNamePath *)np_res.node;
 
   return parser_result_matched(rem, (SyntaxNode *)decl, errors);
 }
@@ -477,7 +467,7 @@ static ParserResult parse_operand_expr(const Parser *parser, Span span) {
   ParserResult results[] = {
       parse_number_lit_expr(parser, span), parse_rune_lit_expr(parser, span), parse_string_lit_expr(parser, span),
       parse_named_expr(parser, span),      parse_sub_expr(parser, span),      parse_struct_lit_expr(parser, span),
-      parse_array_lit_expr(parser, span),      parse_compile_time(parser, span),
+      parse_array_lit_expr(parser, span),  parse_compile_time(parser, span),
   };
   return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
 }
@@ -672,11 +662,9 @@ static ParserResult parse_unary_expr(const Parser *parser, Span span) {
   }
 
   SyntaxUnaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxUnaryExpr));
-  *expr = (SyntaxUnaryExpr){
-      .header = syntax_node_header(SYNTAX_KIND_UNARY_EXPR, span_consumed(span, rem)),
-      .operator = op,
-      .operand = un_res.node,
-  };
+  expr->header = syntax_node_header(SYNTAX_KIND_UNARY_EXPR, span_consumed(span, rem));
+  expr->operator = op;
+  expr->operand = un_res.node;
 
   return parser_result_matched(rem, (SyntaxNode *)expr, errors);
 }
@@ -718,12 +706,10 @@ static ParserResult parse_multiplicative_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = op,
-        .left = left,
-        .right = un_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = op;
+    expr->left = left;
+    expr->right = un_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -765,12 +751,10 @@ static ParserResult parse_additive_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = op,
-        .left = left,
-        .right = mul_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = op;
+    expr->left = left;
+    expr->right = mul_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -812,12 +796,10 @@ static ParserResult parse_shift_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = op,
-        .left = left,
-        .right = add_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = op;
+    expr->left = left;
+    expr->right = add_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -862,12 +844,10 @@ static ParserResult parse_bitwise_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = op,
-        .left = left,
-        .right = sh_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = op;
+    expr->left = left;
+    expr->right = sh_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -921,12 +901,10 @@ static ParserResult parse_relational_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = op,
-        .left = left,
-        .right = bw_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = op;
+    expr->left = left;
+    expr->right = bw_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -960,12 +938,10 @@ static ParserResult parse_logical_and_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = SYNTAX_OPERATOR_LAND,
-        .left = left,
-        .right = rel_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = SYNTAX_OPERATOR_LAND;
+    expr->left = left;
+    expr->right = rel_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -999,12 +975,10 @@ static ParserResult parse_logical_xor_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = SYNTAX_OPERATOR_LXOR,
-        .left = left,
-        .right = and_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = SYNTAX_OPERATOR_LXOR;
+    expr->left = left;
+    expr->right = and_res.node;
 
     left = (SyntaxNode *)expr;
   }
@@ -1038,12 +1012,10 @@ static ParserResult parse_logical_or_expr(const Parser *parser, Span span) {
     }
 
     SyntaxBinaryExpr *expr = arena_alloc(parser->arena, sizeof(SyntaxBinaryExpr));
-    *expr = (SyntaxBinaryExpr){
-        .header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem)),
-        .operator = SYNTAX_OPERATOR_LOR,
-        .left = left,
-        .right = xor_res.node,
-    };
+    expr->header = syntax_node_header(SYNTAX_KIND_BINARY_EXPR, span_consumed(span, rem));
+    expr->operator = SYNTAX_OPERATOR_LOR;
+    expr->left = left;
+    expr->right = xor_res.node;
 
     left = (SyntaxNode *)expr;
   }

@@ -3,7 +3,7 @@ add_library(solid-lang-parser STATIC
   src/parser_result.c
   src/syntax_node.c
   src/syntax_error.c
-  src/parse_shared.c
+  src/parse_internal.c
   src/parse_primary.c
   src/parse.c)
 

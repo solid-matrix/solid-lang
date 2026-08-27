@@ -1,4 +1,4 @@
-#include "parse_shared.h"
+#include "parse_internal.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
@@ -46,9 +46,7 @@ void test_whitespace_class(void) {
 
 /* ---- trivia ---------------------------------------------------------- */
 
-static Span span_over(const char *text) {
-  return (Span){.start = 0, .end = strlen(text)};
-}
+static Span span_over(const char *text) { return (Span){.start = 0, .end = strlen(text)}; }
 
 void test_skip_trivia_consumes_runs(void) {
   static const char *const TEXT = " \t\n// note\nx";
@@ -88,8 +86,7 @@ void test_match_keyword_positive_and_negative(void) {
   static const char *const TEXT = "namespace";
   Source *s = source_from_cstr(TEXT);
 
-  TEST_ASSERT_TRUE(
-      match_keyword(s, span_over(TEXT), STRVIEW("namespace")));
+  TEST_ASSERT_TRUE(match_keyword(s, span_over(TEXT), STRVIEW("namespace")));
   TEST_ASSERT_FALSE(match_keyword(s, span_over(TEXT), STRVIEW("using")));
   TEST_ASSERT_FALSE(match_keyword(s, span_over(TEXT + 1), STRVIEW("namespace")));
 
@@ -129,10 +126,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"skip_trivia_on_code_is_noop", test_skip_trivia_on_code_is_noop},
     {"skip_trivia_at_end", test_skip_trivia_at_end},
     {"span_consumed_measures_progress", test_span_consumed_measures_progress},
-    {"match_keyword_positive_and_negative",
-     test_match_keyword_positive_and_negative},
-    {"complete_longest_match_picks_furthest_rem",
-     test_complete_longest_match_picks_furthest_rem},
+    {"match_keyword_positive_and_negative", test_match_keyword_positive_and_negative},
+    {"complete_longest_match_picks_furthest_rem", test_complete_longest_match_picks_furthest_rem},
 };
 
 TEST_DISPATCH_MAIN(ENTRIES)

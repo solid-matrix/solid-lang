@@ -69,6 +69,7 @@ static const Strview PUNCTUATION_AT = STRVIEW("@");
 static const Strview PUNCTUATION_SINGLE_QUOTE = STRVIEW("'");
 static const Strview PUNCTUATION_DOUBLE_QUOTE = STRVIEW("\"");
 static const Strview PUNCTUATION_COLON = STRVIEW(":");
+static const Strview PUNCTUATION_SCOPE = STRVIEW("::");
 static const Strview PUNCTUATION_SEMICOLON = STRVIEW(";");
 static const Strview PUNCTUATION_DOLLAR = STRVIEW("$");
 static const Strview PUNCTUATION_NUMBER = STRVIEW("#");

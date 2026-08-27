@@ -157,20 +157,20 @@ typedef enum {
 
 } SyntaxRefKind;
 
-typedef enum {
-  SYNTAX_CALLCONV_UNDEFINED = 0,
+// typedef enum {
+//   SYNTAX_CALLCONV_UNDEFINED = 0,
 
-  SYNTAX_CALLCONV_CDECL,
+//   SYNTAX_CALLCONV_CDECL,
 
-  SYNTAX_CALLCONV_STDCALL,
+//   SYNTAX_CALLCONV_STDCALL,
 
-  SYNTAX_CALLCONV_WINAPI,
+//   SYNTAX_CALLCONV_WINAPI,
 
-  SYNTAX_CALLCONV_THISCALL,
+//   SYNTAX_CALLCONV_THISCALL,
 
-  SYNTAX_CALLCONV_FASTCALL,
+//   SYNTAX_CALLCONV_FASTCALL,
 
-} SyntaxCallConv;
+// } SyntaxCallConv;
 
 typedef enum {
   SYNTAX_OPERATOR_PLUS,  // +
@@ -403,7 +403,7 @@ typedef struct {
 typedef struct {
   SyntaxNode header;
   SyntaxNodeList *call_params; // SyntaxCallParameter nodes
-  SyntaxCallConv callconv;
+  SyntaxIdentifier *callconv;
   SyntaxNode *return_type; // type node
 } SyntaxFuncType;
 
@@ -478,7 +478,7 @@ typedef struct {
   SyntaxNodeList *generic_params;  // SyntaxGenericParameter nodes
   SyntaxNodeList *contract_params; // SyntaxContractParameter nodes
   SyntaxNodeList *call_params;     // SyntaxCallParameter nodes
-  SyntaxCallConv callconv;
+  SyntaxIdentifier *callconv;
   SyntaxNode *return_type;  // type node
   SyntaxNodeList *fulfills; // type nodes
   SyntaxNode *body;         // SyntaxBodyStmt

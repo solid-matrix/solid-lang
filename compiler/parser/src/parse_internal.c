@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "parse_shared.h"
+#include "parse_internal.h"
 #include "parser.h"
 #include "parser_result.h"
 #include "source.h"
@@ -10,13 +10,9 @@
 #include "strview.h"
 #include "syntax_error.h"
 
-bool is_letter_or_underscore(uint8_t c) {
-  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
-}
+bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 
-bool is_letter_digit_or_underscore(uint8_t c) {
-  return is_letter_or_underscore(c) || (c >= '0' && c <= '9');
-}
+bool is_letter_digit_or_underscore(uint8_t c) { return is_letter_or_underscore(c) || (c >= '0' && c <= '9'); }
 
 bool is_decimal_digit(uint8_t c) { return c >= '0' && c <= '9'; }
 
@@ -24,10 +20,7 @@ bool is_binary_digit(uint8_t c) { return c == '0' || c == '1'; }
 
 bool is_octal_digit(uint8_t c) { return c >= '0' && c <= '7'; }
 
-bool is_hex_digit(uint8_t c) {
-  return is_decimal_digit(c) || (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
-}
+bool is_hex_digit(uint8_t c) { return is_decimal_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); }
 
 bool is_base_digit(uint8_t c, int base) {
   switch (base) {
@@ -42,10 +35,7 @@ bool is_base_digit(uint8_t c, int base) {
   }
 }
 
-bool is_whitespace(uint8_t c) {
-  return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == '\r' ||
-         c == '\n';
-}
+bool is_whitespace(uint8_t c) { return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == '\n'; }
 
 Span skip_trivia(const Source *source, Span span) {
   size_t i = span.start;
@@ -60,8 +50,7 @@ Span skip_trivia(const Source *source, Span span) {
 
     if (c == '/' && i + 1 < span.end && source_byte_at(source, i + 1) == '/') {
       i += 2;
-      while (i < span.end && source_byte_at(source, i) != '\n' &&
-             source_byte_at(source, i) != '\r')
+      while (i < span.end && source_byte_at(source, i) != '\n' && source_byte_at(source, i) != '\r')
         i += 1;
 
       continue;
@@ -90,8 +79,7 @@ bool match_keyword(const Source *source, Span span, Strview keyword) {
 
   Span rem = span_advance(span, keyword.len);
 
-  if (!span_is_empty(rem) &&
-      is_letter_digit_or_underscore(source_byte_at(source, rem.start))) {
+  if (!span_is_empty(rem) && is_letter_digit_or_underscore(source_byte_at(source, rem.start))) {
     return false;
   }
 
