@@ -157,21 +157,6 @@ typedef enum {
 
 } SyntaxRefKind;
 
-// typedef enum {
-//   SYNTAX_CALLCONV_UNDEFINED = 0,
-
-//   SYNTAX_CALLCONV_CDECL,
-
-//   SYNTAX_CALLCONV_STDCALL,
-
-//   SYNTAX_CALLCONV_WINAPI,
-
-//   SYNTAX_CALLCONV_THISCALL,
-
-//   SYNTAX_CALLCONV_FASTCALL,
-
-// } SyntaxCallConv;
-
 typedef enum {
   SYNTAX_OPERATOR_PLUS,  // +
   SYNTAX_OPERATOR_MINUS, // -
@@ -303,11 +288,6 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNodeList *segments; // SyntaxIdentifier nodes
-} SyntaxNamePath;
-
-typedef struct {
-  SyntaxNode header;
   SyntaxIdentifier *name;
   SyntaxNodeList *args; // expr nodes
 } SyntaxCompileTime;
@@ -384,7 +364,7 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;              // SyntaxIdentifier nodes
+  SyntaxNodeList *path;              // SyntaxIdentifier nodes
   SyntaxNodeList *generic_arguments; // type nodes
 } SyntaxNamedType;
 
@@ -413,12 +393,12 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;
+  SyntaxNodeList *path; // SyntaxIdentifier nodes
 } SyntaxNamespaceDecl;
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;
+  SyntaxNodeList *path; // SyntaxIdentifier nodes
 } SyntaxUsingDecl;
 
 typedef struct {
@@ -575,7 +555,7 @@ typedef struct {
 
 typedef struct {
   SyntaxNode header;
-  SyntaxNamePath *path;               // SyntaxIdentifier nodes
+  SyntaxNodeList *path;               // SyntaxIdentifier nodes
   SyntaxNodeList *generic_arguments;  // type
   SyntaxNodeList *contract_arguments; // SyntaxContractArgument nodes
 } SyntaxNamedExpr;

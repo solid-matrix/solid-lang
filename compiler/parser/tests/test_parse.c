@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "parse_internal.h"
 #include "parser.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
@@ -20,18 +21,14 @@ static size_t error_count(const ParserResult *r) {
 
 // Asserts that the chain holds exactly the given segments in
 // newest-at-head order: chain[i] is expected[count - 1 - i].
-static void check_path(const SyntaxNamePath *path, const char *const *expected, size_t count) {
+// expected == NULL asserts zero segments: the empty chain is NULL.
+static void check_path(const SyntaxNodeList *chain, const char *const *expected, size_t count) {
   if (expected == NULL) {
-    TEST_ASSERT_NULL(path); // decl carries no path at all
+    TEST_ASSERT_NULL(chain);
     return;
   }
 
-  TEST_ASSERT_NOT_NULL(path);
-  if (!path)
-    return;
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAME_PATH, path->header.kind);
-
-  const SyntaxNodeList *n = path->segments;
+  const SyntaxNodeList *n = chain;
   for (size_t i = 0; i < count; i++) {
     TEST_ASSERT_NOT_NULL(n);
     if (!n)
@@ -76,59 +73,62 @@ void test_identifier_rejects_digit_start(void) {
   TEST_ASSERT_NULL(r.errors);
 }
 
-/* ---- parse_name_path ------------------------------------------------ */
+/* ---- parse_identifier_list ------------------------------------------ */
+// The shared list helper behind namespace/using paths (and future field
+// tables): silent on a missing first element, diagnostic on a missing
+// element after a consumed separator, rem = last consumed element.
 
-void test_name_path_single(void) {
+void test_identifier_list_single(void) {
   static const char *const ONE[] = {"std"};
   fx_begin("std");
-  ParserResult r = parse_name_path(fx_parser, source_get_span(fx_source));
+  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
-  TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(strlen("std"), r.rem.start);
-  check_path((const SyntaxNamePath *)r.node, ONE, 1);
+  check_path(l.list, ONE, 1);
+  TEST_ASSERT_EQUAL_size_t(strlen("std"), l.rem.start);
+  TEST_ASSERT_NULL(l.errors);
 }
 
-void test_name_path_multi_and_trivia(void) {
+void test_identifier_list_multi_and_trivia(void) {
   static const char *const TWO[] = {"std", "io"};
   fx_begin("std :: io");
-  ParserResult r = parse_name_path(fx_parser, source_get_span(fx_source));
+  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
-  TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_NULL(r.errors); // junction trivia never leaks diagnostics
-  TEST_ASSERT_EQUAL_size_t(strlen("std :: io"), r.rem.start);
-  check_path((const SyntaxNamePath *)r.node, TWO, 2);
+  check_path(l.list, TWO, 2);
+  TEST_ASSERT_EQUAL_size_t(strlen("std :: io"), l.rem.start);
+  TEST_ASSERT_NULL(l.errors); // junction trivia never leaks diagnostics
 }
 
-void test_name_path_trailing_separator_reports_identifier(void) {
+void test_identifier_list_trailing_separator_reports_identifier(void) {
   static const char *const ONE[] = {"a"};
   fx_begin("a::-1");
-  ParserResult r = parse_name_path(fx_parser, source_get_span(fx_source));
+  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
   // The [a] prefix is kept; the consumed "::" reports one diagnostic
   // pointing past the separator.
-  TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_NOT_NULL(r.node);
-  TEST_ASSERT_EQUAL_size_t(strlen("a::"), r.rem.start);
-  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
-  check_path((const SyntaxNamePath *)r.node, ONE, 1);
+  check_path(l.list, ONE, 1);
+  TEST_ASSERT_EQUAL_size_t(strlen("a::"), l.rem.start);
+  TEST_ASSERT_NOT_NULL(l.errors);
+  if (l.errors) {
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->error.code);
+    TEST_ASSERT_NULL(l.errors->next);
+  }
 }
 
-void test_name_path_missing_first_segment_is_silent_not_match(void) {
+void test_identifier_list_missing_first_is_silent(void) {
   fx_begin(";abc");
-  ParserResult r = parse_name_path(fx_parser, source_get_span(fx_source));
+  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
-  TEST_ASSERT_FALSE(r.matched);
-  TEST_ASSERT_NULL(r.node);
-  TEST_ASSERT_NULL(r.errors); // convention: not-match carries no list
+  // Missing first element: empty chain, no diagnostic, rem = input.
+  TEST_ASSERT_NULL(l.list);
+  TEST_ASSERT_EQUAL_size_t(0, l.rem.start);
+  TEST_ASSERT_NULL(l.errors);
 }
 
 /* ---- namespace / using declarations --------------------------------- */
 
 typedef ParserResult (*DeclFn)(const Parser *, Span);
 
-static const SyntaxNamePath *decl_path(const ParserResult *r, SyntaxKind kind) {
+static const SyntaxNodeList *decl_path(const ParserResult *r, SyntaxKind kind) {
   return kind == SYNTAX_KIND_NAMESPACE_DECL ? ((const SyntaxNamespaceDecl *)r->node)->path
                                             : ((const SyntaxUsingDecl *)r->node)->path;
 }
@@ -147,7 +147,7 @@ static void expect_decl_ok(DeclFn fn, SyntaxKind kind, const char *text, const c
 }
 
 // Asserts a recovered declaration: exact diagnostics in order
-// (codes[0] = head = newest), exact rem, path per segments-or-NULL.
+// (codes[0] = head = newest), exact rem, path per segments-or-empty.
 static void expect_decl_bad(DeclFn fn, SyntaxKind kind, const char *text, const char *const *segs, size_t count,
                             const SyntaxErrorCode *codes, size_t code_count, size_t rem_at) {
   fx_begin(text);
@@ -210,15 +210,19 @@ void test_decl_keyword_boundary(void) {
 }
 
 void test_namespace_decl_malforms(void) {
-  static const SyntaxErrorCode NAME_PATH[] = {SYNTAX_EXPECTED_NAME_PATH};
   static const SyntaxErrorCode SEMI[] = {SYNTAX_EXPECTED_SEMICOLON};
+  static const SyntaxErrorCode IDENT[] = {SYNTAX_EXPECTED_IDENTIFIER};
   static const SyntaxErrorCode SEMI_THEN_IDENT[] = {SYNTAX_EXPECTED_SEMICOLON, SYNTAX_EXPECTED_IDENTIFIER};
   static const char *const STD[] = {"std"};
   static const char *const A[] = {"a"};
 
-  expect_decl_bad(parse_namespace_decl, SYNTAX_KIND_NAMESPACE_DECL, "namespace ;", NULL, 0, NAME_PATH, 1,
-                  strlen("namespace"));
-  expect_decl_bad(parse_namespace_decl, SYNTAX_KIND_NAMESPACE_DECL, "namespace", NULL, 0, NAME_PATH, 1,
+  // Empty path: the missing identifier is reported at the post-keyword
+  // anchor; a following well-formed ";" still closes the declaration.
+  expect_decl_bad(parse_namespace_decl, SYNTAX_KIND_NAMESPACE_DECL, "namespace ;", NULL, 0, IDENT, 1,
+                  strlen("namespace ;"));
+  // Empty path at EOF: semicolon diagnostic (newest) on top of the
+  // missing identifier.
+  expect_decl_bad(parse_namespace_decl, SYNTAX_KIND_NAMESPACE_DECL, "namespace", NULL, 0, SEMI_THEN_IDENT, 2,
                   strlen("namespace"));
   expect_decl_bad(parse_namespace_decl, SYNTAX_KIND_NAMESPACE_DECL, "namespace std io", STD, 1, SEMI, 1,
                   strlen("namespace std"));
@@ -227,13 +231,14 @@ void test_namespace_decl_malforms(void) {
 }
 
 void test_using_decl_malforms(void) {
-  static const SyntaxErrorCode NAME_PATH[] = {SYNTAX_EXPECTED_NAME_PATH};
   static const SyntaxErrorCode SEMI[] = {SYNTAX_EXPECTED_SEMICOLON};
   static const SyntaxErrorCode IDENT[] = {SYNTAX_EXPECTED_IDENTIFIER};
+  static const SyntaxErrorCode SEMI_THEN_IDENT[] = {SYNTAX_EXPECTED_SEMICOLON, SYNTAX_EXPECTED_IDENTIFIER};
   static const char *const STD[] = {"std"};
   static const char *const A[] = {"a"};
 
-  expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using", NULL, 0, NAME_PATH, 1, strlen("using"));
+  expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using ;", NULL, 0, IDENT, 1, strlen("using ;"));
+  expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using", NULL, 0, SEMI_THEN_IDENT, 2, strlen("using"));
   expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using std io", STD, 1, SEMI, 1, strlen("using std"));
   // Dangling "::" then a well-formed ";": closes cleanly with only the
   // identifier diagnostic.
@@ -736,10 +741,10 @@ static const TestDispatchEntry ENTRIES[] = {
     {"identifier_basic", test_identifier_basic},
     {"identifier_stops_at_non_word", test_identifier_stops_at_non_word},
     {"identifier_rejects_digit_start", test_identifier_rejects_digit_start},
-    {"name_path_single", test_name_path_single},
-    {"name_path_multi_and_trivia", test_name_path_multi_and_trivia},
-    {"name_path_trailing_separator_reports_identifier", test_name_path_trailing_separator_reports_identifier},
-    {"name_path_missing_first_segment_is_silent_not_match", test_name_path_missing_first_segment_is_silent_not_match},
+    {"identifier_list_single", test_identifier_list_single},
+    {"identifier_list_multi_and_trivia", test_identifier_list_multi_and_trivia},
+    {"identifier_list_trailing_separator_reports_identifier", test_identifier_list_trailing_separator_reports_identifier},
+    {"identifier_list_missing_first_is_silent", test_identifier_list_missing_first_is_silent},
     {"namespace_decl_valid_forms", test_namespace_decl_valid_forms},
     {"using_decl_valid_forms", test_using_decl_valid_forms},
     {"decl_keyword_boundary", test_decl_keyword_boundary},

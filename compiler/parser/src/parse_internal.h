@@ -41,10 +41,6 @@ Span skip_trivia(const Source *source, Span span);
 
 Span span_consumed(Span span, Span rem);
 
-// bool match_keyword(const Source *source, Span span, Strview keyword);
-
-// bool match(const Source *source, Span span, Strview strview);
-
 ParserResult complete_longest_match(ParserResult *results, size_t count);
 
 ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator);

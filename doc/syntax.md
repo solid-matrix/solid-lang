@@ -106,7 +106,7 @@ identifier = letter { letter | decimal_digit } .
 Syntax:
 
 ```
-CompileTime    = "@" identifier [ "(" CallArgs ")" ] .
+CompileTime    = "@" identifier [ "(" [ CallArgs ] ")" ] .
 
 CtAnnotations  = CompileTime { CompileTime } .
 ```
@@ -120,9 +120,8 @@ Example:
 @align(16)
 @when(OS_LINUX)
 @import("LLVM-C","LLVMContextCreate")
-
-// as operands within expressions
-f(@when(x))
+@sizeof(i32)
+@offsetof(Vector2<f32>, x)
 ```
 
 ### Generic Parameters & Arguments

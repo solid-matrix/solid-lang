@@ -35,47 +35,6 @@ ParserResult parse_identifier(const Parser *parser, Span span) {
   return parser_result_matched(rem, (SyntaxNode *)id, NULL);
 }
 
-ParserResult parse_name_path(const Parser *parser, Span span) {
-  if (span_is_empty(span))
-    return parser_result_not_match(span);
-
-  Span rem = span;
-  SyntaxNodeList *segments = syntax_nodelist_empty();
-  SyntaxErrorList *errors = syntax_errorlist_empty();
-
-  ParserResult res = parse_identifier(parser, rem);
-  if (!res.matched)
-    return parser_result_not_match(span);
-
-  rem = res.rem;
-  segments = syntax_nodelist_prepend(parser->arena, segments, res.node);
-  errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-
-  while (true) {
-    ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SCOPE);
-    if (!mres.matched)
-      break;
-
-    rem = mres.rem;
-
-    res = parse_identifier(parser, skip_trivia(parser->source, rem));
-    if (!res.matched) {
-      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
-      errors = syntax_errorlist_prepend(parser->arena, errors, error);
-    } else {
-      rem = res.rem;
-      segments = syntax_nodelist_prepend(parser->arena, segments, res.node);
-      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-    }
-  }
-
-  SyntaxNamePath *path = arena_alloc(parser->arena, sizeof(SyntaxNamePath));
-  path->header = syntax_node_header(SYNTAX_KIND_NAME_PATH, span_consumed(span, rem));
-  path->segments = segments;
-
-  return parser_result_matched(rem, (SyntaxNode *)path, errors);
-}
-
 ParserResult parse_compile_time(const Parser *parser, Span span) {
   ParserMatchResult mres = match(parser->source, span, PUNCTUATION_AT);
   if (!mres.matched) {
@@ -101,30 +60,10 @@ ParserResult parse_compile_time(const Parser *parser, Span span) {
   if (mres.matched) {
     rem = mres.rem;
 
-    res = parse_expr(parser, skip_trivia(parser->source, rem));
-    if (res.matched) {
-      args = syntax_nodelist_prepend(parser->arena, args, res.node);
-      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-      rem = res.rem;
-
-      while (true) {
-        mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
-        if (!mres.matched)
-          break;
-
-        rem = mres.rem;
-
-        res = parse_expr(parser, skip_trivia(parser->source, rem));
-        if (!res.matched) {
-          SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_EXPR, rem);
-          errors = syntax_errorlist_prepend(parser->arena, errors, error);
-        } else {
-          args = syntax_nodelist_prepend(parser->arena, args, res.node);
-          errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-          rem = res.rem;
-        }
-      }
-    }
+    ParserListResult lres = parse_expr_list(parser, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+    args = lres.list;
+    errors = syntax_errorlist_concat(parser->arena, lres.errors, errors);
+    rem = lres.rem;
 
     mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
     if (!mres.matched) {
@@ -227,65 +166,60 @@ ParserResult parse_namespace_decl(const Parser *parser, Span span) {
     return parser_result_not_match(span);
 
   Span rem = mres.rem;
-  Span adv = skip_trivia(parser->source, rem);
-
   SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxNodeList *segs = syntax_nodelist_empty();
 
-  ParserResult np_res = parse_name_path(parser, adv);
+  ParserListResult lres = parse_identifier_list(parser, skip_trivia(parser->source, rem), PUNCTUATION_SCOPE);
+  if (syntax_nodelist_is_empty(lres.list)) {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  }
+  errors = syntax_errorlist_concat(parser->arena, lres.errors, errors);
+  segs = lres.list;
+  rem = lres.rem;
 
-  if (!np_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_NAME_PATH, rem));
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
-    errors = syntax_errorlist_concat(parser->arena, np_res.errors, errors);
-    rem = np_res.rem;
-
-    adv = skip_trivia(parser->source, rem);
-
-    if (!(span_len(adv) > 0 && source_byte_at(parser->source, adv.start) == ';')) {
-      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
-    } else {
-      rem = span_advance(adv, 1);
-    }
+    rem = mres.rem;
   }
 
   SyntaxNamespaceDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxNamespaceDecl));
-
   decl->header = syntax_node_header(SYNTAX_KIND_NAMESPACE_DECL, span_consumed(span, rem));
-  decl->path = (SyntaxNamePath *)np_res.node;
+  decl->path = segs;
 
   return parser_result_matched(rem, (SyntaxNode *)decl, errors);
 }
+
 ParserResult parse_using_decl(const Parser *parser, Span span) {
   ParserMatchResult mres = match_keyword(parser->source, span, KEYWORD_USING);
   if (!mres.matched)
     return parser_result_not_match(span);
 
   Span rem = mres.rem;
-  Span adv = skip_trivia(parser->source, rem);
-
   SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxNodeList *segs = syntax_nodelist_empty();
 
-  ParserResult np_res = parse_name_path(parser, adv);
+  ParserListResult lres = parse_identifier_list(parser, skip_trivia(parser->source, rem), PUNCTUATION_SCOPE);
+  if (syntax_nodelist_is_empty(lres.list)) {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  }
+  errors = syntax_errorlist_concat(parser->arena, lres.errors, errors);
+  segs = lres.list;
+  rem = lres.rem;
 
-  if (!np_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_NAME_PATH, rem));
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
-    errors = syntax_errorlist_concat(parser->arena, np_res.errors, errors);
-    rem = np_res.rem;
-
-    adv = skip_trivia(parser->source, rem);
-
-    if (!(span_len(adv) > 0 && source_byte_at(parser->source, adv.start) == ';')) {
-      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
-    } else {
-      rem = span_advance(adv, 1);
-    }
+    rem = mres.rem;
   }
 
   SyntaxUsingDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxUsingDecl));
-
   decl->header = syntax_node_header(SYNTAX_KIND_USING_DECL, span_consumed(span, rem));
-  decl->path = (SyntaxNamePath *)np_res.node;
+  decl->path = segs;
 
   return parser_result_matched(rem, (SyntaxNode *)decl, errors);
 }
@@ -540,30 +474,10 @@ static ParserResult parse_call_expr(const Parser *parser, Span span, SyntaxNode 
   SyntaxErrorList *errors = syntax_errorlist_empty();
   SyntaxNodeList *args = syntax_nodelist_empty();
 
-  ParserResult ex_res = parse_expr(parser, skip_trivia(parser->source, rem));
-  if (ex_res.matched) {
-    errors = syntax_errorlist_concat(parser->arena, ex_res.errors, errors);
-    args = syntax_nodelist_prepend(parser->arena, args, ex_res.node);
-    rem = ex_res.rem;
-
-    while (true) {
-      mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
-      if (!mres.matched)
-        break;
-
-      rem = mres.rem;
-
-      ex_res = parse_expr(parser, skip_trivia(parser->source, rem));
-      if (!ex_res.matched) {
-        SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_EXPR, rem);
-        errors = syntax_errorlist_prepend(parser->arena, errors, error);
-      } else {
-        errors = syntax_errorlist_concat(parser->arena, ex_res.errors, errors);
-        args = syntax_nodelist_prepend(parser->arena, args, ex_res.node);
-        rem = ex_res.rem;
-      }
-    }
-  }
+  ParserListResult lres = parse_expr_list(parser, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+  args = lres.list;
+  errors = syntax_errorlist_concat(parser->arena, lres.errors, errors);
+  rem = lres.rem;
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
   if (!mres.matched) {

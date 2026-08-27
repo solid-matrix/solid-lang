@@ -17,16 +17,18 @@ foreach(module IN LISTS PARSER_TEST_MODULES)
                                                solid-lang-parser-tests-support)
 endforeach()
 
-# parse_shared.h is a private header (lives in src/); its mirror test
+# parse_internal.h is a private header (lives in src/); white-box tests
 # may reach it through the private path.
 target_include_directories(test_parse_shared
+                           PRIVATE ${CMAKE_SOURCE_DIR}/parser/src)
+target_include_directories(test_parse
                            PRIVATE ${CMAKE_SOURCE_DIR}/parser/src)
 
 set(PARSE_CASES
     identifier_basic identifier_stops_at_non_word identifier_rejects_digit_start
-    name_path_single name_path_multi_and_trivia
-    name_path_trailing_separator_reports_identifier
-    name_path_missing_first_segment_is_silent_not_match
+    identifier_list_single identifier_list_multi_and_trivia
+    identifier_list_trailing_separator_reports_identifier
+    identifier_list_missing_first_is_silent
     namespace_decl_valid_forms using_decl_valid_forms decl_keyword_boundary
     namespace_decl_malforms using_decl_malforms
     program_accumulates_decls_newest_first

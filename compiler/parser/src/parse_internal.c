@@ -3,10 +3,12 @@
 #include <string.h>
 
 #include "parse_internal.h"
+#include "parser.h"
 #include "parser_result.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
+#include "syntax_error.h"
 
 bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 
@@ -106,6 +108,68 @@ ParserMatchResult match(const Source *source, Span span, Strview strview) {
   return (ParserMatchResult){.matched = true, .rem = span_advance(span, strview.len)};
 }
 
-ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator);
+ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator) {
+  Span rem = span;
+  SyntaxNodeList *list = syntax_nodelist_empty();
+  SyntaxErrorList *errors = syntax_errorlist_empty();
 
-ParserListResult parse_identifier_list(const Parser *parser, Span span, Strview separator);
+  ParserResult res = parse_expr(parser, rem);
+  if (res.matched) {
+    list = syntax_nodelist_prepend(parser->arena, list, res.node);
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+
+    while (true) {
+      ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), separator);
+      if (!mres.matched)
+        break;
+
+      rem = mres.rem;
+
+      res = parse_expr(parser, skip_trivia(parser->source, rem));
+      if (!res.matched) {
+        SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_EXPR, rem);
+        errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      } else {
+        list = syntax_nodelist_prepend(parser->arena, list, res.node);
+        errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+        rem = res.rem;
+      }
+    }
+  }
+
+  return (ParserListResult){.list = list, .errors = errors, .rem = rem};
+}
+
+ParserListResult parse_identifier_list(const Parser *parser, Span span, Strview separator) {
+  Span rem = span;
+  SyntaxNodeList *list = syntax_nodelist_empty();
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  ParserResult res = parse_identifier(parser, rem);
+  if (res.matched) {
+    list = syntax_nodelist_prepend(parser->arena, list, res.node);
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+
+    while (true) {
+      ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), separator);
+      if (!mres.matched)
+        break;
+
+      rem = mres.rem;
+
+      res = parse_identifier(parser, skip_trivia(parser->source, rem));
+      if (!res.matched) {
+        SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+        errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      } else {
+        list = syntax_nodelist_prepend(parser->arena, list, res.node);
+        errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+        rem = res.rem;
+      }
+    }
+  }
+
+  return (ParserListResult){.list = list, .errors = errors, .rem = rem};
+}
