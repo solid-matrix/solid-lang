@@ -245,6 +245,157 @@ void test_using_decl_malforms(void) {
   expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using a::;", A, 1, IDENT, 1, strlen("using a::;"));
 }
 
+/* ---- parse_named_type / parse_ref_type -------------------------------- */
+// Minimal named_type: path segments only, no generic arguments yet.
+
+static const SyntaxNamedType *as_named_type(const SyntaxNode *n) {
+  TEST_ASSERT_NOT_NULL(n);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, n->kind);
+  return (const SyntaxNamedType *)n;
+}
+
+void test_named_type_single_and_path(void) {
+  fx_begin("i32");
+  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamedType *t = as_named_type(r.node);
+  static const char *const I32[] = {"i32"};
+  check_path(t->path, I32, 1);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(t->generic_arguments));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
+
+  fx_begin("std::math::Vector2");
+  r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = as_named_type(r.node);
+  static const char *const PATH[] = {"std", "math", "Vector2"};
+  check_path(t->path, PATH, 3);
+  TEST_ASSERT_EQUAL_size_t(strlen("std::math::Vector2"), r.rem.start);
+}
+
+void test_named_type_trivia_between_segments(void) {
+  fx_begin("a :: b");
+  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamedType *t = as_named_type(r.node);
+  static const char *const AB[] = {"a", "b"};
+  check_path(t->path, AB, 2);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_named_type_not_match_on_non_identifier(void) {
+  fx_begin("&i32");
+  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_FALSE(r.matched);
+  TEST_ASSERT_NULL(r.node);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(0, r.rem.start);
+}
+
+void test_ref_type_readwrite_named_inner(void) {
+  fx_begin("&i32");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, r.node->kind);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, ref->ref_kind);
+  const SyntaxNamedType *inner = as_named_type(ref->inner_type);
+  static const char *const I32[] = {"i32"};
+  check_path(inner->path, I32, 1);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(4, r.rem.start);
+  TEST_ASSERT_EQUAL_size_t(0, ref->header.span.start);
+  TEST_ASSERT_EQUAL_size_t(4, ref->header.span.end);
+}
+
+void test_ref_type_readonly_and_writeonly(void) {
+  fx_begin("&readonly i32");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READONLY, ref->ref_kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("&readonly i32"), r.rem.start);
+
+  fx_begin("&writeonly i32");
+  r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_WRITEONLY, ref->ref_kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_ref_type_keyword_word_boundary(void) {
+  // "readonlyi32" is an identifier, not the keyword: the reference stays
+  // READWRITE and the whole word becomes the inner type's path.
+  fx_begin("&readonlyi32");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, ref->ref_kind);
+  const SyntaxNamedType *inner = as_named_type(ref->inner_type);
+  static const char *const NAME[] = {"readonlyi32"};
+  check_path(inner->path, NAME, 1);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_ref_type_nested_and_trivia(void) {
+  fx_begin("&&i32");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, ref->inner_type->kind);
+  const SyntaxRefType *inner_ref = (const SyntaxRefType *)ref->inner_type;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, inner_ref->ref_kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, inner_ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("&  readonly  \n i32");
+  r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READONLY, ref->ref_kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_ref_type_missing_inner_reports_type(void) {
+  fx_begin("&");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NOT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_NULL(r.errors->next);
+  TEST_ASSERT_NULL(((const SyntaxRefType *)r.node)->inner_type);
+  TEST_ASSERT_EQUAL_size_t(1, r.rem.start);
+
+  fx_begin("& +");
+  r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(1, r.rem.start);
+}
+
+void test_ref_type_not_match_without_amp(void) {
+  fx_begin("i32");
+  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_FALSE(r.matched);
+  TEST_ASSERT_NULL(r.node);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(0, r.rem.start);
+}
+
+void test_type_dispatch_prefers_ref_for_amp(void) {
+  fx_begin("&i32");
+  ParserResult r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
 /* ---- expressions ------------------------------------------------------ */
 
 static const SyntaxNumberLitExpr *as_int(const SyntaxNode *n, const char *text) {
@@ -750,6 +901,16 @@ static const TestDispatchEntry ENTRIES[] = {
     {"decl_keyword_boundary", test_decl_keyword_boundary},
     {"namespace_decl_malforms", test_namespace_decl_malforms},
     {"using_decl_malforms", test_using_decl_malforms},
+    {"named_type_single_and_path", test_named_type_single_and_path},
+    {"named_type_trivia_between_segments", test_named_type_trivia_between_segments},
+    {"named_type_not_match_on_non_identifier", test_named_type_not_match_on_non_identifier},
+    {"ref_type_readwrite_named_inner", test_ref_type_readwrite_named_inner},
+    {"ref_type_readonly_and_writeonly", test_ref_type_readonly_and_writeonly},
+    {"ref_type_keyword_word_boundary", test_ref_type_keyword_word_boundary},
+    {"ref_type_nested_and_trivia", test_ref_type_nested_and_trivia},
+    {"ref_type_missing_inner_reports_type", test_ref_type_missing_inner_reports_type},
+    {"ref_type_not_match_without_amp", test_ref_type_not_match_without_amp},
+    {"type_dispatch_prefers_ref_for_amp", test_type_dispatch_prefers_ref_for_amp},
     {"expr_precedence_mul_over_add", test_expr_precedence_mul_over_add},
     {"expr_parens_override_grouping", test_expr_parens_override_grouping},
     {"expr_left_associativity", test_expr_left_associativity},

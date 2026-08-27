@@ -124,17 +124,55 @@ ParserResult parse_type(const Parser *parser, Span span) {
 }
 
 ParserResult parse_named_type(const Parser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return parser_result_not_match(span);
+  ParserListResult lres = parse_identifier_list(parser, span, PUNCTUATION_SCOPE);
+  if (syntax_nodelist_is_empty(lres.list))
+    return parser_result_not_match(span);
+
+  SyntaxNamedType *node = arena_alloc(parser->arena, sizeof(SyntaxNamedType));
+  node->header = syntax_node_header(SYNTAX_KIND_NAMED_TYPE, span_consumed(span, lres.rem));
+  node->path = lres.list;
+  node->generic_arguments = syntax_nodelist_empty();
+
+  return parser_result_matched(lres.rem, (SyntaxNode *)node, lres.errors);
 }
 
 ParserResult parse_ref_type(const Parser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return parser_result_not_match(span);
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_AMP);
+  if (!mres.matched)
+    return parser_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxRefKind ref_kind = SYNTAX_REF_KIND_READWRITE;
+
+  Span adv = skip_trivia(parser->source, rem);
+  ParserMatchResult kw = match_keyword(parser->source, adv, KEYWORD_READONLY);
+  if (kw.matched) {
+    ref_kind = SYNTAX_REF_KIND_READONLY;
+    rem = kw.rem;
+  } else {
+    kw = match_keyword(parser->source, adv, KEYWORD_WRITEONLY);
+    if (kw.matched) {
+      ref_kind = SYNTAX_REF_KIND_WRITEONLY;
+      rem = kw.rem;
+    }
+  }
+
+  ParserResult inner = parse_type(parser, skip_trivia(parser->source, rem));
+  if (!inner.matched) {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_TYPE, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  } else {
+    rem = inner.rem;
+    errors = syntax_errorlist_concat(parser->arena, inner.errors, errors);
+  }
+
+  SyntaxRefType *node = arena_alloc(parser->arena, sizeof(SyntaxRefType));
+  node->header = syntax_node_header(SYNTAX_KIND_REF_TYPE, span_consumed(span, rem));
+  node->ref_kind = ref_kind;
+  node->inner_type = inner.node;
+
+  return parser_result_matched(rem, (SyntaxNode *)node, errors);
 }
 
 ParserResult parse_array_type(const Parser *parser, Span span) {

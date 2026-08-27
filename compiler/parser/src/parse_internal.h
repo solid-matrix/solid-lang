@@ -53,6 +53,8 @@ ParserMatchResult match(const Source *source, Span span, Strview strview);
 
 static const Strview KEYWORD_NAMESPACE = STRVIEW("namespace");
 static const Strview KEYWORD_USING = STRVIEW("using");
+static const Strview KEYWORD_READONLY = STRVIEW("readonly");
+static const Strview KEYWORD_WRITEONLY = STRVIEW("writeonly");
 
 static const Strview OPERATOR_LOR = STRVIEW("||");
 static const Strview OPERATOR_LXOR = STRVIEW("^^");

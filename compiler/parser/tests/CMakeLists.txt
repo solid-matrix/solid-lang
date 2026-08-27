@@ -31,6 +31,12 @@ set(PARSE_CASES
     identifier_list_missing_first_is_silent
     namespace_decl_valid_forms using_decl_valid_forms decl_keyword_boundary
     namespace_decl_malforms using_decl_malforms
+    named_type_single_and_path named_type_trivia_between_segments
+    named_type_not_match_on_non_identifier
+    ref_type_readwrite_named_inner ref_type_readonly_and_writeonly
+    ref_type_keyword_word_boundary ref_type_nested_and_trivia
+    ref_type_missing_inner_reports_type ref_type_not_match_without_amp
+    type_dispatch_prefers_ref_for_amp
     program_accumulates_decls_newest_first
     program_junk_tail_reports_expected_eof program_empty_and_trivia_only
     expr_precedence_mul_over_add expr_parens_override_grouping

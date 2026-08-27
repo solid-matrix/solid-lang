@@ -47,8 +47,6 @@ void parser_destroy(Parser *parser);
 
 ParserResult parse_identifier(const Parser *parser, Span span);
 
-ParserResult parse_name_path(const Parser *parser, Span span);
-
 ParserResult parse_compile_time(const Parser *parser, Span span);
 
 ParserResult parse_program(const Parser *parser, Span span);
