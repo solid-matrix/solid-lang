@@ -85,16 +85,24 @@ void test_span_consumed_measures_progress(void) {
 void test_match_keyword_positive_and_negative(void) {
   static const char *const TEXT = "namespace";
   Source *s = source_from_cstr(TEXT);
+  ParserMatchResult mres;
 
-  TEST_ASSERT_TRUE(match_keyword(s, span_over(TEXT), STRVIEW("namespace")));
-  TEST_ASSERT_FALSE(match_keyword(s, span_over(TEXT), STRVIEW("using")));
-  TEST_ASSERT_FALSE(match_keyword(s, span_over(TEXT + 1), STRVIEW("namespace")));
+  mres = match_keyword(s, span_over(TEXT), STRVIEW("namespace"));
+  TEST_ASSERT_TRUE(mres.matched);
+
+  mres = match_keyword(s, span_over(TEXT), STRVIEW("using"));
+  TEST_ASSERT_FALSE(mres.matched);
+
+  mres = match_keyword(s, span_over(TEXT + 1), STRVIEW("namespace"));
+  TEST_ASSERT_FALSE(mres.matched);
 
   // A longer identifier that merely starts with the keyword does not
   // match: the boundary byte must not be a word character.
   static const char *const GLUED = "namespacex";
   Source *g = source_from_cstr(GLUED);
-  TEST_ASSERT_FALSE(match_keyword(g, span_over(GLUED), STRVIEW("namespace")));
+
+  mres = match_keyword(g, span_over(GLUED), STRVIEW("namespace"));
+  TEST_ASSERT_FALSE(mres.matched);
 
   source_destroy(s);
   source_destroy(g);

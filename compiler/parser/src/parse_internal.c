@@ -3,12 +3,10 @@
 #include <string.h>
 
 #include "parse_internal.h"
-#include "parser.h"
 #include "parser_result.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
-#include "syntax_error.h"
 
 bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 
@@ -67,32 +65,6 @@ Span span_consumed(Span span, Span rem) {
   return (Span){.start = span.start, .end = rem.start};
 }
 
-bool match_keyword(const Source *source, Span span, Strview keyword) {
-  if (keyword.len == 0 || keyword.len > span_len(span))
-    return false;
-
-  Strview token = source_strview_at(source, span_slice(span, 0, keyword.len));
-
-  if (!strview_equals(keyword, token)) {
-    return false;
-  }
-
-  Span rem = span_advance(span, keyword.len);
-
-  if (!span_is_empty(rem) && is_letter_digit_or_underscore(source_byte_at(source, rem.start))) {
-    return false;
-  }
-
-  return true;
-}
-
-bool match(const Source *source, Span span, Strview strview) {
-  if (strview.len == 0 || strview.len > span_len(span))
-    return false;
-  Strview token = source_strview_at(source, span_slice(span, 0, strview.len));
-  return strview_equals(strview, token);
-}
-
 ParserResult complete_longest_match(ParserResult *results, size_t count) {
   assert(count > 0);
 
@@ -106,3 +78,34 @@ ParserResult complete_longest_match(ParserResult *results, size_t count) {
 
   return results[selected];
 }
+
+ParserMatchResult match_keyword(const Source *source, Span span, Strview keyword) {
+  if (keyword.len == 0 || keyword.len > span_len(span)) {
+    return (ParserMatchResult){.matched = false, .rem = span};
+  }
+
+  Strview token = source_strview_at(source, span_slice(span, 0, keyword.len));
+  if (!strview_equals(keyword, token))
+    return (ParserMatchResult){.matched = false, .rem = span};
+
+  Span rem = span_advance(span, keyword.len);
+  if (!span_is_empty(rem) && is_letter_digit_or_underscore(source_byte_at(source, rem.start)))
+    return (ParserMatchResult){.matched = false, .rem = span};
+
+  return (ParserMatchResult){.matched = true, .rem = rem};
+}
+
+ParserMatchResult match(const Source *source, Span span, Strview strview) {
+  if (strview.len == 0 || strview.len > span_len(span))
+    return (ParserMatchResult){.matched = false, .rem = span};
+
+  Strview token = source_strview_at(source, span_slice(span, 0, strview.len));
+  if (!strview_equals(strview, token))
+    return (ParserMatchResult){.matched = false, .rem = span};
+
+  return (ParserMatchResult){.matched = true, .rem = span_advance(span, strview.len)};
+}
+
+ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator);
+
+ParserListResult parse_identifier_list(const Parser *parser, Span span, Strview separator);

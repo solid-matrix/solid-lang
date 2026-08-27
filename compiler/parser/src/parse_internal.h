@@ -1,7 +1,25 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #include "parser.h"
-#include "xmem.h"
+#include "parser_result.h"
+#include "source.h"
+#include "span.h"
+#include "syntax_node.h"
+
+typedef struct {
+  bool matched;
+  Span rem;
+} ParserMatchResult;
+
+typedef struct {
+  Span rem;
+  SyntaxNodeList *list;
+  SyntaxErrorList *errors;
+} ParserListResult;
 
 bool is_letter_or_underscore(uint8_t c);
 
@@ -21,13 +39,24 @@ bool is_whitespace(uint8_t c);
 
 Span skip_trivia(const Source *source, Span span);
 
-bool match_keyword(const Source *source, Span span, Strview keyword);
-
-bool match(const Source *source, Span span, Strview strview);
-
 Span span_consumed(Span span, Span rem);
 
+// bool match_keyword(const Source *source, Span span, Strview keyword);
+
+// bool match(const Source *source, Span span, Strview strview);
+
 ParserResult complete_longest_match(ParserResult *results, size_t count);
+
+ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator);
+
+ParserListResult parse_identifier_list(const Parser *parser, Span span, Strview separator);
+
+ParserMatchResult match_keyword(const Source *source, Span span, Strview keyword);
+
+ParserMatchResult match(const Source *source, Span span, Strview strview);
+
+static const Strview KEYWORD_NAMESPACE = STRVIEW("namespace");
+static const Strview KEYWORD_USING = STRVIEW("using");
 
 static const Strview OPERATOR_LOR = STRVIEW("||");
 static const Strview OPERATOR_LXOR = STRVIEW("^^");

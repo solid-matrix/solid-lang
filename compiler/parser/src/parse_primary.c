@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "parse_internal.h"
+#include "parser.h"
 #include "parser_result.h"
 #include "source.h"
 #include "span.h"

@@ -1,11 +1,11 @@
 #include <assert.h>
-#include <stdlib.h>
 
 #include "arena.h"
 #include "parse_internal.h"
 #include "parser.h"
 #include "parser_result.h"
 #include "span.h"
+#include "strview.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
 
@@ -52,12 +52,11 @@ ParserResult parse_name_path(const Parser *parser, Span span) {
   errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
 
   while (true) {
-    Span adv = skip_trivia(parser->source, rem);
-
-    if (!match(parser->source, adv, PUNCTUATION_SCOPE)) {
+    ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SCOPE);
+    if (!mres.matched)
       break;
-    }
-    rem = span_advance(adv, PUNCTUATION_SCOPE.len);
+
+    rem = mres.rem;
 
     res = parse_identifier(parser, skip_trivia(parser->source, rem));
     if (!res.matched) {
@@ -78,11 +77,12 @@ ParserResult parse_name_path(const Parser *parser, Span span) {
 }
 
 ParserResult parse_compile_time(const Parser *parser, Span span) {
-  if (!match(parser->source, span, PUNCTUATION_AT)) {
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_AT);
+  if (!mres.matched) {
     return parser_result_not_match(span);
   }
 
-  Span rem = span_advance(span, PUNCTUATION_AT.len);
+  Span rem = mres.rem;
   SyntaxErrorList *errors = syntax_errorlist_empty();
   SyntaxNodeList *args = syntax_nodelist_empty();
   SyntaxIdentifier *name = NULL;
@@ -97,9 +97,9 @@ ParserResult parse_compile_time(const Parser *parser, Span span) {
     errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
   }
 
-  Span adv = skip_trivia(parser->source, rem);
-  if (match(parser->source, adv, PUNCTUATION_LPAREN)) {
-    rem = span_advance(adv, PUNCTUATION_LPAREN.len);
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LPAREN);
+  if (mres.matched) {
+    rem = mres.rem;
 
     res = parse_expr(parser, skip_trivia(parser->source, rem));
     if (res.matched) {
@@ -108,11 +108,11 @@ ParserResult parse_compile_time(const Parser *parser, Span span) {
       rem = res.rem;
 
       while (true) {
-        adv = skip_trivia(parser->source, rem);
-        if (!match(parser->source, adv, PUNCTUATION_COMMA))
+        mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+        if (!mres.matched)
           break;
 
-        rem = span_advance(adv, PUNCTUATION_COMMA.len);
+        rem = mres.rem;
 
         res = parse_expr(parser, skip_trivia(parser->source, rem));
         if (!res.matched) {
@@ -126,12 +126,12 @@ ParserResult parse_compile_time(const Parser *parser, Span span) {
       }
     }
 
-    adv = skip_trivia(parser->source, rem);
-    if (!match(parser->source, adv, PUNCTUATION_RPAREN)) {
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
+    if (!mres.matched) {
       SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_RPAREN, rem);
       errors = syntax_errorlist_prepend(parser->arena, errors, error);
     } else {
-      rem = span_advance(adv, PUNCTUATION_RPAREN.len);
+      rem = mres.rem;
     }
   }
 
@@ -222,12 +222,11 @@ ParserResult parse_decl(const Parser *parser, Span span) {
 }
 
 ParserResult parse_namespace_decl(const Parser *parser, Span span) {
-  Strview keyword = STRVIEW("namespace");
-
-  if (!match_keyword(parser->source, span, keyword))
+  ParserMatchResult mres = match_keyword(parser->source, span, KEYWORD_NAMESPACE);
+  if (!mres.matched)
     return parser_result_not_match(span);
 
-  Span rem = span_advance(span, keyword.len);
+  Span rem = mres.rem;
   Span adv = skip_trivia(parser->source, rem);
 
   SyntaxErrorList *errors = syntax_errorlist_empty();
@@ -257,12 +256,11 @@ ParserResult parse_namespace_decl(const Parser *parser, Span span) {
   return parser_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 ParserResult parse_using_decl(const Parser *parser, Span span) {
-  Strview keyword = STRVIEW("using");
-
-  if (!match_keyword(parser->source, span, keyword))
+  ParserMatchResult mres = match_keyword(parser->source, span, KEYWORD_USING);
+  if (!mres.matched)
     return parser_result_not_match(span);
 
-  Span rem = span_advance(span, keyword.len);
+  Span rem = mres.rem;
   Span adv = skip_trivia(parser->source, rem);
 
   SyntaxErrorList *errors = syntax_errorlist_empty();
@@ -437,10 +435,11 @@ ParserResult parse_array_lit_expr(const Parser *parser, Span span) {
 }
 
 static ParserResult parse_sub_expr(const Parser *parser, Span span) {
-  if (!match(parser->source, span, PUNCTUATION_LPAREN))
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_LPAREN);
+  if (!mres.matched)
     return parser_result_not_match(span);
-  Span rem = span_advance(span, PUNCTUATION_LPAREN.len);
 
+  Span rem = mres.rem;
   SyntaxErrorList *errors = syntax_errorlist_empty();
 
   ParserResult expr = parse_expr(parser, skip_trivia(parser->source, rem));
@@ -452,12 +451,12 @@ static ParserResult parse_sub_expr(const Parser *parser, Span span) {
     errors = syntax_errorlist_concat(parser->arena, expr.errors, errors);
   }
 
-  Span adv = skip_trivia(parser->source, rem);
-  if (!match(parser->source, adv, PUNCTUATION_RPAREN)) {
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
+  if (!mres.matched) {
     SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_RPAREN, rem);
     errors = syntax_errorlist_prepend(parser->arena, errors, error);
   } else {
-    rem = span_advance(adv, PUNCTUATION_RPAREN.len);
+    rem = mres.rem;
   }
 
   return parser_result_matched(rem, expr.node, errors);
@@ -473,14 +472,12 @@ static ParserResult parse_operand_expr(const Parser *parser, Span span) {
 }
 
 static ParserResult parse_dot_expr(const Parser *parser, Span span, SyntaxNode *receiver) {
-  SyntaxErrorList *errors = syntax_errorlist_empty();
-  Span rem = span;
-
-  if (!match(parser->source, rem, PUNCTUATION_DOT)) {
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_DOT);
+  if (!mres.matched)
     return parser_result_not_match(span);
-  } else {
-    rem = span_advance(rem, PUNCTUATION_DOT.len);
-  }
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
 
   ParserResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
   if (!id_res.matched) {
@@ -500,14 +497,13 @@ static ParserResult parse_dot_expr(const Parser *parser, Span span, SyntaxNode *
 }
 
 static ParserResult parse_index_expr(const Parser *parser, Span span, SyntaxNode *receiver) {
-  Span rem = span;
-  SyntaxErrorList *errors = syntax_errorlist_empty();
-
-  if (!match(parser->source, rem, PUNCTUATION_LBRACKET)) {
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_LBRACKET);
+  if (!mres.matched) {
     return parser_result_not_match(span);
-  } else {
-    rem = span_advance(rem, PUNCTUATION_LBRACKET.len);
   }
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
 
   ParserResult ex_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!ex_res.matched) {
@@ -518,12 +514,12 @@ static ParserResult parse_index_expr(const Parser *parser, Span span, SyntaxNode
     errors = syntax_errorlist_concat(parser->arena, ex_res.errors, errors);
   }
 
-  Span adv = skip_trivia(parser->source, rem);
-  if (!match(parser->source, adv, PUNCTUATION_RBRACKET)) {
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACKET);
+  if (!mres.matched) {
     SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_RBRACKET, rem);
     errors = syntax_errorlist_prepend(parser->arena, errors, error);
   } else {
-    rem = span_advance(adv, PUNCTUATION_RBRACKET.len);
+    rem = mres.rem;
   }
 
   SyntaxIndexExpr *node = arena_alloc(parser->arena, sizeof(SyntaxIndexExpr));
@@ -535,15 +531,14 @@ static ParserResult parse_index_expr(const Parser *parser, Span span, SyntaxNode
 }
 
 static ParserResult parse_call_expr(const Parser *parser, Span span, SyntaxNode *receiver) {
-  Span rem = span;
+  ParserMatchResult mres = match(parser->source, span, PUNCTUATION_LPAREN);
+  if (!mres.matched) {
+    return parser_result_not_match(span);
+  }
+
+  Span rem = mres.rem;
   SyntaxErrorList *errors = syntax_errorlist_empty();
   SyntaxNodeList *args = syntax_nodelist_empty();
-
-  if (!match(parser->source, rem, PUNCTUATION_LPAREN)) {
-    return parser_result_not_match(span);
-  } else {
-    rem = span_advance(rem, PUNCTUATION_LPAREN.len);
-  }
 
   ParserResult ex_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (ex_res.matched) {
@@ -552,11 +547,11 @@ static ParserResult parse_call_expr(const Parser *parser, Span span, SyntaxNode 
     rem = ex_res.rem;
 
     while (true) {
-      Span adv = skip_trivia(parser->source, rem);
-      if (!match(parser->source, adv, PUNCTUATION_COMMA))
+      mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+      if (!mres.matched)
         break;
 
-      rem = span_advance(adv, PUNCTUATION_COMMA.len);
+      rem = mres.rem;
 
       ex_res = parse_expr(parser, skip_trivia(parser->source, rem));
       if (!ex_res.matched) {
@@ -570,12 +565,12 @@ static ParserResult parse_call_expr(const Parser *parser, Span span, SyntaxNode 
     }
   }
 
-  Span adv = skip_trivia(parser->source, rem);
-  if (!match(parser->source, adv, PUNCTUATION_RPAREN)) {
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
+  if (!mres.matched) {
     SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_RPAREN, rem);
     errors = syntax_errorlist_prepend(parser->arena, errors, error);
   } else {
-    rem = span_advance(adv, PUNCTUATION_RPAREN.len);
+    rem = mres.rem;
   }
 
   SyntaxCallExpr *node = arena_alloc(parser->arena, sizeof(SyntaxCallExpr));
@@ -633,24 +628,46 @@ static ParserResult parse_unary_expr(const Parser *parser, Span span) {
   SyntaxErrorList *errors = syntax_errorlist_empty();
 
   SyntaxOperator op;
-  if (match(parser->source, span, OPERATOR_MINUS)) {
+  ParserMatchResult mres;
+
+  mres = match(parser->source, span, OPERATOR_MINUS);
+  if (mres.matched) {
     op = SYNTAX_OPERATOR_MINUS;
-    rem = span_advance(span, OPERATOR_MINUS.len);
-  } else if (match(parser->source, span, OPERATOR_PLUS)) {
-    op = SYNTAX_OPERATOR_PLUS;
-    rem = span_advance(span, OPERATOR_PLUS.len);
-  } else if (match(parser->source, span, OPERATOR_LNOT)) {
-    op = SYNTAX_OPERATOR_LNOT;
-    rem = span_advance(span, OPERATOR_LNOT.len);
-  } else if (match(parser->source, span, OPERATOR_BNOT)) {
-    op = SYNTAX_OPERATOR_BNOT;
-    rem = span_advance(span, OPERATOR_BNOT.len);
-  } else if (match(parser->source, span, OPERATOR_DEREF)) {
-    op = SYNTAX_OPERATOR_DEREF;
-    rem = span_advance(span, OPERATOR_DEREF.len);
-  } else {
-    return parse_postfix_expr(parser, span);
+    rem = mres.rem;
+    goto outside;
   }
+
+  mres = match(parser->source, span, OPERATOR_PLUS);
+  if (mres.matched) {
+    op = SYNTAX_OPERATOR_PLUS;
+    rem = mres.rem;
+    goto outside;
+  }
+
+  mres = match(parser->source, span, OPERATOR_LNOT);
+  if (mres.matched) {
+    op = SYNTAX_OPERATOR_LNOT;
+    rem = mres.rem;
+    goto outside;
+  }
+
+  mres = match(parser->source, span, OPERATOR_BNOT);
+  if (mres.matched) {
+    op = SYNTAX_OPERATOR_BNOT;
+    rem = mres.rem;
+    goto outside;
+  }
+
+  mres = match(parser->source, span, OPERATOR_DEREF);
+  if (mres.matched) {
+    op = SYNTAX_OPERATOR_DEREF;
+    rem = mres.rem;
+    goto outside;
+  }
+
+  return parse_postfix_expr(parser, span);
+
+outside:;
 
   ParserResult un_res = parse_unary_expr(parser, skip_trivia(parser->source, rem));
   if (!un_res.matched) {
@@ -683,18 +700,32 @@ static ParserResult parse_multiplicative_expr(const Parser *parser, Span span) {
     Span adv = skip_trivia(parser->source, rem);
 
     SyntaxOperator op;
-    if (match(parser->source, adv, OPERATOR_MUL)) {
+
+    ParserMatchResult mres;
+    mres = match(parser->source, adv, OPERATOR_MUL);
+    if (mres.matched) {
       op = SYNTAX_OPERATOR_MUL;
-      rem = span_advance(adv, OPERATOR_MUL.len);
-    } else if (match(parser->source, adv, OPERATOR_DIV)) {
-      op = SYNTAX_OPERATOR_DIV;
-      rem = span_advance(adv, OPERATOR_DIV.len);
-    } else if (match(parser->source, adv, OPERATOR_MOD)) {
-      op = SYNTAX_OPERATOR_MOD;
-      rem = span_advance(adv, OPERATOR_MOD.len);
-    } else {
-      break;
+      rem = mres.rem;
+      goto outside;
     }
+
+    mres = match(parser->source, adv, OPERATOR_DIV);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_DIV;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_MOD);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_MOD;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    break;
+
+  outside:;
 
     un_res = parse_unary_expr(parser, skip_trivia(parser->source, rem));
     if (!un_res.matched) {
@@ -731,15 +762,25 @@ static ParserResult parse_additive_expr(const Parser *parser, Span span) {
     Span adv = skip_trivia(parser->source, rem);
 
     SyntaxOperator op;
-    if (match(parser->source, adv, OPERATOR_ADD)) {
+
+    ParserMatchResult mres;
+    mres = match(parser->source, adv, OPERATOR_ADD);
+    if (mres.matched) {
       op = SYNTAX_OPERATOR_ADD;
-      rem = span_advance(adv, OPERATOR_ADD.len);
-    } else if (match(parser->source, adv, OPERATOR_SUB)) {
-      op = SYNTAX_OPERATOR_SUB;
-      rem = span_advance(adv, OPERATOR_SUB.len);
-    } else {
-      break;
+      rem = mres.rem;
+      goto outside;
     }
+
+    mres = match(parser->source, adv, OPERATOR_SUB);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_SUB;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    break;
+
+  outside:;
 
     mul_res = parse_multiplicative_expr(parser, skip_trivia(parser->source, rem));
     if (!mul_res.matched) {
@@ -776,15 +817,25 @@ static ParserResult parse_shift_expr(const Parser *parser, Span span) {
     Span adv = skip_trivia(parser->source, rem);
 
     SyntaxOperator op;
-    if (match(parser->source, adv, OPERATOR_SHL)) {
+
+    ParserMatchResult mres;
+    mres = match(parser->source, adv, OPERATOR_SHL);
+    if (mres.matched) {
       op = SYNTAX_OPERATOR_SHL;
-      rem = span_advance(adv, OPERATOR_SHL.len);
-    } else if (match(parser->source, adv, OPERATOR_SHR)) {
-      op = SYNTAX_OPERATOR_SHR;
-      rem = span_advance(adv, OPERATOR_SHR.len);
-    } else {
-      break;
+      rem = mres.rem;
+      goto outside;
     }
+
+    mres = match(parser->source, adv, OPERATOR_SHR);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_SHR;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    break;
+
+  outside:;
 
     add_res = parse_additive_expr(parser, skip_trivia(parser->source, rem));
     if (!add_res.matched) {
@@ -821,18 +872,36 @@ static ParserResult parse_bitwise_expr(const Parser *parser, Span span) {
     Span adv = skip_trivia(parser->source, rem);
 
     SyntaxOperator op;
-    if (match(parser->source, adv, OPERATOR_BAND) && !match(parser->source, adv, OPERATOR_LAND)) {
+
+    ParserMatchResult mres, mres2;
+
+    mres = match(parser->source, adv, OPERATOR_BAND);
+    mres2 = match(parser->source, adv, OPERATOR_LAND);
+    if (mres.matched && !mres2.matched) {
       op = SYNTAX_OPERATOR_BAND;
-      rem = span_advance(adv, OPERATOR_BAND.len);
-    } else if (match(parser->source, adv, OPERATOR_BOR) && !match(parser->source, adv, OPERATOR_LOR)) {
-      op = SYNTAX_OPERATOR_BOR;
-      rem = span_advance(adv, OPERATOR_BOR.len);
-    } else if (match(parser->source, adv, OPERATOR_BXOR) && !match(parser->source, adv, OPERATOR_LXOR)) {
-      op = SYNTAX_OPERATOR_BXOR;
-      rem = span_advance(adv, OPERATOR_BXOR.len);
-    } else {
-      break;
+      rem = mres.rem;
+      goto outside;
     }
+
+    mres = match(parser->source, adv, OPERATOR_BOR);
+    mres2 = match(parser->source, adv, OPERATOR_LOR);
+    if (mres.matched && !mres2.matched) {
+      op = SYNTAX_OPERATOR_BOR;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_BXOR);
+    mres2 = match(parser->source, adv, OPERATOR_LXOR);
+    if (mres.matched && !mres2.matched) {
+      op = SYNTAX_OPERATOR_BXOR;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    break;
+
+  outside:;
 
     sh_res = parse_shift_expr(parser, skip_trivia(parser->source, rem));
     if (!sh_res.matched) {
@@ -869,27 +938,53 @@ static ParserResult parse_relational_expr(const Parser *parser, Span span) {
     Span adv = skip_trivia(parser->source, rem);
 
     SyntaxOperator op;
-    if (match(parser->source, adv, OPERATOR_EQ)) {
+
+    ParserMatchResult mres;
+    mres = match(parser->source, adv, OPERATOR_EQ);
+    if (mres.matched) {
       op = SYNTAX_OPERATOR_EQ;
-      rem = span_advance(adv, OPERATOR_EQ.len);
-    } else if (match(parser->source, adv, OPERATOR_NEQ)) {
-      op = SYNTAX_OPERATOR_NEQ;
-      rem = span_advance(adv, OPERATOR_NEQ.len);
-    } else if (match(parser->source, adv, OPERATOR_LTE)) {
-      op = SYNTAX_OPERATOR_LTE;
-      rem = span_advance(adv, OPERATOR_LTE.len);
-    } else if (match(parser->source, adv, OPERATOR_GTE)) {
-      op = SYNTAX_OPERATOR_GTE;
-      rem = span_advance(adv, OPERATOR_GTE.len);
-    } else if (match(parser->source, adv, OPERATOR_LT)) {
-      op = SYNTAX_OPERATOR_LT;
-      rem = span_advance(adv, OPERATOR_LT.len);
-    } else if (match(parser->source, adv, OPERATOR_GT)) {
-      op = SYNTAX_OPERATOR_GT;
-      rem = span_advance(adv, OPERATOR_GT.len);
-    } else {
-      break;
+      rem = mres.rem;
+      goto outside;
     }
+
+    mres = match(parser->source, adv, OPERATOR_NEQ);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_NEQ;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_LTE);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_LTE;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_GTE);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_GTE;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_LT);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_LT;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    mres = match(parser->source, adv, OPERATOR_GT);
+    if (mres.matched) {
+      op = SYNTAX_OPERATOR_GT;
+      rem = mres.rem;
+      goto outside;
+    }
+
+    break;
+
+  outside:;
 
     bw_res = parse_bitwise_expr(parser, skip_trivia(parser->source, rem));
     if (!bw_res.matched) {
@@ -923,10 +1018,10 @@ static ParserResult parse_logical_and_expr(const Parser *parser, Span span) {
   Span rem = rel_res.rem;
 
   while (true) {
-    Span adv = skip_trivia(parser->source, rem);
-    if (!match(parser->source, adv, OPERATOR_LAND))
+    ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), OPERATOR_LAND);
+    if (!mres.matched)
       break;
-    rem = span_advance(adv, OPERATOR_LAND.len);
+    rem = mres.rem;
 
     rel_res = parse_relational_expr(parser, skip_trivia(parser->source, rem));
     if (!rel_res.matched) {
@@ -960,10 +1055,10 @@ static ParserResult parse_logical_xor_expr(const Parser *parser, Span span) {
   Span rem = and_res.rem;
 
   while (true) {
-    Span adv = skip_trivia(parser->source, rem);
-    if (!match(parser->source, adv, OPERATOR_LXOR))
+    ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), OPERATOR_LXOR);
+    if (!mres.matched)
       break;
-    rem = span_advance(adv, OPERATOR_LXOR.len);
+    rem = mres.rem;
 
     and_res = parse_logical_and_expr(parser, skip_trivia(parser->source, rem));
     if (!and_res.matched) {
@@ -997,10 +1092,10 @@ static ParserResult parse_logical_or_expr(const Parser *parser, Span span) {
   Span rem = xor_res.rem;
 
   while (true) {
-    Span adv = skip_trivia(parser->source, rem);
-    if (!match(parser->source, adv, OPERATOR_LOR))
+    ParserMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), OPERATOR_LOR);
+    if (!mres.matched)
       break;
-    rem = span_advance(adv, OPERATOR_LOR.len);
+    rem = mres.rem;
 
     xor_res = parse_logical_xor_expr(parser, skip_trivia(parser->source, rem));
     if (!xor_res.matched) {
