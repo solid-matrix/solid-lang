@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "arena.h"
 #include "parse_shared.h"
 #include "parser.h"
 #include "parser_result.h"
@@ -84,19 +85,74 @@ ParserResult parse_name_path(const Parser *parser, Span span) {
 }
 
 ParserResult parse_compile_time(const Parser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return parser_result_not_match(span);
+  if (!match(parser->source, span, PUNCTUATION_AT)) {
+    return parser_result_not_match(span);
+  }
+
+  Span rem = span_advance(span, PUNCTUATION_AT.len);
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxNodeList *args = syntax_nodelist_empty();
+  SyntaxIdentifier *name = NULL;
+
+  ParserResult res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!res.matched) {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  } else {
+    rem = res.rem;
+    name = (SyntaxIdentifier *)res.node;
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+  }
+
+  Span adv = skip_trivia(parser->source, rem);
+  if (match(parser->source, adv, PUNCTUATION_LPAREN)) {
+    rem = span_advance(adv, PUNCTUATION_LPAREN.len);
+
+    res = parse_expr(parser, skip_trivia(parser->source, rem));
+    if (res.matched) {
+      args = syntax_nodelist_prepend(parser->arena, args, res.node);
+      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+      rem = res.rem;
+
+      while (true) {
+        adv = skip_trivia(parser->source, rem);
+        if (!match(parser->source, adv, PUNCTUATION_COMMA))
+          break;
+
+        rem = span_advance(adv, PUNCTUATION_COMMA.len);
+
+        res = parse_expr(parser, skip_trivia(parser->source, rem));
+        if (!res.matched) {
+          SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_EXPR, rem);
+          errors = syntax_errorlist_prepend(parser->arena, errors, error);
+        } else {
+          args = syntax_nodelist_prepend(parser->arena, args, res.node);
+          errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+          rem = res.rem;
+        }
+      }
+    }
+
+    adv = skip_trivia(parser->source, rem);
+    if (!match(parser->source, adv, PUNCTUATION_RPAREN)) {
+      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_RPAREN, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+    } else {
+      rem = span_advance(adv, PUNCTUATION_RPAREN.len);
+    }
+  }
+
+  SyntaxCompileTime *node = arena_alloc(parser->arena, sizeof(SyntaxCompileTime));
+  node->header = syntax_node_header(SYNTAX_KIND_COMPILE_TIME, span_consumed(span, rem));
+  node->args = args;
+  node->name = name;
+
+  return parser_result_matched(rem, (SyntaxNode *)node, errors);
 }
 
 ParserResult parse_program(const Parser *parser, Span span) {
   span = skip_trivia(parser->source, span);
 
-  // Both accumulators build newest-at-head (prepend/concat-new-left),
-  // by design: program.top_levels ends up in reverse source order and
-  // errors in reverse chronological order, with any trailing
-  // EXPECTED_EOF diagnostic at the very head.
   SyntaxErrorList *errors = syntax_errorlist_empty();
   SyntaxNodeList *decls = syntax_nodelist_empty();
   Span rem = span;
@@ -108,15 +164,9 @@ ParserResult parse_program(const Parser *parser, Span span) {
     if (!res.matched)
       break;
 
-    assert(res.rem.start > rem.start);
     rem = res.rem;
-
     errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-
-    if (res.node != NULL) {
-      assert((res.node->kind & SYNTAX_KIND_DECL_MASK) != 0);
-      decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
-    }
+    decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
   }
 
   SyntaxProgram *program = arena_alloc(parser->arena, sizeof(SyntaxProgram));
@@ -172,10 +222,8 @@ ParserResult parse_decl(const Parser *parser, Span span) {
   ParserResult results[] = {
       parse_namespace_decl(parser, span),
       parse_using_decl(parser, span),
+      // TODO
   };
-
-  // TODO
-
   return complete_longest_match(results, COUNT_OF(results));
 }
 
@@ -429,9 +477,8 @@ static ParserResult parse_operand_expr(const Parser *parser, Span span) {
   ParserResult results[] = {
       parse_number_lit_expr(parser, span), parse_rune_lit_expr(parser, span), parse_string_lit_expr(parser, span),
       parse_named_expr(parser, span),      parse_sub_expr(parser, span),      parse_struct_lit_expr(parser, span),
-      parse_array_lit_expr(parser, span),
+      parse_array_lit_expr(parser, span),      parse_compile_time(parser, span),
   };
-
   return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
 }
 

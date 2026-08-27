@@ -10,7 +10,7 @@
  * Layout discipline (the parser is scannerless, so trivia is handled
  * explicitly at composition points):
  *
- *   - Precondition of every parse_XXX(const Parser *, Span): \p span.start
+ *   - Precondition of every parse_XXX(const Parser *, Span span): \p span.start
  *     sits on a non-trivia byte, or the span is empty. Leading trivia
  *     is consumed only by parse_program, at the start of the unit and
  *     before every top-level declaration.
@@ -29,7 +29,7 @@
  *   - A parse_XXX function must never consume trivia internally; doing
  *     so silently breaks the invariants above.
  *
- * Every parse_XXX(const Parser *, Span) follows the same contract:
+ * Every parse_XXX(const Parser *, Span span) follows the same contract:
  *
  *   matched == false -> the construct does not start at \p span. Nothing
  *   is consumed and nothing is recorded:
@@ -52,12 +52,6 @@
  *                       construct); diagnostics, if any, still travel
  *                       in errors.
  *
- *   errors carries every SyntaxError produced while recognizing this
- *   construct, directly or by nested constructs. The list lives in the
- *   parse arena: a combinator must merge it upward into its own result
- *   (sequential acceptance; merge empties the source slot), and losing
- *   branches of longest-match selection are simply abandoned — every
- *   list is reclaimed with the arena.
  */
 typedef struct {
   bool matched;
@@ -79,8 +73,7 @@ ParserResult parser_result_not_match(Span span);
  * @param errors Diagnostics to attach; NULL means "no diagnostics".
  * @return The result.
  */
-ParserResult parser_result_matched(Span rem, SyntaxNode *node,
-                                   SyntaxErrorList *errors);
+ParserResult parser_result_matched(Span rem, SyntaxNode *node, SyntaxErrorList *errors);
 
 /**
  * @brief True when the attempt succeeded and produced no diagnostics.

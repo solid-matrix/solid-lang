@@ -570,6 +570,118 @@ void test_expr_full_ladder_shape(void) {
   as_int(add->right, "7");
 }
 
+/* ---- compile-time forms ------------------------------------------------- */
+
+// Asserts a COMPILE_TIME node's name and argument list (newest-at-head).
+static const SyntaxCompileTime *as_ct(const ParserResult *r,
+                                      const char *name) {
+  TEST_ASSERT_TRUE(r->matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, r->node->kind);
+  const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r->node;
+  TEST_ASSERT_STRVIEW_EQ(ct->name->strview, name);
+  return ct;
+}
+
+void test_ct_bare(void) {
+  fx_begin("@private");
+  ParserResult r =
+      parse_compile_time(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("@private"), r.rem.start);
+
+  const SyntaxCompileTime *ct = as_ct(&r, "private");
+  if (ct)
+    TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(ct->args));
+}
+
+void test_ct_with_args(void) {
+  fx_begin("@align(16)");
+  ParserResult r =
+      parse_compile_time(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("@align(16)"), r.rem.start);
+
+  const SyntaxCompileTime *ct = as_ct(&r, "align");
+  if (!ct)
+    return;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(ct->args));
+  as_int(ct->args->node, "16");
+}
+
+void test_ct_multi_string_args_reversed(void) {
+  fx_begin("@import(\"LLVM-C\",\"LLVMContextCreate\")");
+  ParserResult r =
+      parse_compile_time(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxCompileTime *ct = as_ct(&r, "import");
+  if (!ct)
+    return;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(ct->args));
+  // newest-at-head: the second literal leads the chain.
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->node->kind);
+  TEST_ASSERT_STRVIEW_EQ(
+      ((const SyntaxStringLitExpr *)ct->args->node)->value,
+      "\"LLVMContextCreate\"");
+  TEST_ASSERT_STRVIEW_EQ(
+      ((const SyntaxStringLitExpr *)ct->args->next->node)->value,
+      "\"LLVM-C\"");
+}
+
+void test_ct_missing_name_frame(void) {
+  // The frame survives with a NULL name; one diagnostic.
+  fx_begin("@");
+  ParserResult r =
+      parse_compile_time(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, r.node->kind);
+
+  const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r.node;
+  TEST_ASSERT_NULL(ct->name);
+  TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(ct->args));
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+}
+
+void test_ct_unclosed_args_frame(void) {
+  // Parsed arguments stay in the frame; one RPAREN diagnostic.
+  fx_begin("@align(16");
+  ParserResult r =
+      parse_compile_time(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_TRUE(r.matched);
+
+  const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(ct->args));
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+}
+
+void test_expr_ct_operand_position(void) {
+  // 1+@when(0): operand-position CompileTime carries the SAME kind as
+  // annotation-position; semantics distinguishes by position.
+  fx_begin("1+@when(0)");
+  ParserResult r = parse_expr(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+
+  const SyntaxBinaryExpr *add = as_bin(r.node, SYNTAX_OPERATOR_ADD);
+  if (!add)
+    return;
+  as_int(add->left, "1");
+
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, add->right->kind);
+  const SyntaxCompileTime *op = (const SyntaxCompileTime *)add->right;
+  TEST_ASSERT_STRVIEW_EQ(op->name->strview, "when");
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(op->args));
+  as_int(op->args->node, "0");
+}
+
 /* ---- parse_program --------------------------------------------------- */
 
 static size_t top_level_count(const SyntaxProgram *p) {
@@ -653,6 +765,12 @@ static const TestDispatchEntry ENTRIES[] = {
     {"expr_index_frames", test_expr_index_frames},
     {"expr_call_missing_rparen_frame", test_expr_call_missing_rparen_frame},
     {"expr_full_ladder_shape", test_expr_full_ladder_shape},
+    {"ct_bare", test_ct_bare},
+    {"ct_with_args", test_ct_with_args},
+    {"ct_multi_string_args_reversed", test_ct_multi_string_args_reversed},
+    {"ct_missing_name_frame", test_ct_missing_name_frame},
+    {"ct_unclosed_args_frame", test_ct_unclosed_args_frame},
+    {"expr_ct_operand_position", test_expr_ct_operand_position},
     {"program_accumulates_decls_newest_first", test_program_accumulates_decls_newest_first},
     {"program_junk_tail_reports_expected_eof", test_program_junk_tail_reports_expected_eof},
     {"program_empty_and_trivia_only", test_program_empty_and_trivia_only},
