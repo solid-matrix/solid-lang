@@ -9,20 +9,20 @@
 #include <stdbool.h>
 
 #include "arena.h"
-#include "parser.h"
+#include "syntax_parser.h"
 #include "xmem.h"
 
 #pragma region PARSER
 
-Parser *parser_create(const Source *source) {
+SyntaxParser *parser_create(const Source *source) {
   Arena *arena = arena_create();
 
-  Parser *parser = xmalloc(sizeof(Parser));
-  *parser = (Parser){.source = source, .arena = arena};
+  SyntaxParser *parser = xmalloc(sizeof(SyntaxParser));
+  *parser = (SyntaxParser){.source = source, .arena = arena};
   return parser;
 }
 
-void parser_destroy(Parser *parser) {
+void parser_destroy(SyntaxParser *parser) {
   assert(parser != NULL);
 
   arena_destroy(parser->arena); // reclaims every node of this parse

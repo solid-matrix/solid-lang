@@ -1,55 +1,42 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "strview.h"
 
-#include "parser.h"
-#include "parser_result.h"
-#include "source.h"
-#include "span.h"
-#include "syntax_node.h"
+typedef enum {
+  SYNTAX_OPERATOR_INVALID = 0,
 
-typedef struct {
-  bool matched;
-  Span rem;
-} ParserMatchResult;
+  SYNTAX_OPERATOR_PLUS,  // +
+  SYNTAX_OPERATOR_MINUS, // -
 
-typedef struct {
-  Span rem;
-  SyntaxNodeList *list;
-  SyntaxErrorList *errors;
-} ParserListResult;
+  SYNTAX_OPERATOR_ADD, // +
+  SYNTAX_OPERATOR_SUB, // -
+  SYNTAX_OPERATOR_MUL, // *
+  SYNTAX_OPERATOR_DIV, // /
+  SYNTAX_OPERATOR_MOD, // %
 
-bool is_letter_or_underscore(uint8_t c);
+  SYNTAX_OPERATOR_EQ,  // ==
+  SYNTAX_OPERATOR_NEQ, // !=
+  SYNTAX_OPERATOR_LT,  // <
+  SYNTAX_OPERATOR_GT,  // >
+  SYNTAX_OPERATOR_LTE, // <=
+  SYNTAX_OPERATOR_GTE, // >=
 
-bool is_letter_digit_or_underscore(uint8_t c);
+  SYNTAX_OPERATOR_LNOT, // !
+  SYNTAX_OPERATOR_LAND, // &&
+  SYNTAX_OPERATOR_LOR,  // ||
+  SYNTAX_OPERATOR_LXOR, // ^^
 
-bool is_decimal_digit(uint8_t c);
+  SYNTAX_OPERATOR_BNOT, // ~
+  SYNTAX_OPERATOR_BAND, // &
+  SYNTAX_OPERATOR_BOR,  // |
+  SYNTAX_OPERATOR_BXOR, // ^
 
-bool is_binary_digit(uint8_t c);
+  SYNTAX_OPERATOR_SHL, // <<
+  SYNTAX_OPERATOR_SHR, // >>
 
-bool is_octal_digit(uint8_t c);
+  SYNTAX_OPERATOR_DEREF, // *
 
-bool is_hex_digit(uint8_t c);
-
-bool is_base_digit(uint8_t c, int base);
-
-bool is_whitespace(uint8_t c);
-
-Span skip_trivia(const Source *source, Span span);
-
-Span span_consumed(Span span, Span rem);
-
-ParserResult complete_longest_match(ParserResult *results, size_t count);
-
-ParserListResult parse_expr_list(const Parser *parser, Span span, Strview separator);
-
-ParserListResult parse_identifier_list(const Parser *parser, Span span, Strview separator);
-
-ParserMatchResult match_keyword(const Source *source, Span span, Strview keyword);
-
-ParserMatchResult match(const Source *source, Span span, Strview strview);
+} SyntaxOperator;
 
 static const Strview KEYWORD_NAMESPACE = STRVIEW("namespace");
 static const Strview KEYWORD_USING = STRVIEW("using");
@@ -98,7 +85,4 @@ static const Strview PUNCTUATION_DOUBLE_QUOTE = STRVIEW("\"");
 static const Strview PUNCTUATION_COLON = STRVIEW(":");
 static const Strview PUNCTUATION_SCOPE = STRVIEW("::");
 static const Strview PUNCTUATION_SEMICOLON = STRVIEW(";");
-static const Strview PUNCTUATION_DOLLAR = STRVIEW("$");
-static const Strview PUNCTUATION_NUMBER = STRVIEW("#");
 static const Strview PUNCTUATION_AMP = STRVIEW("&");
-static const Strview PUNCTUATION_QUESTION = STRVIEW("?");

@@ -1,8 +1,8 @@
 # One CTest entry per unit-test case; case names must stay in sync with
 # the TestDispatchEntry tables in the corresponding test_*.c sources.
-# Test files mirror parser/src one-to-one.
+# Test files mirror syntax/src one-to-one.
 
-set(PARSER_TEST_MODULES
+set(SYNTAX_TEST_MODULES
     parse
     parse_primary
     parse_shared
@@ -11,18 +11,11 @@ set(PARSER_TEST_MODULES
     syntax_error
     syntax_node)
 
-foreach(module IN LISTS PARSER_TEST_MODULES)
+foreach(module IN LISTS SYNTAX_TEST_MODULES)
   add_executable(test_${module} test_${module}.c)
-  target_link_libraries(test_${module} PRIVATE solid-lang-parser
-                                               solid-lang-parser-tests-support)
+  target_link_libraries(test_${module} PRIVATE solid-lang-syntax
+                                               solid-lang-syntax-tests-support)
 endforeach()
-
-# parse_internal.h is a private header (lives in src/); white-box tests
-# may reach it through the private path.
-target_include_directories(test_parse_shared
-                           PRIVATE ${CMAKE_SOURCE_DIR}/parser/src)
-target_include_directories(test_parse
-                           PRIVATE ${CMAKE_SOURCE_DIR}/parser/src)
 
 set(PARSE_CASES
     identifier_basic identifier_stops_at_non_word identifier_rejects_digit_start

@@ -1,11 +1,10 @@
 #include "arena.h"
-#include "parser.h"
-#include "parser_result.h"
+#include "syntax_result.h"
 #include "test_support.h"
 
 void test_matched_carries_fields(void) {
-  ParserResult r =
-      parser_result_matched((Span){.start = 4, .end = 9}, NULL, NULL);
+  SyntaxNodeResult r =
+      syntax_node_result_matched((Span){.start = 4, .end = 9}, NULL, NULL);
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(4, r.rem.start);
@@ -15,7 +14,7 @@ void test_matched_carries_fields(void) {
 }
 
 void test_not_match_resets_everything(void) {
-  ParserResult r = parser_result_not_match((Span){.start = 1, .end = 5});
+  SyntaxNodeResult r = syntax_node_result_not_match((Span){.start = 1, .end = 5});
 
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
@@ -25,19 +24,19 @@ void test_not_match_resets_everything(void) {
 }
 
 void test_is_ok_requires_match_and_silence(void) {
-  TEST_ASSERT_TRUE(parser_result_is_ok(
-      parser_result_matched((Span){.start = 0}, NULL, NULL)));
+  TEST_ASSERT_TRUE(syntax_node_result_is_ok(
+      syntax_node_result_matched((Span){.start = 0}, NULL, NULL)));
 
   Arena *a = arena_create();
   SyntaxErrorList *errs = syntax_errorlist_append(
       a, NULL,
       syntax_error_create(SYNTAX_EXPECTED_EOF, (Span){.start = 0}));
-  TEST_ASSERT_FALSE(parser_result_is_ok(
-      parser_result_matched((Span){.start = 0}, NULL, errs)));
+  TEST_ASSERT_FALSE(syntax_node_result_is_ok(
+      syntax_node_result_matched((Span){.start = 0}, NULL, errs)));
   arena_destroy(a);
 
-  TEST_ASSERT_FALSE(parser_result_is_ok(
-      parser_result_not_match((Span){.start = 0})));
+  TEST_ASSERT_FALSE(syntax_node_result_is_ok(
+      syntax_node_result_not_match((Span){.start = 0})));
 }
 
 static const TestDispatchEntry ENTRIES[] = {

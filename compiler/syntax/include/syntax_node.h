@@ -1,0 +1,76 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "span.h"
+
+typedef enum {
+  SYNTAX_KIND_INVALID = 0,
+
+  SYNTAX_KIND_IDENTIFIER,
+  SYNTAX_KIND_COMPILE_TIME,
+  SYNTAX_KIND_GENERIC_PARAMETER, // auxilliary
+  SYNTAX_KIND_CALL_PARAMETER,    // auxilliary
+  SYNTAX_KIND_PROGRAM,
+
+  SYNTAX_KIND_NAMED,
+  SYNTAX_KIND_REF_TYPE,
+  SYNTAX_KIND_ARRAY_TYPE,
+  SYNTAX_KIND_FUNC_TYPE,
+
+  SYNTAX_KIND_NAMESPACE_DECL,
+  SYNTAX_KIND_USING_DECL,
+  SYNTAX_KIND_LET_DECL,
+  SYNTAX_KIND_STRUCT_FIELD, // auxilliary
+  SYNTAX_KIND_STRUCT_DECL,
+  SYNTAX_KIND_ENUM_FIELD, // auxilliary
+  SYNTAX_KIND_ENUM_DECL,
+  SYNTAX_KIND_UNION_FIELD, // auxilliary
+  SYNTAX_KIND_UNION_DECL,
+  SYNTAX_KIND_VARIANT_FIELD, // auxilliary
+  SYNTAX_KIND_VARIANT_DECL,
+  SYNTAX_KIND_CONTRACT_DECL,
+  SYNTAX_KIND_FUNC_DECL,
+
+  SYNTAX_KIND_EMPTY_STMT,
+  SYNTAX_KIND_BODY_STMT,
+  SYNTAX_KIND_LET_STMT,
+  SYNTAX_KIND_SET_STMT,
+  SYNTAX_KIND_EXPR_STMT,
+  SYNTAX_KIND_IF_STMT,
+  SYNTAX_KIND_LOOP_STMT,
+  SYNTAX_KIND_BREAK_STMT,
+  SYNTAX_KIND_CONTINUE_STMT,
+  SYNTAX_KIND_RETURN_STMT,
+  SYNTAX_KIND_WHILE_STMT,
+
+  SYNTAX_KIND_BINARY_EXPR,
+  SYNTAX_KIND_UNARY_EXPR,
+  SYNTAX_KIND_DOT_EXPR,
+  SYNTAX_KIND_INDEX_EXPR,
+  SYNTAX_KIND_CALL_EXPR,
+  SYNTAX_KIND_INT_LIT_EXPR,
+  SYNTAX_KIND_FLOAT_LIT_EXPR,
+  SYNTAX_KIND_RUNE_LIT_EXPR,
+  SYNTAX_KIND_STRING_LIT_EXPR,
+  SYNTAX_KIND_STRUCT_LIT_FIELD, // auxilliary
+  SYNTAX_KIND_STRUCT_LIT_EXPR,
+  SYNTAX_KIND_ARRAY_LIT_EXPR,
+} SyntaxKind;
+
+typedef struct SyntaxNode {
+  SyntaxKind kind;
+  Span span;
+} SyntaxNode;
+
+SyntaxNode syntax_node_create(SyntaxKind kind, Span span);
+
+bool syntax_node_is_type(SyntaxNode *node);
+
+bool syntax_node_is_decl(SyntaxNode *node);
+
+bool syntax_node_is_stmt(SyntaxNode *node);
+
+bool syntax_node_is_expr(SyntaxNode *node);

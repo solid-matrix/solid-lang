@@ -1,16 +1,10 @@
 #include <assert.h>
 
-#include "syntax_node.h"
-
-SyntaxNode syntax_node_header(SyntaxKind kind, Span span) {
-  return (SyntaxNode){.kind = kind, .span = span};
-}
+#include "syntax_nodelist.h"
 
 SyntaxNodeList *syntax_nodelist_empty(void) { return NULL; }
 
-SyntaxNodeList *syntax_nodelist_from_array(Arena *arena,
-                                           SyntaxNode *const *nodes,
-                                           size_t count) {
+SyntaxNodeList *syntax_nodelist_from_array(Arena *arena, SyntaxNode *const *nodes, size_t count) {
   assert(arena != NULL);
   assert(count == 0 || nodes != NULL);
 
@@ -20,20 +14,17 @@ SyntaxNodeList *syntax_nodelist_from_array(Arena *arena,
   return list;
 }
 
-SyntaxNodeList *syntax_nodelist_prepend(Arena *arena, SyntaxNodeList *list,
-                                        SyntaxNode *node) {
+SyntaxNodeList *syntax_nodelist_prepend(Arena *arena, SyntaxNodeList *list, SyntaxNode *node) {
   assert(arena != NULL);
   assert(node != NULL);
 
-  SyntaxNodeList *cell =
-      arena_alloc(arena, sizeof(SyntaxNodeList)); // OOM is fatal
+  SyntaxNodeList *cell = arena_alloc(arena, sizeof(SyntaxNodeList)); // OOM is fatal
   cell->node = node;
   cell->next = list;
   return cell;
 }
 
-SyntaxNodeList *syntax_nodelist_append(Arena *arena, SyntaxNodeList *list,
-                                       SyntaxNode *node) {
+SyntaxNodeList *syntax_nodelist_append(Arena *arena, SyntaxNodeList *list, SyntaxNode *node) {
   assert(arena != NULL);
   assert(node != NULL);
 
@@ -75,9 +66,7 @@ SyntaxNode *syntax_nodelist_at(SyntaxNodeList *list, size_t n) {
   return it->node;
 }
 
-bool syntax_nodelist_is_empty(const SyntaxNodeList *list) {
-  return list == NULL;
-}
+bool syntax_nodelist_is_empty(const SyntaxNodeList *list) { return list == NULL; }
 
 SyntaxNodeList *syntax_nodelist_reverse(Arena *arena, SyntaxNodeList *list) {
   assert(arena != NULL);
@@ -88,8 +77,7 @@ SyntaxNodeList *syntax_nodelist_reverse(Arena *arena, SyntaxNodeList *list) {
   return result;
 }
 
-SyntaxNodeList *syntax_nodelist_concat(Arena *arena, SyntaxNodeList *list_a,
-                                       SyntaxNodeList *list_b) {
+SyntaxNodeList *syntax_nodelist_concat(Arena *arena, SyntaxNodeList *list_a, SyntaxNodeList *list_b) {
   assert(arena != NULL);
 
   if (syntax_nodelist_is_empty(list_a))

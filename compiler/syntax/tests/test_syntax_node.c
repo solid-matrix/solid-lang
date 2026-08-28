@@ -1,12 +1,12 @@
 #include "arena.h"
 #include "syntax_node.h"
+#include "syntax_nodelist.h"
 #include "test_support.h"
 
-/* ---- syntax_node_header --------------------------------------------- */
+/* ---- syntax_node_create --------------------------------------------- */
 
 void test_header_carries_kind_and_span(void) {
-  SyntaxNode n = syntax_node_header(SYNTAX_KIND_PROGRAM,
-                                    (Span){.start = 3, .end = 9});
+  SyntaxNode n = syntax_node_create(SYNTAX_KIND_PROGRAM, (Span){.start = 3, .end = 9});
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_PROGRAM, n.kind);
   TEST_ASSERT_EQUAL_size_t(3, n.span.start);
   TEST_ASSERT_EQUAL_size_t(9, n.span.end);
@@ -136,8 +136,7 @@ void test_nodelist_length(void) {
   SyntaxNode *n1 = dummy(a);
 
   TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(NULL));
-  TEST_ASSERT_EQUAL_size_t(
-      1, syntax_nodelist_length(syntax_nodelist_prepend(a, NULL, n1)));
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(syntax_nodelist_prepend(a, NULL, n1)));
 
   arena_destroy(a);
 }

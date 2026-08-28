@@ -85,7 +85,7 @@ writeonly   set
 ```
 +       &       &&      ==      (       )       =
 -       |       ||      !=      [       ]       @
-*       ~       !       <       {       }       $
+*       ~       !       <       {       }
 /       ^       ^^      >       ,       ;       ::
 %       <<              <=      .       :       
         >>              >=
@@ -101,17 +101,15 @@ Syntax:
 identifier = letter { letter | decimal_digit } .
 ```
 
-### Compile-Time Annotations
+### Compile Time
 
 Syntax:
 
 ```
-CompileTime    = "@" identifier [ "(" [ CallArgs ] ")" ] .
+CompileTime    = "@" identifier [ "(" [ Expr { "," Expr } ] ")" ] .
 
-CtAnnotations  = CompileTime { CompileTime } .
+Annotations  = CompileTime { CompileTime } .
 ```
-
-The same form also appears as an operand within expressions; whether a CompileTime acts as an annotation or as a compile-time operation is determined by the semantic analyzer according to its position.
 
 Example:
 
@@ -124,42 +122,22 @@ Example:
 @offsetof(Vector2<f32>, x)
 ```
 
-### Generic Parameters & Arguments
+### Generic Parameters
 
 Syntax:
 
 ```
 GenericParams = GenericParam { "," GenericParam } .
-GenericParam  = [ CtAnnotations ] identifier [ ":" Type ] .
-
-GenericArgs   = GenericArg { "," GenericArg } .
-GenericArg    = Type | ConstArg .
-
-ConstArg      = [ "-" ] int_lit | NamePath | "(" Expr ")" .
+GenericParam  = [ Annotations ] identifier [ ":" Type ] .
 ```
 
-### Call Parameters & Arguments
+### Call Parameters
 
 Syntax:
 
 ```
 CallParams = CallParam { "," CallParam } .
-CallParam  = [ CtAnnotations ] identifier ":" Type .
-
-CallArgs   = CallArg { "," CallArg } .
-CallArg    = Expr .
-```
-
-### Contract Parameters & Arguments
-
-Syntax:
-
-```
-ContractParams = ContractParam { "," ContractParam } .
-ContractParam  = [ CtAnnotations ] "$" identifier ":" NamedType .
-
-ContractArgs   = ContractArg { "," ContractArg } .
-ContractArg    = "$" identifier "=" Expr .
+CallParam  = [ Annotations ] identifier ":" Type .
 ```
 
 ### NamePath
@@ -168,6 +146,27 @@ Syntax:
 
 ```
 NamePath = identifier { "::" identifier } .
+```
+
+### Named
+
+Syntax:
+
+```
+Named      = NamePath [ "<" GenericArg { "," GenericArg } ">" ] .
+GenericArg = Type | identifier "=" Expr .
+```
+
+Example:
+
+```
+i32
+std::math::Vector2<f32>
+Box<[5]i32>
+Box<&readonly T>
+Array<i32, N = 5>
+Array<i32, N = LEN + 1>
+add<i32, i32, F = i32_add>
 ```
 
 ### CallConv
@@ -193,23 +192,7 @@ Program = { Decl } .
 Syntax:
 
 ```
-Type = NamedType | RefType | ArrayType | FuncType .
-```
-
-### Named Type
-
-Syntax:
-
-```
-NamedType =  NamePath [ "<" GenericArgs ">" ] .
-```
-
-Example:
-
-```
-i32
-
-std::math::Vector2<f32>
+Type = Named | RefType | ArrayType | FuncType .
 ```
 
 ### Ref Type
@@ -306,7 +289,7 @@ using std::io;
 Syntax:
 
 ```
-LetDecl = [ CtAnnotations ] "let" identifier ( ":" Type | "=" Expr | ":" Type "=" Expr ) ";" .
+LetDecl = [ Annotations ] "let" identifier ( ":" Type | "=" Expr | ":" Type "=" Expr ) ";" .
 ```
 
 Example:
@@ -323,11 +306,11 @@ let TMP: i32;
 Syntax:
 
 ```
-StructDecl       = [ CtAnnotations ] "struct" identifier [ "<" GenericParams ">" ]
+StructDecl       = [ Annotations ] "struct" identifier [ "<" GenericParams ">" ]
                    ( ";" | "{" [ StructDeclFields ] "}" ) .
 
 StructDeclFields = StructDeclField { "," StructDeclField } [ "," ] .
-StructDeclField  = [ CtAnnotations ] identifier ":" Type .
+StructDeclField  = [ Annotations ] identifier ":" Type .
 ```
 
 Example:
@@ -353,11 +336,11 @@ struct Vector2<T> { x: T, y: T }
 Syntax:
 
 ```
-EnumDecl       = [ CtAnnotations ] "enum" identifier [ ":" Type ]
+EnumDecl       = [ Annotations ] "enum" identifier [ ":" Type ]
                  ( ";" | "{" [ EnumDeclFields ] "}" ) .
 
 EnumDeclFields = EnumDeclField { "," EnumDeclField } [ "," ] .
-EnumDeclField  = [ CtAnnotations ] identifier [ "=" Expr ] .
+EnumDeclField  = [ Annotations ] identifier [ "=" Expr ] .
 ```
 
 Example:
@@ -384,11 +367,11 @@ enum SomeFlag: u32 {
 Syntax:
 
 ```
-UnionDecl       = [ CtAnnotations ] "union" identifier [ "<" GenericParams ">" ]
+UnionDecl       = [ Annotations ] "union" identifier [ "<" GenericParams ">" ]
                   ( ";" | "{" [ UnionDeclFields ] "}" ) .
 
 UnionDeclFields = UnionDeclField { "," UnionDeclField } [ "," ] .
-UnionDeclField  = [ CtAnnotations ] identifier ":" Type .
+UnionDeclField  = [ Annotations ] identifier ":" Type .
 ```
 
 Example:
@@ -409,11 +392,11 @@ union FooUnion<T> { value: T, ptr: &T }
 Syntax:
 
 ```
-VariantDecl       = [ CtAnnotations ] "variant" identifier [ "<" GenericParams ">" ] [ ":" Type ]
+VariantDecl       = [ Annotations ] "variant" identifier [ "<" GenericParams ">" ] [ ":" Type ]
                     ( ";" | "{" [ VariantDeclFields ] "}" ) .
 
 VariantDeclFields = VariantDeclField { "," VariantDeclField } [ "," ] .
-VariantDeclField  = [ CtAnnotations ] identifier [ ":" Type ] .
+VariantDeclField  = [ Annotations ] identifier [ ":" Type ] .
 ```
 
 Example:
@@ -430,7 +413,7 @@ variant Option<T>{
 Syntax:
 
 ```
-ContractDecl = [ CtAnnotations ] "contract" identifier [ "<" GenericParams ">" ]
+ContractDecl = [ Annotations ] "contract" identifier [ "<" GenericParams ">" ]
                "(" [ CallParams ] ")" [ ":" Type ] .
 ```
 
@@ -445,9 +428,9 @@ contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;
 Syntax:
 
 ```
-FuncDecl = [ CtAnnotations ] "func" identifier
-           [ "<" ( GenericParams | ContractParams | GenericParams "," ContractParams ) ">" ]
-           "(" [ CallParams ] ")" [ CallConv ] [ ":" Type ] [ "fulfills" NamedType { "," NamedType } ]
+FuncDecl = [ Annotations ] "func" identifier
+           [ "<" GenericParams ">" ]
+           "(" [ CallParams ] ")" [ CallConv ] [ ":" Type ] [ "fulfills" Named { "," Named } ]
            ( ";" | BodyStmt ) .
 ```
 
@@ -462,7 +445,7 @@ func foo(a: i32, b: i32, c: i32): i32{
 
 @intrinsic func add_f32(left: f32, right: f32): f32 fulfills Addable<f32,f32,f32>;
 
-func add<TLeft,TRight,TResult,$iadd:Addable<TLeft,TRight,TResult>>(left: TLeft, right: TRight): TResult{
+func add<TLeft, TRight, TResult, Fadd: Addable<TLeft, TRight, TResult>>(left: TLeft, right: TRight, iadd: IAdd): TResult{
 	return iadd(left, right);
 }
 
@@ -475,7 +458,21 @@ func context_create()cdecl : LLVMContextRef;
 Syntax:
 
 ```
-Stmt = BodyStmt | LetStmt | SetStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
+Stmt = EmptyStmt | BodyStmt | LetStmt | SetStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
+```
+
+### Empty Statements
+
+Syntax:
+
+```
+EmptyStmt = ";" .
+```
+
+Example:
+
+```
+;
 ```
 
 ### Body Statements
@@ -645,14 +642,14 @@ BitwiseExpr        = ShiftExpr { ( "&" | "|" | "^" ) ShiftExpr } .
 ShiftExpr          = AdditiveExpr { ( "<<" | ">>" ) AdditiveExpr } .
 AdditiveExpr       = MultiplicativeExpr { ( "+" | "-" ) MultiplicativeExpr } .
 MultiplicativeExpr = UnaryExpr { ( "*" | "/" | "%" ) UnaryExpr } .
+UnaryExpr          = PostfixExpr | ("-" | "+" | "!" | "~" | "*") UnaryExpr .
 
-UnaryExpr          = PostfixExpr | UnaryOp UnaryExpr .
-UnaryOp            = "-" | "+" | "!" | "~" | "*" .
+PostfixExpr        = Primary { PostfixDot | PostfixCall | PostfixIndex } .
+PostfixDot         = "." identifier .
+PostfixIndex       = "[" Expr "]" .
+PostfixCall        = "(" [ Expr { "," Expr } ] ")" .
 
-PostfixExpr        = Operand { Postfix } .
-Postfix            = "." identifier | "[" Expr "]" | "(" [ CallArgs ] ")" .
-
-Operand            = LitExpr | NamedExpr | CompileTime | "(" Expr ")" .
+Primary            = LitExpr | Named | CompileTime | "(" Expr ")" .
 
 LitExpr            = int_lit | float_lit | rune_lit | string_lit | StructLit | ArrayLit .
 ```
@@ -854,7 +851,7 @@ b"           // raw line feed
 Syntax:
 
 ```
-StructLit    = NamedType "{" [ StructLitFields ] "}" .
+StructLit    = Named "{" [ StructLitFields ] "}" .
 
 StructLitFields = StructLitField { "," StructLitField } [ "," ] .
 StructLitField  = identifier "=" Expr .
@@ -881,10 +878,7 @@ Vector2<f32>{ x = 0_f32       // missing closing brace
 Syntax:
 
 ```
-ArrayLit     = ArrayType "{" [ ArrayLitFields ] "}" .
-
-ArrayLitFields  = ArrayLitField { "," ArrayLitField } [ "," ] .
-ArrayLitField   = Expr .
+ArrayLit     = ArrayType "{" [ Expr { "," Expr } [ "," ] ] "}" .
 ```
 
 Example:
@@ -901,41 +895,4 @@ Example:
 [5]i32[1, 2, 3, 4, 5] // "[" is not "{"
 []i32{}               // length expression is required
 [5]i32{ 1, 2          // missing closing brace
-```
-
-### Named Expressions
-
-Syntax:
-
-```
-NamedExpr = NamePath [ "<" ( GenericArgs | ContractArgs | GenericArgs "," ContractArgs ) ">" ] .
-```
-
-When a NamePath is immediately followed by `<`, it is first parsed as a generic or contract argument list; if that interpretation fails, the `<` is instead treated as the relational less-than operator. Constant arguments are restricted to primary forms — an optionally negative integer literal, a NamePath, or a parenthesized expression — so that comparison expressions such as `a < b && c > d` correctly fall back to relational parsing.
-
-Example:
-
-```
-i32
-std::math::Vector2<f32>
-
-// type arguments with array and reference types
-Box<[5]i32>
-Box<&readonly T>
-
-// constant arguments
-Array<i32, 5>
-Array<i32, n>
-Array<i32, (n+1)>
-
-// with contract arguments
-Addable<i32, i32, $add = IntAdd>
-
-// invalid
-foo<               // missing ">"
-a<b                // parsed as comparison, not generic arguments
-foo<>              // empty argument list
-foo<$a = X, T>     // contract arguments must follow generic arguments
-foo<n+1>           // computed constant requires parentheses
-foo<1.5>           // constant arguments are integers only
 ```

@@ -1,16 +1,17 @@
 #pragma once
 
-#include "syntax_error.h"
+#include "syntax_errorlist.h"
 #include "syntax_node.h"
+#include "syntax_nodelist.h"
 
 /**
- * @struct ParserResult
+ * @struct SyntaxNodeResult
  * @brief Outcome of parsing one construct (see per-function contracts).
  *
  * Layout discipline (the parser is scannerless, so trivia is handled
  * explicitly at composition points):
  *
- *   - Precondition of every parse_XXX(const Parser *, Span span): \p span.start
+ *   - Precondition of every parse_XXX(const SyntaxParser *, Span span): \p span.start
  *     sits on a non-trivia byte, or the span is empty. Leading trivia
  *     is consumed only by parse_program, at the start of the unit and
  *     before every top-level declaration.
@@ -29,7 +30,7 @@
  *   - A parse_XXX function must never consume trivia internally; doing
  *     so silently breaks the invariants above.
  *
- * Every parse_XXX(const Parser *, Span span) follows the same contract:
+ * Every parse_XXX(const SyntaxParser *, Span span) follows the same contract:
  *
  *   matched == false -> the construct does not start at \p span. Nothing
  *   is consumed and nothing is recorded:
@@ -58,22 +59,22 @@ typedef struct {
   Span rem;
   SyntaxNode *node;
   SyntaxErrorList *errors;
-} ParserResult;
+} SyntaxNodeResult;
 
-/**
- * @brief Builds the not-matched outcome: errors == NULL, node == NULL,
- *        rem == @p span.
- */
-ParserResult parser_result_not_match(Span span);
+typedef struct {
+  Span rem;
+  SyntaxNodeList *list;
+  SyntaxErrorList *errors;
+} SyntaxListResult;
 
-/**
- * @brief Builds a matched outcome.
- * @param rem The position just past the consumed text.
- * @param node The AST node to keep, or NULL for a dropped construct.
- * @param errors Diagnostics to attach; NULL means "no diagnostics".
- * @return The result.
- */
-ParserResult parser_result_matched(Span rem, SyntaxNode *node, SyntaxErrorList *errors);
+typedef struct {
+  bool matched;
+  Span rem;
+} SyntaxMatchResult;
+
+SyntaxNodeResult syntax_node_result_not_match(Span span);
+
+SyntaxNodeResult syntax_node_result_matched(Span rem, SyntaxNode *node, SyntaxErrorList *errors);
 
 /**
  * @brief True when the attempt succeeded and produced no diagnostics.
@@ -81,4 +82,4 @@ ParserResult parser_result_matched(Span rem, SyntaxNode *node, SyntaxErrorList *
  * Convenience for the common success shape: matched == true with
  * errors == NULL.
  */
-bool parser_result_is_ok(ParserResult result);
+bool syntax_node_result_is_ok(SyntaxNodeResult result);

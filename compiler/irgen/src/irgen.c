@@ -22,18 +22,15 @@ int irgen_example(void) {
   LLVMInitializeNativeAsmParser();
 
   LLVMContextRef context = LLVMContextCreate();
-  LLVMModuleRef module =
-      LLVMModuleCreateWithNameInContext("my_module", context);
+  LLVMModuleRef module = LLVMModuleCreateWithNameInContext("my_module", context);
 
-  LLVMTypeRef param_types[] = {LLVMInt32TypeInContext(context),
-                               LLVMInt32TypeInContext(context)};
+  LLVMTypeRef param_types[] = {LLVMInt32TypeInContext(context), LLVMInt32TypeInContext(context)};
   LLVMTypeRef return_type = LLVMInt32TypeInContext(context);
   LLVMTypeRef function_type = LLVMFunctionType(return_type, param_types, 2, 0);
 
   LLVMValueRef function = LLVMAddFunction(module, "sum", function_type);
 
-  LLVMBasicBlockRef entry =
-      LLVMAppendBasicBlockInContext(context, function, "entry");
+  LLVMBasicBlockRef entry = LLVMAppendBasicBlockInContext(context, function, "entry");
 
   LLVMBuilderRef builder = LLVMCreateBuilderInContext(context);
   LLVMPositionBuilderAtEnd(builder, entry);
@@ -60,16 +57,14 @@ int irgen_example(void) {
   LLVMExecutionEngineRef engine;
   char *engine_error = NULL;
   if (LLVMCreateExecutionEngineForModule(&engine, module, &engine_error) != 0) {
-    fprintf(stderr, "llvm failed to create execution engine for module: %s\n",
-            engine_error);
+    fprintf(stderr, "llvm failed to create execution engine for module: %s\n", engine_error);
     LLVMDisposeMessage(engine_error);
     LLVMDisposeBuilder(builder);
     LLVMContextDispose(context);
     return 1;
   }
 
-  int (*sum_func)(int, int) =
-      (int (*)(int, int))LLVMGetFunctionAddress(engine, "sum");
+  int (*sum_func)(int, int) = (int (*)(int, int))LLVMGetFunctionAddress(engine, "sum");
   int x = 10, y = 20;
   int result_value = sum_func(x, y);
 

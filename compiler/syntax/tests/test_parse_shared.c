@@ -1,4 +1,4 @@
-#include "parse_internal.h"
+#include "syntax_parses.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
@@ -85,7 +85,7 @@ void test_span_consumed_measures_progress(void) {
 void test_match_keyword_positive_and_negative(void) {
   static const char *const TEXT = "namespace";
   Source *s = source_from_cstr(TEXT);
-  ParserMatchResult mres;
+  SyntaxMatchResult mres;
 
   mres = match_keyword(s, span_over(TEXT), STRVIEW("namespace"));
   TEST_ASSERT_TRUE(mres.matched);
@@ -111,12 +111,12 @@ void test_match_keyword_positive_and_negative(void) {
 /* ---- longest-match selection ----------------------------------------- */
 
 void test_complete_longest_match_picks_furthest_rem(void) {
-  ParserResult results[3];
-  results[0] = parser_result_matched((Span){.start = 2}, NULL, NULL);
-  results[1] = parser_result_not_match((Span){.start = 0});
-  results[2] = parser_result_matched((Span){.start = 5}, NULL, NULL);
+  SyntaxNodeResult results[3];
+  results[0] = syntax_node_result_matched((Span){.start = 2}, NULL, NULL);
+  results[1] = syntax_node_result_not_match((Span){.start = 0});
+  results[2] = syntax_node_result_matched((Span){.start = 5}, NULL, NULL);
 
-  ParserResult best = complete_longest_match(results, 3);
+  SyntaxNodeResult best = complete_longest_match(results, 3);
   TEST_ASSERT_TRUE(best.matched);
   TEST_ASSERT_EQUAL_size_t(5, best.rem.start);
 

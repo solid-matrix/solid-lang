@@ -1,16 +1,10 @@
 #include <assert.h>
 
-#include "syntax_error.h"
-
-SyntaxError syntax_error_create(SyntaxErrorCode code, Span span) {
-  return (SyntaxError){.code = code, .span = span};
-}
+#include "syntax_errorlist.h"
 
 SyntaxErrorList *syntax_errorlist_empty(void) { return NULL; }
 
-SyntaxErrorList *syntax_errorlist_from_array(Arena *arena,
-                                             const SyntaxError *errors,
-                                             size_t count) {
+SyntaxErrorList *syntax_errorlist_from_array(Arena *arena, const SyntaxError *errors, size_t count) {
   assert(arena != NULL);
   assert(count == 0 || errors != NULL);
 
@@ -20,19 +14,16 @@ SyntaxErrorList *syntax_errorlist_from_array(Arena *arena,
   return list;
 }
 
-SyntaxErrorList *syntax_errorlist_prepend(Arena *arena, SyntaxErrorList *list,
-                                          SyntaxError error) {
+SyntaxErrorList *syntax_errorlist_prepend(Arena *arena, SyntaxErrorList *list, SyntaxError error) {
   assert(arena != NULL);
 
-  SyntaxErrorList *cell =
-      arena_alloc(arena, sizeof(SyntaxErrorList)); // OOM is fatal
+  SyntaxErrorList *cell = arena_alloc(arena, sizeof(SyntaxErrorList)); // OOM is fatal
   cell->error = error;
   cell->next = list;
   return cell;
 }
 
-SyntaxErrorList *syntax_errorlist_append(Arena *arena, SyntaxErrorList *list,
-                                         SyntaxError error) {
+SyntaxErrorList *syntax_errorlist_append(Arena *arena, SyntaxErrorList *list, SyntaxError error) {
   assert(arena != NULL);
 
   if (list == NULL)
@@ -73,9 +64,7 @@ SyntaxError syntax_errorlist_at(SyntaxErrorList *list, size_t n) {
   return it->error;
 }
 
-bool syntax_errorlist_is_empty(const SyntaxErrorList *list) {
-  return list == NULL;
-}
+bool syntax_errorlist_is_empty(const SyntaxErrorList *list) { return list == NULL; }
 
 SyntaxErrorList *syntax_errorlist_reverse(Arena *arena, SyntaxErrorList *list) {
   assert(arena != NULL);
@@ -86,8 +75,7 @@ SyntaxErrorList *syntax_errorlist_reverse(Arena *arena, SyntaxErrorList *list) {
   return result;
 }
 
-SyntaxErrorList *syntax_errorlist_concat(Arena *arena, SyntaxErrorList *list_a,
-                                         SyntaxErrorList *list_b) {
+SyntaxErrorList *syntax_errorlist_concat(Arena *arena, SyntaxErrorList *list_a, SyntaxErrorList *list_b) {
   assert(arena != NULL);
 
   if (syntax_errorlist_is_empty(list_a))

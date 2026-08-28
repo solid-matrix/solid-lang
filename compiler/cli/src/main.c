@@ -5,12 +5,9 @@
  * @version 0.0.5
  */
 
-#include "irgen.h"
-#include "parser.h"
-#include "parser_result.h"
-#include "source.h"
-#include "syntax_node.h"
 #include <stdio.h>
+
+#include "main.h"
 
 const char *source_code = "namespace std::math;\n"
                           "using std::core;\n"
@@ -18,12 +15,10 @@ const char *source_code = "namespace std::math;\n"
                           "  return 0;\n"
                           "}\n";
 
-SyntaxProgram *parse(const Parser *parser) {
-  ParserResult parser_res =
-      parse_program(parser, source_get_span(parser->source));
+SyntaxProgram *parse(const SyntaxParser *parser) {
+  SyntaxNodeResult parser_res = parse_program(parser, source_get_span(parser->source));
 
-  if (parser_res.matched == false || parser_res.node == NULL ||
-      parser_res.node->kind != SYNTAX_KIND_PROGRAM) {
+  if (parser_res.matched == false || parser_res.node == NULL || parser_res.node->kind != SYNTAX_KIND_PROGRAM) {
     fprintf(stderr, "failed to parse program\n");
 
     return NULL;
@@ -41,7 +36,7 @@ SyntaxProgram *parse(const Parser *parser) {
 
 int main(int argc, char *argv[]) {
   Source *source = source_from_cstr(source_code);
-  Parser *parser = parser_create(source);
+  SyntaxParser *parser = parser_create(source);
 
   SyntaxProgram *program = parse(parser);
   if (program != NULL) {

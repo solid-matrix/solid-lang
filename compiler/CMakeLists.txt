@@ -30,7 +30,7 @@ endif()
 
 add_subdirectory(vendor)
 add_subdirectory(common)
-add_subdirectory(parser)
+add_subdirectory(syntax)
 add_subdirectory(sema)
 add_subdirectory(irgen)
 add_subdirectory(cli)

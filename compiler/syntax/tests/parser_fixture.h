@@ -7,11 +7,11 @@
 
 #pragma once
 
-#include "parser.h"
+#include "syntax_parser.h"
 #include "source.h"
 
 static Source *fx_source;
-static Parser *fx_parser;
+static SyntaxParser *fx_parser;
 
 /** Points the fixture at @p text, releasing any previous parse. */
 static void fx_begin(const char *text) {

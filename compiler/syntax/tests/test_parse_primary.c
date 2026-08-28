@@ -1,11 +1,12 @@
 #include <string.h>
 
-#include "parser.h"
+#include "syntax_parses.h"
 #include "parser_fixture.h"
+#include "syntax_nodes.h"
 #include "syntax_node.h"
 #include "test_support.h"
 
-static size_t error_count(const ParserResult *r) {
+static size_t error_count(const SyntaxNodeResult *r) {
   size_t n = 0;
   for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
     n++;
@@ -14,32 +15,56 @@ static size_t error_count(const ParserResult *r) {
 
 /* ---- shared expectations ------------------------------------------- */
 
-// Parses the whole text as one literal of the given family.
-typedef ParserResult (*ParseFn)(const char *);
-
-static ParserResult parse_number(const char *t) {
-  fx_begin(t);
-  return parse_number_lit_expr(fx_parser, source_get_span(fx_source));
+// The number entry point: int and float branches, longest match wins.
+static SyntaxNodeResult parse_number_now(void) {
+  Span span = source_get_span(fx_source);
+  SyntaxNodeResult results[] = {
+      parse_int_lit_expr(fx_parser, span),
+      parse_float_lit_expr(fx_parser, span),
+  };
+  return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
 }
-static ParserResult parse_rune(const char *t) {
+
+// Parses the whole text as one literal of the given family.
+typedef SyntaxNodeResult (*ParseFn)(const char *);
+
+static SyntaxNodeResult parse_number(const char *t) {
+  fx_begin(t);
+  return parse_number_now();
+}
+static SyntaxNodeResult parse_rune(const char *t) {
   fx_begin(t);
   return parse_rune_lit_expr(fx_parser, source_get_span(fx_source));
 }
-static ParserResult parse_string(const char *t) {
+static SyntaxNodeResult parse_string(const char *t) {
   fx_begin(t);
   return parse_string_lit_expr(fx_parser, source_get_span(fx_source));
+}
+
+// The literal's value view: every literal node is a header + Strview.
+static Strview lit_value(const SyntaxNode *node) {
+  switch (node->kind) {
+  case SYNTAX_KIND_INT_LIT_EXPR:
+    return ((const SyntaxIntLitExpr *)node)->value;
+  case SYNTAX_KIND_FLOAT_LIT_EXPR:
+    return ((const SyntaxFloatLitExpr *)node)->value;
+  case SYNTAX_KIND_RUNE_LIT_EXPR:
+    return ((const SyntaxRuneLitExpr *)node)->value;
+  default:
+    return ((const SyntaxStringLitExpr *)node)->value;
+  }
 }
 
 // Asserts that text scans wholly to one node whose value view is the
 // full text and which carries no diagnostics.
 static void expect_whole(ParseFn fn, const char *text, SyntaxKind kind) {
-  ParserResult r = fn(text);
+  SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_NOT_NULL(r.node);
   TEST_ASSERT_EQUAL_HEX32(kind, r.node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((SyntaxNumberLitExpr *)r.node)->value, text);
+  TEST_ASSERT_STRVIEW_EQ(lit_value(r.node), text);
   TEST_ASSERT_EQUAL_size_t(strlen(text), r.rem.start);
 }
 
@@ -47,20 +72,20 @@ static void expect_whole(ParseFn fn, const char *text, SyntaxKind kind) {
 // splits into later tokens (longest valid prefix).
 static void expect_split(ParseFn fn, const char *text, SyntaxKind kind,
                          size_t tok_len) {
-  ParserResult r = fn(text);
+  SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_NOT_NULL(r.node);
   TEST_ASSERT_EQUAL_HEX32(kind, r.node->kind);
-  TEST_ASSERT_EQUAL_size_t(tok_len, ((SyntaxNumberLitExpr *)r.node)->value.len);
+  TEST_ASSERT_EQUAL_size_t(tok_len, lit_value(r.node).len);
   TEST_ASSERT_EQUAL_size_t(tok_len, r.rem.start);
 }
 
 // Asserts a recovery run: matched, no node, exactly one diagnostic.
 static void expect_malformed(ParseFn fn, const char *text,
                              SyntaxErrorCode code) {
-  ParserResult r = fn(text);
+  SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.node);
@@ -72,7 +97,7 @@ static void expect_malformed(ParseFn fn, const char *text,
 // Asserts a clean not-match: nothing consumed, nothing recorded.
 static void expect_not_match(ParseFn fn, const char *text) {
   size_t len = strlen(text);
-  ParserResult r = fn(text);
+  SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
@@ -192,8 +217,7 @@ void test_boundaries_number(void) {
 
   // Trailing trivia belongs to the enclosing sequence.
   fx_begin("12 // c\nx");
-  ParserResult r =
-      parse_number_lit_expr(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_number_now();
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_NOT_NULL(r.node);

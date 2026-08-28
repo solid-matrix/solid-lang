@@ -2,9 +2,9 @@
 
 #include <string.h>
 
-#include "parse_internal.h"
-#include "parser.h"
+#include "syntax_parses.h"
 #include "parser_fixture.h"
+#include "syntax_nodes.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
 #include "test_support.h"
@@ -12,7 +12,7 @@
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
 
-static size_t error_count(const ParserResult *r) {
+static size_t error_count(const SyntaxNodeResult *r) {
   size_t n = 0;
   for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
     n++;
@@ -37,7 +37,7 @@ static void check_path(const SyntaxNodeList *chain, const char *const *expected,
     const char *want = expected[count - 1 - i];
     const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->node;
     TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IDENTIFIER, id->header.kind);
-    TEST_ASSERT_STRVIEW_EQ(id->strview, want);
+    TEST_ASSERT_STRVIEW_EQ(id->value, want);
     n = n->next;
   }
   TEST_ASSERT_NULL(n); // exactly @p count segments
@@ -47,26 +47,26 @@ static void check_path(const SyntaxNodeList *chain, const char *const *expected,
 
 void test_identifier_basic(void) {
   fx_begin("abc");
-  ParserResult r = parse_identifier(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_identifier(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IDENTIFIER, r.node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((SyntaxIdentifier *)r.node)->strview, "abc");
+  TEST_ASSERT_STRVIEW_EQ(((SyntaxIdentifier *)r.node)->value, "abc");
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
 }
 
 void test_identifier_stops_at_non_word(void) {
   fx_begin("ab.c");
-  ParserResult r = parse_identifier(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_identifier(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_STRVIEW_EQ(((SyntaxIdentifier *)r.node)->strview, "ab");
+  TEST_ASSERT_STRVIEW_EQ(((SyntaxIdentifier *)r.node)->value, "ab");
   TEST_ASSERT_EQUAL_size_t(2, r.rem.start);
 }
 
 void test_identifier_rejects_digit_start(void) {
   fx_begin("1abc");
-  ParserResult r = parse_identifier(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_identifier(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
@@ -81,7 +81,7 @@ void test_identifier_rejects_digit_start(void) {
 void test_identifier_list_single(void) {
   static const char *const ONE[] = {"std"};
   fx_begin("std");
-  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
   check_path(l.list, ONE, 1);
   TEST_ASSERT_EQUAL_size_t(strlen("std"), l.rem.start);
@@ -91,7 +91,7 @@ void test_identifier_list_single(void) {
 void test_identifier_list_multi_and_trivia(void) {
   static const char *const TWO[] = {"std", "io"};
   fx_begin("std :: io");
-  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
   check_path(l.list, TWO, 2);
   TEST_ASSERT_EQUAL_size_t(strlen("std :: io"), l.rem.start);
@@ -101,7 +101,7 @@ void test_identifier_list_multi_and_trivia(void) {
 void test_identifier_list_trailing_separator_reports_identifier(void) {
   static const char *const ONE[] = {"a"};
   fx_begin("a::-1");
-  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
   // The [a] prefix is kept; the consumed "::" reports one diagnostic
   // pointing past the separator.
@@ -116,7 +116,7 @@ void test_identifier_list_trailing_separator_reports_identifier(void) {
 
 void test_identifier_list_missing_first_is_silent(void) {
   fx_begin(";abc");
-  ParserListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
 
   // Missing first element: empty chain, no diagnostic, rem = input.
   TEST_ASSERT_NULL(l.list);
@@ -126,9 +126,9 @@ void test_identifier_list_missing_first_is_silent(void) {
 
 /* ---- namespace / using declarations --------------------------------- */
 
-typedef ParserResult (*DeclFn)(const Parser *, Span);
+typedef SyntaxNodeResult (*DeclFn)(const SyntaxParser *, Span);
 
-static const SyntaxNodeList *decl_path(const ParserResult *r, SyntaxKind kind) {
+static const SyntaxNodeList *decl_path(const SyntaxNodeResult *r, SyntaxKind kind) {
   return kind == SYNTAX_KIND_NAMESPACE_DECL ? ((const SyntaxNamespaceDecl *)r->node)->path
                                             : ((const SyntaxUsingDecl *)r->node)->path;
 }
@@ -136,7 +136,7 @@ static const SyntaxNodeList *decl_path(const ParserResult *r, SyntaxKind kind) {
 // Asserts a fully formed declaration consuming the whole text.
 static void expect_decl_ok(DeclFn fn, SyntaxKind kind, const char *text, const char *const *segs, size_t count) {
   fx_begin(text);
-  ParserResult r = fn(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = fn(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(r.node);
@@ -151,7 +151,7 @@ static void expect_decl_ok(DeclFn fn, SyntaxKind kind, const char *text, const c
 static void expect_decl_bad(DeclFn fn, SyntaxKind kind, const char *text, const char *const *segs, size_t count,
                             const SyntaxErrorCode *codes, size_t code_count, size_t rem_at) {
   fx_begin(text);
-  ParserResult r = fn(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = fn(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched); // recovered
   TEST_ASSERT_NOT_NULL(r.node);
@@ -199,7 +199,7 @@ void test_using_decl_valid_forms(void) {
 void test_decl_keyword_boundary(void) {
   // "namespacex" is one identifier, not the keyword + "x".
   fx_begin("namespacex");
-  ParserResult r = parse_namespace_decl(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_namespace_decl(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_NULL(r.errors);
@@ -245,30 +245,29 @@ void test_using_decl_malforms(void) {
   expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using a::;", A, 1, IDENT, 1, strlen("using a::;"));
 }
 
-/* ---- parse_named_type / parse_ref_type -------------------------------- */
-// Minimal named_type: path segments only, no generic arguments yet.
+/* ---- parse_named / parse_ref_type ------------------------------------- */
+// Minimal Named: path segments only, no generic arguments yet.
 
-static const SyntaxNamedType *as_named_type(const SyntaxNode *n) {
+static const SyntaxNamed *as_named(const SyntaxNode *n) {
   TEST_ASSERT_NOT_NULL(n);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, n->kind);
-  return (const SyntaxNamedType *)n;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, n->kind);
+  return (const SyntaxNamed *)n;
 }
 
 void test_named_type_single_and_path(void) {
   fx_begin("i32");
-  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
-  const SyntaxNamedType *t = as_named_type(r.node);
+  const SyntaxNamed *t = as_named(r.node);
   static const char *const I32[] = {"i32"};
   check_path(t->path, I32, 1);
-  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(t->generic_arguments));
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
 
   fx_begin("std::math::Vector2");
-  r = parse_named_type(fx_parser, source_get_span(fx_source));
+  r = parse_named(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
-  t = as_named_type(r.node);
+  t = as_named(r.node);
   static const char *const PATH[] = {"std", "math", "Vector2"};
   check_path(t->path, PATH, 3);
   TEST_ASSERT_EQUAL_size_t(strlen("std::math::Vector2"), r.rem.start);
@@ -276,9 +275,9 @@ void test_named_type_single_and_path(void) {
 
 void test_named_type_trivia_between_segments(void) {
   fx_begin("a :: b");
-  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
-  const SyntaxNamedType *t = as_named_type(r.node);
+  const SyntaxNamed *t = as_named(r.node);
   static const char *const AB[] = {"a", "b"};
   check_path(t->path, AB, 2);
   TEST_ASSERT_NULL(r.errors);
@@ -286,7 +285,7 @@ void test_named_type_trivia_between_segments(void) {
 
 void test_named_type_not_match_on_non_identifier(void) {
   fx_begin("&i32");
-  ParserResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_NULL(r.errors);
@@ -295,12 +294,12 @@ void test_named_type_not_match_on_non_identifier(void) {
 
 void test_ref_type_readwrite_named_inner(void) {
   fx_begin("&i32");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, r.node->kind);
   const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, ref->ref_kind);
-  const SyntaxNamedType *inner = as_named_type(ref->inner_type);
+  const SyntaxNamed *inner = as_named(ref->inner_type);
   static const char *const I32[] = {"i32"};
   check_path(inner->path, I32, 1);
   TEST_ASSERT_NULL(r.errors);
@@ -311,11 +310,11 @@ void test_ref_type_readwrite_named_inner(void) {
 
 void test_ref_type_readonly_and_writeonly(void) {
   fx_begin("&readonly i32");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READONLY, ref->ref_kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ref->inner_type->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("&readonly i32"), r.rem.start);
 
@@ -324,7 +323,7 @@ void test_ref_type_readonly_and_writeonly(void) {
   TEST_ASSERT_TRUE(r.matched);
   ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_WRITEONLY, ref->ref_kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ref->inner_type->kind);
   TEST_ASSERT_NULL(r.errors);
 }
 
@@ -332,11 +331,11 @@ void test_ref_type_keyword_word_boundary(void) {
   // "readonlyi32" is an identifier, not the keyword: the reference stays
   // READWRITE and the whole word becomes the inner type's path.
   fx_begin("&readonlyi32");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, ref->ref_kind);
-  const SyntaxNamedType *inner = as_named_type(ref->inner_type);
+  const SyntaxNamed *inner = as_named(ref->inner_type);
   static const char *const NAME[] = {"readonlyi32"};
   check_path(inner->path, NAME, 1);
   TEST_ASSERT_NULL(r.errors);
@@ -344,13 +343,13 @@ void test_ref_type_keyword_word_boundary(void) {
 
 void test_ref_type_nested_and_trivia(void) {
   fx_begin("&&i32");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, ref->inner_type->kind);
   const SyntaxRefType *inner_ref = (const SyntaxRefType *)ref->inner_type;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, inner_ref->ref_kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, inner_ref->inner_type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, inner_ref->inner_type->kind);
   TEST_ASSERT_NULL(r.errors);
 
   fx_begin("&  readonly  \n i32");
@@ -358,13 +357,13 @@ void test_ref_type_nested_and_trivia(void) {
   TEST_ASSERT_TRUE(r.matched);
   ref = (const SyntaxRefType *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READONLY, ref->ref_kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED_TYPE, ref->inner_type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ref->inner_type->kind);
   TEST_ASSERT_NULL(r.errors);
 }
 
 void test_ref_type_missing_inner_reports_type(void) {
   fx_begin("&");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(r.errors);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
@@ -381,7 +380,7 @@ void test_ref_type_missing_inner_reports_type(void) {
 
 void test_ref_type_not_match_without_amp(void) {
   fx_begin("i32");
-  ParserResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_NULL(r.errors);
@@ -390,7 +389,7 @@ void test_ref_type_not_match_without_amp(void) {
 
 void test_type_dispatch_prefers_ref_for_amp(void) {
   fx_begin("&i32");
-  ParserResult r = parse_type(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, r.node->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -398,13 +397,13 @@ void test_type_dispatch_prefers_ref_for_amp(void) {
 
 /* ---- expressions ------------------------------------------------------ */
 
-static const SyntaxNumberLitExpr *as_int(const SyntaxNode *n, const char *text) {
+static const SyntaxIntLitExpr *as_int(const SyntaxNode *n, const char *text) {
   TEST_ASSERT_NOT_NULL(n);
   if (!n)
     return NULL;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, n->kind);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxNumberLitExpr *)n)->value, text);
-  return (const SyntaxNumberLitExpr *)n;
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIntLitExpr *)n)->value, text);
+  return (const SyntaxIntLitExpr *)n;
 }
 
 static const SyntaxBinaryExpr *as_bin(const SyntaxNode *n, SyntaxOperator op) {
@@ -425,13 +424,13 @@ static const SyntaxUnaryExpr *as_unary(const SyntaxNode *n, SyntaxOperator op) {
   return (const SyntaxUnaryExpr *)n;
 }
 
-static ParserResult run_expr(const char *text) {
+static SyntaxNodeResult run_expr(const char *text) {
   fx_begin(text);
   return parse_expr(fx_parser, source_get_span(fx_source));
 }
 
 void test_expr_precedence_mul_over_add(void) {
-  ParserResult r = run_expr("1+2*3");
+  SyntaxNodeResult r = run_expr("1+2*3");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -444,7 +443,7 @@ void test_expr_precedence_mul_over_add(void) {
 
 void test_expr_parens_override_grouping(void) {
   // Transparent parens: the inner node surfaces unchanged.
-  ParserResult r = run_expr("(1+2)*3");
+  SyntaxNodeResult r = run_expr("(1+2)*3");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -456,7 +455,7 @@ void test_expr_parens_override_grouping(void) {
 }
 
 void test_expr_left_associativity(void) {
-  ParserResult r = run_expr("1-2-3");
+  SyntaxNodeResult r = run_expr("1-2-3");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxBinaryExpr *outer = as_bin(r.node, SYNTAX_OPERATOR_SUB);
@@ -467,7 +466,7 @@ void test_expr_left_associativity(void) {
 }
 
 void test_expr_unary_binds_tighter_than_mul(void) {
-  ParserResult r = run_expr("-2*3");
+  SyntaxNodeResult r = run_expr("-2*3");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxBinaryExpr *mul = as_bin(r.node, SYNTAX_OPERATOR_MUL);
@@ -486,7 +485,7 @@ void test_expr_all_unary_operators(void) {
   };
 
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
-    ParserResult r = run_expr(CASES[i].text);
+    SyntaxNodeResult r = run_expr(CASES[i].text);
     TEST_ASSERT_TRUE(r.matched);
     TEST_ASSERT_NULL(r.errors);
     const SyntaxUnaryExpr *u = as_unary(r.node, CASES[i].op);
@@ -496,13 +495,13 @@ void test_expr_all_unary_operators(void) {
 
 void test_expr_postfix_chain_on_literal(void) {
   // (((1)[2])(3)).x -- every postfix form applied once, in order.
-  ParserResult r = run_expr("(1)[2](3).x");
+  SyntaxNodeResult r = run_expr("(1)[2](3).x");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
   const SyntaxDotExpr *dot = (const SyntaxDotExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_DOT_EXPR, r.node->kind);
-  TEST_ASSERT_STRVIEW_EQ(dot->name->strview, "x");
+  TEST_ASSERT_STRVIEW_EQ(dot->id->value, "x");
 
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)dot->receiver;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, call->header.kind);
@@ -517,7 +516,7 @@ void test_expr_postfix_chain_on_literal(void) {
 }
 
 void test_expr_call_empty_args(void) {
-  ParserResult r = run_expr("(1)()");
+  SyntaxNodeResult r = run_expr("(1)()");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -529,18 +528,18 @@ void test_expr_call_empty_args(void) {
 
 void test_expr_float_dot_beats_member_access(void) {
   // Longest match at the primary: "5." is a float; ".x" is left over.
-  ParserResult r = run_expr("5.x");
+  SyntaxNodeResult r = run_expr("5.x");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, r.node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxNumberLitExpr *)r.node)->value, "5.");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxFloatLitExpr *)r.node)->value, "5.");
   TEST_ASSERT_EQUAL_size_t(2, r.rem.start);
 }
 
 void test_expr_malformed_missing_right_hand_side(void) {
   // The dangling operator is consumed and its BINARY frame survives
   // holding the parsed left operand with a NULL right.
-  ParserResult r = run_expr("1+");
+  SyntaxNodeResult r = run_expr("1+");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxBinaryExpr *b = as_bin(r.node, SYNTAX_OPERATOR_ADD);
@@ -555,7 +554,7 @@ void test_expr_malformed_missing_right_hand_side(void) {
 }
 
 void test_expr_malformed_missing_rhs_logical_or(void) {
-  ParserResult r = run_expr("1||");
+  SyntaxNodeResult r = run_expr("1||");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxBinaryExpr *b = as_bin(r.node, SYNTAX_OPERATOR_LOR);
@@ -572,7 +571,7 @@ void test_expr_malformed_missing_rhs_logical_or(void) {
 void test_expr_malformed_dangling_call_comma(void) {
   // The dangling "," is consumed as a recovery run; the call frame
   // survives holding every argument parsed before it.
-  ParserResult r = run_expr("(1)(2,)");
+  SyntaxNodeResult r = run_expr("(1)(2,)");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
@@ -587,7 +586,7 @@ void test_expr_malformed_dangling_call_comma(void) {
 }
 
 void test_expr_malformed_unclosed_paren(void) {
-  ParserResult r = run_expr("(1");
+  SyntaxNodeResult r = run_expr("(1");
   TEST_ASSERT_TRUE(r.matched);
   as_int(r.node, "1"); // transparent parens keep the inner node
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
@@ -596,7 +595,7 @@ void test_expr_malformed_unclosed_paren(void) {
 }
 
 void test_expr_malformed_empty_parens(void) {
-  ParserResult r = run_expr("()");
+  SyntaxNodeResult r = run_expr("()");
   TEST_ASSERT_TRUE(r.matched); // recovery run
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
@@ -605,7 +604,7 @@ void test_expr_malformed_empty_parens(void) {
 
 void test_expr_malformed_dangling_unary(void) {
   // The operator frame survives with a NULL operand; one diagnostic.
-  ParserResult r = run_expr("*");
+  SyntaxNodeResult r = run_expr("*");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxUnaryExpr *u = as_unary(r.node, SYNTAX_OPERATOR_DEREF);
@@ -618,7 +617,7 @@ void test_expr_malformed_dangling_unary(void) {
 
 void test_expr_relational_two_byte_forms(void) {
   // "<=" / ">=" must win over their single-byte prefixes "<" / ">".
-  ParserResult r = run_expr("1<=2");
+  SyntaxNodeResult r = run_expr("1<=2");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -637,7 +636,7 @@ void test_expr_relational_two_byte_forms(void) {
 
 void test_expr_call_args_reverse_order(void) {
   // Arguments accumulate newest-at-head: chain holds [3, 2].
-  ParserResult r = run_expr("(1)(2,3)");
+  SyntaxNodeResult r = run_expr("(1)(2,3)");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -650,12 +649,12 @@ void test_expr_call_args_reverse_order(void) {
 
 void test_expr_dot_missing_identifier_frame(void) {
   // The dot frame survives with a NULL name; one diagnostic.
-  ParserResult r = run_expr("(1).!");
+  SyntaxNodeResult r = run_expr("(1).!");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxDotExpr *dot = (const SyntaxDotExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_DOT_EXPR, r.node->kind);
-  TEST_ASSERT_NULL(dot->name);
+  TEST_ASSERT_NULL(dot->id);
   as_int(dot->receiver, "1");
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
@@ -665,7 +664,7 @@ void test_expr_dot_missing_identifier_frame(void) {
 
 void test_expr_index_frames(void) {
   // Missing "]": frame keeps the parsed index, one RBRACKET diagnostic.
-  ParserResult r = run_expr("(1)[2");
+  SyntaxNodeResult r = run_expr("(1)[2");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxIndexExpr *ix = (const SyntaxIndexExpr *)r.node;
@@ -686,7 +685,7 @@ void test_expr_index_frames(void) {
 }
 
 void test_expr_call_missing_rparen_frame(void) {
-  ParserResult r = run_expr("(1)(2");
+  SyntaxNodeResult r = run_expr("(1)(2");
   TEST_ASSERT_TRUE(r.matched);
 
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
@@ -703,7 +702,7 @@ void test_expr_full_ladder_shape(void) {
   // 1|2 ^^ 3 && 4 == 5<<6+7 || 8
   // = LOR( LXOR( BOR(1,2), LAND( 3, EQ( 4, SHL( 5, ADD(6,7) ) ) ) ), 8 )
   // ^^ is looser than &&, so the whole "3 && ..." lands on its RIGHT.
-  ParserResult r = run_expr("1|2^^3&&4==5<<6+7||8");
+  SyntaxNodeResult r = run_expr("1|2^^3&&4==5<<6+7||8");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
 
@@ -729,19 +728,17 @@ void test_expr_full_ladder_shape(void) {
 /* ---- compile-time forms ------------------------------------------------- */
 
 // Asserts a COMPILE_TIME node's name and argument list (newest-at-head).
-static const SyntaxCompileTime *as_ct(const ParserResult *r,
-                                      const char *name) {
+static const SyntaxCompileTime *as_ct(const SyntaxNodeResult *r, const char *name) {
   TEST_ASSERT_TRUE(r->matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, r->node->kind);
   const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r->node;
-  TEST_ASSERT_STRVIEW_EQ(ct->name->strview, name);
+  TEST_ASSERT_STRVIEW_EQ(ct->id->value, name);
   return ct;
 }
 
 void test_ct_bare(void) {
   fx_begin("@private");
-  ParserResult r =
-      parse_compile_time(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("@private"), r.rem.start);
@@ -753,8 +750,7 @@ void test_ct_bare(void) {
 
 void test_ct_with_args(void) {
   fx_begin("@align(16)");
-  ParserResult r =
-      parse_compile_time(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("@align(16)"), r.rem.start);
@@ -768,8 +764,7 @@ void test_ct_with_args(void) {
 
 void test_ct_multi_string_args_reversed(void) {
   fx_begin("@import(\"LLVM-C\",\"LLVMContextCreate\")");
-  ParserResult r =
-      parse_compile_time(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_NULL(r.errors);
 
@@ -779,25 +774,20 @@ void test_ct_multi_string_args_reversed(void) {
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(ct->args));
   // newest-at-head: the second literal leads the chain.
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->node->kind);
-  TEST_ASSERT_STRVIEW_EQ(
-      ((const SyntaxStringLitExpr *)ct->args->node)->value,
-      "\"LLVMContextCreate\"");
-  TEST_ASSERT_STRVIEW_EQ(
-      ((const SyntaxStringLitExpr *)ct->args->next->node)->value,
-      "\"LLVM-C\"");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "\"LLVMContextCreate\"");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "\"LLVM-C\"");
 }
 
 void test_ct_missing_name_frame(void) {
   // The frame survives with a NULL name; one diagnostic.
   fx_begin("@");
-  ParserResult r =
-      parse_compile_time(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, r.node->kind);
 
   const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r.node;
-  TEST_ASSERT_NULL(ct->name);
+  TEST_ASSERT_NULL(ct->id);
   TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(ct->args));
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
@@ -806,8 +796,7 @@ void test_ct_missing_name_frame(void) {
 void test_ct_unclosed_args_frame(void) {
   // Parsed arguments stay in the frame; one RPAREN diagnostic.
   fx_begin("@align(16");
-  ParserResult r =
-      parse_compile_time(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
 
@@ -821,7 +810,7 @@ void test_expr_ct_operand_position(void) {
   // 1+@when(0): operand-position CompileTime carries the SAME kind as
   // annotation-position; semantics distinguishes by position.
   fx_begin("1+@when(0)");
-  ParserResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
@@ -833,7 +822,7 @@ void test_expr_ct_operand_position(void) {
 
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, add->right->kind);
   const SyntaxCompileTime *op = (const SyntaxCompileTime *)add->right;
-  TEST_ASSERT_STRVIEW_EQ(op->name->strview, "when");
+  TEST_ASSERT_STRVIEW_EQ(op->id->value, "when");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(op->args));
   as_int(op->args->node, "0");
 }
@@ -849,7 +838,7 @@ static size_t top_level_count(const SyntaxProgram *p) {
 
 void test_program_accumulates_decls_newest_first(void) {
   fx_begin("namespace a;\nusing b;\n");
-  ParserResult r = parse_program(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
@@ -865,7 +854,7 @@ void test_program_accumulates_decls_newest_first(void) {
 
 void test_program_junk_tail_reports_expected_eof(void) {
   fx_begin("namespace a;\n@@");
-  ParserResult r = parse_program(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
 
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_TRUE(r.matched);
@@ -876,7 +865,7 @@ void test_program_junk_tail_reports_expected_eof(void) {
 
 void test_program_empty_and_trivia_only(void) {
   fx_begin("");
-  ParserResult r = parse_program(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(0, top_level_count((const SyntaxProgram *)r.node));
   TEST_ASSERT_NULL(r.errors);
@@ -894,7 +883,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"identifier_rejects_digit_start", test_identifier_rejects_digit_start},
     {"identifier_list_single", test_identifier_list_single},
     {"identifier_list_multi_and_trivia", test_identifier_list_multi_and_trivia},
-    {"identifier_list_trailing_separator_reports_identifier", test_identifier_list_trailing_separator_reports_identifier},
+    {"identifier_list_trailing_separator_reports_identifier",
+     test_identifier_list_trailing_separator_reports_identifier},
     {"identifier_list_missing_first_is_silent", test_identifier_list_missing_first_is_silent},
     {"namespace_decl_valid_forms", test_namespace_decl_valid_forms},
     {"using_decl_valid_forms", test_using_decl_valid_forms},

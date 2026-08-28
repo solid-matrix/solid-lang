@@ -1,0 +1,24 @@
+#pragma once
+
+#include "span.h"
+
+typedef enum {
+  SYNTAX_OK = 0x0000,
+  SYNTAX_EXPECTED_EOF = 0x0001,
+  SYNTAX_MALFORMED_NUMBER = 0x0002,
+  SYNTAX_MALFORMED_RUNE = 0x0003,
+  SYNTAX_MALFORMED_STRING = 0x0004,
+  SYNTAX_EXPECTED_SEMICOLON = 0x0006,
+  SYNTAX_EXPECTED_IDENTIFIER = 0x0007,
+  SYNTAX_EXPECTED_EXPR = 0x0009,
+  SYNTAX_EXPECTED_RPAREN = 0x000A,
+  SYNTAX_EXPECTED_RBRACKET = 0x000B,
+  SYNTAX_EXPECTED_TYPE = 0x000D,
+} SyntaxErrorCode;
+
+typedef struct SyntaxError {
+  SyntaxErrorCode code;
+  Span span;
+} SyntaxError;
+
+SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);

@@ -1,5 +1,6 @@
 #include "arena.h"
 #include "syntax_error.h"
+#include "syntax_errorlist.h"
 #include "test_support.h"
 
 /* ---- syntax_error_create --------------------------------------------- */

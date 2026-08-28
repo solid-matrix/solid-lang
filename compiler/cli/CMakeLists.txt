@@ -1,5 +1,6 @@
 add_executable(solid src/main.c)
 
+target_include_directories(solid PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(solid PRIVATE solid-lang-irgen)
 
 if(TARGET LLVM-C)
