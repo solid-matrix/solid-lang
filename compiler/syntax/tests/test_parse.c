@@ -1172,6 +1172,94 @@ void test_union_decl_forms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("union FooUnion<T> { value: T, ptr: &T }"), r.rem.start);
 }
 
+/* ---- enum / variant declarations --------------------------------------- */
+
+void test_enum_decl_forms(void) {
+  fx_begin("enum Color;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ENUM_DECL, r.node->kind);
+  const SyntaxEnumDecl *d = (const SyntaxEnumDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "Color");
+  TEST_ASSERT_NULL(d->behind_type);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("enum Color;"), r.rem.start);
+
+  fx_begin("enum Color { Red, Green, Blue }");
+  r = parse_enum_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxEnumDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(d->fields));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxEnumField *)d->fields->node)->id->value, "Blue");
+  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->node)->value);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("enum Color { Red, Green, Blue }"), r.rem.start);
+
+  fx_begin("enum SomeFlag: u32 { A = 0x0001_u32, B = 0x0002_u32 }");
+  r = parse_enum_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxEnumDecl *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->behind_type->kind);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  const SyntaxEnumField *f = (const SyntaxEnumField *)d->fields->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "B");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, f->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("enum SomeFlag: u32 { A = 0x0001_u32, B = 0x0002_u32 }"), r.rem.start);
+}
+
+void test_enum_decl_trailing_comma(void) {
+  fx_begin("enum Color { Red, }");
+  SyntaxNodeResult r = parse_enum_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxEnumDecl *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("enum Color { Red, }"), r.rem.start);
+}
+
+void test_enum_decl_field_malform(void) {
+  fx_begin("enum C { A = }");
+  SyntaxNodeResult r = parse_enum_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxEnumDecl *d = (const SyntaxEnumDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fields));
+  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->node)->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("enum C { A = }"), r.rem.start);
+}
+
+void test_variant_decl_forms(void) {
+  fx_begin("variant Option;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_VARIANT_DECL, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("variant Option<T> { None, Value: T }");
+  r = parse_variant_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxVariantDecl *d = (const SyntaxVariantDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "Option");
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxVariantField *)d->fields->node)->id->value, "Value");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxVariantField *)d->fields->node)->type->kind);
+  TEST_ASSERT_NULL(((const SyntaxVariantField *)d->fields->next->node)->type);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("variant Option<T> { None, Value: T }"), r.rem.start);
+
+  fx_begin("variant State: u8 { Idle, Run, }");
+  r = parse_variant_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxVariantDecl *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->behind_type->kind);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("variant State: u8 { Idle, Run, }"), r.rem.start);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1627,6 +1715,10 @@ static const TestDispatchEntry ENTRIES[] = {
     {"struct_field_frames", test_struct_field_frames},
     {"struct_decl_body_malforms", test_struct_decl_body_malforms},
     {"union_decl_forms", test_union_decl_forms},
+    {"enum_decl_forms", test_enum_decl_forms},
+    {"enum_decl_trailing_comma", test_enum_decl_trailing_comma},
+    {"enum_decl_field_malform", test_enum_decl_field_malform},
+    {"variant_decl_forms", test_variant_decl_forms},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},
