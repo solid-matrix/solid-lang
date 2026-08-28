@@ -1260,6 +1260,67 @@ void test_variant_decl_forms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("variant State: u8 { Idle, Run, }"), r.rem.start);
 }
 
+/* ---- contract declaration ---------------------------------------------- */
+
+void test_contract_decl_forms(void) {
+  fx_begin("contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CONTRACT_DECL, r.node->kind);
+  const SyntaxContractDecl *d = (const SyntaxContractDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "Addable");
+  TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->call_params));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxCallParam *)d->call_params->node)->id->value, "right");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxCallParam *)d->call_params->node)->type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;"),
+                           r.rem.start);
+
+  fx_begin("contract Foo();");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxContractDecl *)r.node;
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->call_params));
+  TEST_ASSERT_NULL(d->return_type);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Foo();"), r.rem.start);
+}
+
+void test_contract_decl_malforms(void) {
+  fx_begin("contract Foo");
+  SyntaxNodeResult r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Foo"), r.rem.start);
+
+  fx_begin("contract Foo(x: T");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxContractDecl *)r.node)->call_params));
+  TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(x: T"), r.rem.start);
+
+  fx_begin("contract Foo()");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+
+  fx_begin("contract Foo(): ;");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(((const SyntaxContractDecl *)r.node)->return_type);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(): ;"), r.rem.start);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1719,6 +1780,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"enum_decl_trailing_comma", test_enum_decl_trailing_comma},
     {"enum_decl_field_malform", test_enum_decl_field_malform},
     {"variant_decl_forms", test_variant_decl_forms},
+    {"contract_decl_forms", test_contract_decl_forms},
+    {"contract_decl_malforms", test_contract_decl_malforms},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},

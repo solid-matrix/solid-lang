@@ -55,6 +55,7 @@ static const Strview KEYWORD_STRUCT = STRVIEW("struct");
 static const Strview KEYWORD_UNION = STRVIEW("union");
 static const Strview KEYWORD_ENUM = STRVIEW("enum");
 static const Strview KEYWORD_VARIANT = STRVIEW("variant");
+static const Strview KEYWORD_CONTRACT = STRVIEW("contract");
 
 static const Strview OPERATOR_LOR = STRVIEW("||");
 static const Strview OPERATOR_LXOR = STRVIEW("^^");

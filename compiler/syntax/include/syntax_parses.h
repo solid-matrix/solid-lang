@@ -35,6 +35,8 @@ SyntaxListResult parse_identifier_list(const SyntaxParser *parser, Span span, St
 
 SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span);
 
+SyntaxListResult parse_call_param_list(const SyntaxParser *parser, Span span);
+
 SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field);
 
 SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword);

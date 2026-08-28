@@ -48,6 +48,7 @@ set(PARSE_CASES
     struct_decl_body_malforms union_decl_forms
     enum_decl_forms enum_decl_trailing_comma enum_decl_field_malform
     variant_decl_forms
+    contract_decl_forms contract_decl_malforms
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal

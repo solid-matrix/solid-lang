@@ -20,6 +20,7 @@ typedef enum {
   SYNTAX_EXPECTED_DECL_BODY = 0x0011,
   SYNTAX_EXPECTED_COLON = 0x0012,
   SYNTAX_EXPECTED_GT = 0x0013,
+  SYNTAX_EXPECTED_LPAREN = 0x0014,
 } SyntaxErrorCode;
 
 typedef struct SyntaxError {
