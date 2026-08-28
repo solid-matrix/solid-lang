@@ -8,6 +8,8 @@
 
 #define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
 
+static SyntaxNodeResult parse_body_position(const SyntaxParser *parser, Span span);
+
 #pragma region AUXILLIARY
 
 bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
@@ -566,10 +568,9 @@ SyntaxNodeResult parse_func_type(const SyntaxParser *parser, Span span) {
 
 SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
-      parse_namespace_decl(parser, span), parse_using_decl(parser, span),  parse_let_decl(parser, span),
-      parse_struct_decl(parser, span),    parse_union_decl(parser, span),  parse_enum_decl(parser, span),
-      parse_variant_decl(parser, span),   parse_contract_decl(parser, span),
-      // TODO: func
+      parse_namespace_decl(parser, span), parse_using_decl(parser, span),    parse_let_decl(parser, span),
+      parse_struct_decl(parser, span),    parse_union_decl(parser, span),    parse_enum_decl(parser, span),
+      parse_variant_decl(parser, span),   parse_contract_decl(parser, span), parse_func_decl(parser, span),
   };
   return complete_longest_match(results, COUNT_OF(results));
 }
@@ -924,14 +925,12 @@ SyntaxNodeResult parse_enum_decl(const SyntaxParser *parser, Span span) {
 
       mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACE);
       if (!mres.matched) {
-        errors = syntax_errorlist_prepend(parser->arena, errors,
-                                          syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
       } else {
         rem = mres.rem;
       }
     } else {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
     }
   }
 
@@ -1137,8 +1136,7 @@ SyntaxNodeResult parse_variant_decl(const SyntaxParser *parser, Span span) {
     rem = glist.rem;
 
     if (syntax_nodelist_is_empty(generic_params)) {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
     }
 
     mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
@@ -1179,14 +1177,12 @@ SyntaxNodeResult parse_variant_decl(const SyntaxParser *parser, Span span) {
 
       mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACE);
       if (!mres.matched) {
-        errors = syntax_errorlist_prepend(parser->arena, errors,
-                                          syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
       } else {
         rem = mres.rem;
       }
     } else {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
     }
   }
 
@@ -1234,8 +1230,7 @@ SyntaxNodeResult parse_contract_decl(const SyntaxParser *parser, Span span) {
     rem = glist.rem;
 
     if (syntax_nodelist_is_empty(generic_params)) {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
     }
 
     mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
@@ -1298,10 +1293,147 @@ SyntaxNodeResult parse_contract_decl(const SyntaxParser *parser, Span span) {
 }
 
 SyntaxNodeResult parse_func_decl(const SyntaxParser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return syntax_node_result_not_match(span);
+  SyntaxListResult ann = parse_annotations(parser, span);
+
+  SyntaxMatchResult mres = match_keyword(parser->source, skip_trivia(parser->source, ann.rem), KEYWORD_FUNC);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNodeList *generic_params = syntax_nodelist_empty();
+  SyntaxNodeList *call_params = syntax_nodelist_empty();
+  SyntaxIdentifier *callconv = NULL;
+  SyntaxNode *return_type = NULL;
+  SyntaxNodeList *fulfills = syntax_nodelist_empty();
+  SyntaxNode *body = NULL;
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+  } else {
+    rem = id_res.rem;
+    id = (SyntaxIdentifier *)id_res.node;
+    errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+  }
+
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LT);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxListResult glist = parse_generic_param_list(parser, skip_trivia(parser->source, rem));
+    generic_params = glist.list;
+    errors = syntax_errorlist_concat(parser->arena, glist.errors, errors);
+    rem = glist.rem;
+
+    if (syntax_nodelist_is_empty(generic_params)) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+    }
+
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
+    if (!mres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_GT, rem));
+    } else {
+      rem = mres.rem;
+    }
+  }
+
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LPAREN);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxListResult clist = parse_call_param_list(parser, skip_trivia(parser->source, rem));
+    call_params = clist.list;
+    errors = syntax_errorlist_concat(parser->arena, clist.errors, errors);
+    rem = clist.rem;
+
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RPAREN);
+    if (!mres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RPAREN, rem));
+    } else {
+      rem = mres.rem;
+    }
+  } else {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_LPAREN, rem));
+  }
+
+  // CallConv reads any identifier; "fulfills" is tried first so the
+  // keyword can start its clause instead of being lexed as the name.
+  // Whether the name is a supported calling convention is sema's call.
+  Span adv = skip_trivia(parser->source, rem);
+  mres = match_keyword(parser->source, adv, KEYWORD_FULFILLS);
+  if (!mres.matched) {
+    SyntaxNodeResult cc_res = parse_identifier(parser, adv);
+    if (cc_res.matched) {
+      rem = cc_res.rem;
+      callconv = (SyntaxIdentifier *)cc_res.node;
+      errors = syntax_errorlist_concat(parser->arena, cc_res.errors, errors);
+    }
+  }
+
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COLON);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
+    if (!type_res.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+    } else {
+      rem = type_res.rem;
+      return_type = type_res.node;
+      errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+    }
+  }
+
+  mres = match_keyword(parser->source, skip_trivia(parser->source, rem), KEYWORD_FULFILLS);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxNodeResult nres = parse_named(parser, skip_trivia(parser->source, rem));
+    if (!nres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+    } else {
+      rem = nres.rem;
+      fulfills = syntax_nodelist_prepend(parser->arena, fulfills, nres.node);
+      errors = syntax_errorlist_concat(parser->arena, nres.errors, errors);
+
+      while (true) {
+        SyntaxMatchResult sep = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+        if (!sep.matched)
+          break;
+        rem = sep.rem;
+
+        nres = parse_named(parser, skip_trivia(parser->source, rem));
+        if (!nres.matched) {
+          errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+          break;
+        }
+
+        rem = nres.rem;
+        fulfills = syntax_nodelist_prepend(parser->arena, fulfills, nres.node);
+        errors = syntax_errorlist_concat(parser->arena, nres.errors, errors);
+      }
+    }
+  }
+
+  SyntaxNodeResult body_res = parse_body_position(parser, skip_trivia(parser->source, rem));
+  rem = body_res.rem;
+  errors = syntax_errorlist_concat(parser->arena, body_res.errors, errors);
+  body = body_res.node;
+
+  SyntaxFuncDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxFuncDecl));
+  decl->header = syntax_node_create(SYNTAX_KIND_FUNC_DECL, span_consumed(span, rem));
+  decl->annotations = ann.list;
+  decl->id = id;
+  decl->generic_params = generic_params;
+  decl->call_params = call_params;
+  decl->callconv = callconv;
+  decl->return_type = return_type;
+  decl->fulfills = fulfills;
+  decl->body = body;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 
 #pragma endregion

@@ -1321,6 +1321,98 @@ void test_contract_decl_malforms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(): ;"), r.rem.start);
 }
 
+/* ---- func declaration --------------------------------------------------- */
+
+void test_func_decl_full_ladder(void) {
+  fx_begin("@private func add<T: i32, U>(x: T, y: U)cdecl: i32 fulfills Addable { return x; }");
+  SyntaxNodeResult r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "add");
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->annotations));
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->node)->id->value, "U");
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->call_params));
+  TEST_ASSERT_STRVIEW_EQ(d->callconv->value, "cdecl");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fulfills));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, d->body->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(
+      strlen("@private func add<T: i32, U>(x: T, y: U)cdecl: i32 fulfills Addable { return x; }"), r.rem.start);
+}
+
+void test_func_decl_body_forms(void) {
+  fx_begin("func f();");
+  SyntaxNodeResult r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, ((const SyntaxFuncDecl *)r.node)->body->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("func f();"), r.rem.start);
+
+  fx_begin("func f() {}");
+  r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, ((const SyntaxFuncDecl *)r.node)->body->kind);
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("func main():i32{ return 0; }");
+  r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, d->body->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_RETURN_STMT, ((const SyntaxBodyStmt *)d->body)->stmts->node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("func main():i32{ return 0; }"), r.rem.start);
+}
+
+void test_func_decl_callconv_and_fulfills(void) {
+  fx_begin("func f()cdecl:i32{}");
+  SyntaxNodeResult r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxFuncDecl *)r.node)->callconv->value, "cdecl");
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxFuncDecl *)r.node)->fulfills));
+
+  // "fulfills" starts its clause; it is not lexed as a calling convention.
+  fx_begin("func f() fulfills Addable;");
+  r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
+  TEST_ASSERT_NULL(d->callconv);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fulfills));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, d->body->kind);
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("func f(): i32{}");
+  r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxFuncDecl *)r.node;
+  TEST_ASSERT_NULL(d->callconv);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->fulfills));
+  TEST_ASSERT_NOT_NULL(d->return_type);
+}
+
+void test_program_func_sample_end_to_end(void) {
+  static const char *const SAMPLE = "namespace std::math;\n"
+                                    "using std::core;\n"
+                                    "func main():i32{\n"
+                                    "  return 0;\n"
+                                    "}\n";
+  fx_begin(SAMPLE);
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_PROGRAM, r.node->kind);
+  TEST_ASSERT_EQUAL_size_t(strlen(SAMPLE), r.rem.start);
+
+  const SyntaxProgram *p = (const SyntaxProgram *)r.node;
+  TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(p->top_levels));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->next->next->node->kind);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1782,6 +1874,10 @@ static const TestDispatchEntry ENTRIES[] = {
     {"variant_decl_forms", test_variant_decl_forms},
     {"contract_decl_forms", test_contract_decl_forms},
     {"contract_decl_malforms", test_contract_decl_malforms},
+    {"func_decl_full_ladder", test_func_decl_full_ladder},
+    {"func_decl_body_forms", test_func_decl_body_forms},
+    {"func_decl_callconv_and_fulfills", test_func_decl_callconv_and_fulfills},
+    {"program_func_sample_end_to_end", test_program_func_sample_end_to_end},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},
