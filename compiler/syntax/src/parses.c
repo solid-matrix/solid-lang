@@ -332,8 +332,7 @@ SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span) {
 
     SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
     if (!type_res.matched) {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
     } else {
       rem = type_res.rem;
       type = type_res.node;
@@ -367,16 +366,14 @@ SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span) {
 
   SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_COLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_COLON, rem));
   } else {
     rem = mres.rem;
   }
 
   SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
   if (!type_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
   } else {
     rem = type_res.rem;
     type = type_res.node;
@@ -467,7 +464,8 @@ SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
       parse_namespace_decl(parser, span),
       parse_using_decl(parser, span),
-      // TODO
+      parse_let_decl(parser, span),
+      // TODO: struct, enum, union, variant, contract, func
   };
   return complete_longest_match(results, COUNT_OF(results));
 }
@@ -537,10 +535,78 @@ SyntaxNodeResult parse_using_decl(const SyntaxParser *parser, Span span) {
 }
 
 SyntaxNodeResult parse_let_decl(const SyntaxParser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return syntax_node_result_not_match(span);
+  SyntaxListResult ann = parse_annotations(parser, span);
+
+  SyntaxMatchResult mres = match_keyword(parser->source, skip_trivia(parser->source, ann.rem), KEYWORD_LET);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNode *type = NULL;
+  SyntaxNode *value = NULL;
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+  } else {
+    rem = id_res.rem;
+    id = (SyntaxIdentifier *)id_res.node;
+    errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+  }
+
+  // Optional ": Type".
+  bool typed = false;
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COLON);
+  if (mres.matched) {
+    typed = true;
+    rem = mres.rem;
+
+    SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
+    if (!type_res.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+    } else {
+      rem = type_res.rem;
+      type = type_res.node;
+      errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+    }
+  }
+
+  // Optional "= Expr". The grammar requires at least one of the two; a
+  // declaration with neither clause reports the likelier intent (a
+  // failed type clause is already diagnosed on its own).
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_EQUALS);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxNodeResult value_res = parse_expr(parser, skip_trivia(parser->source, rem));
+    if (!value_res.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    } else {
+      rem = value_res.rem;
+      value = value_res.node;
+      errors = syntax_errorlist_concat(parser->arena, value_res.errors, errors);
+    }
+  } else if (!typed) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EQUALS, rem));
+  }
+
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+  } else {
+    rem = mres.rem;
+  }
+
+  SyntaxLetDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxLetDecl));
+  decl->header = syntax_node_create(SYNTAX_KIND_LET_DECL, span_consumed(span, rem));
+  decl->annotations = ann.list;
+  decl->id = id;
+  decl->type = type;
+  decl->value = value;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 
 SyntaxNodeResult parse_struct_decl(const SyntaxParser *parser, Span span) {
@@ -613,12 +679,10 @@ SyntaxNodeResult parse_stmt(const SyntaxParser *parser, Span span) {
   // expression would, and the keyword frame's more precise diagnostic
   // must win the tie.
   SyntaxNodeResult results[] = {
-      parse_empty_stmt(parser, span),  parse_body_stmt(parser, span),
-      parse_let_stmt(parser, span),    parse_set_stmt(parser, span),
-      parse_if_stmt(parser, span),     parse_loop_stmt(parser, span),
-      parse_break_stmt(parser, span),  parse_continue_stmt(parser, span),
-      parse_return_stmt(parser, span), parse_while_stmt(parser, span),
-      parse_expr_stmt(parser, span),
+      parse_empty_stmt(parser, span), parse_body_stmt(parser, span),     parse_let_stmt(parser, span),
+      parse_set_stmt(parser, span),   parse_if_stmt(parser, span),       parse_loop_stmt(parser, span),
+      parse_break_stmt(parser, span), parse_continue_stmt(parser, span), parse_return_stmt(parser, span),
+      parse_while_stmt(parser, span), parse_expr_stmt(parser, span),
   };
   return complete_longest_match(results, COUNT_OF(results));
 }
@@ -661,8 +725,7 @@ SyntaxNodeResult parse_body_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxMatchResult close = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACE);
   if (!close.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
   } else {
     rem = close.rem;
   }
@@ -687,8 +750,7 @@ SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
   if (!id_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
   } else {
     rem = id_res.rem;
     id = (SyntaxIdentifier *)id_res.node;
@@ -702,8 +764,7 @@ SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span) {
 
     SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
     if (!type_res.matched) {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
     } else {
       rem = type_res.rem;
       type = type_res.node;
@@ -713,16 +774,14 @@ SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_EQUALS);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EQUALS, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EQUALS, rem));
   } else {
     rem = mres.rem;
   }
 
   SyntaxNodeResult value_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!value_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
   } else {
     rem = value_res.rem;
     value = value_res.node;
@@ -731,8 +790,7 @@ SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -758,8 +816,7 @@ SyntaxNodeResult parse_set_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxNodeResult left_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!left_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
   } else {
     rem = left_res.rem;
     left = left_res.node;
@@ -768,16 +825,14 @@ SyntaxNodeResult parse_set_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_EQUALS);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EQUALS, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EQUALS, rem));
   } else {
     rem = mres.rem;
   }
 
   SyntaxNodeResult right_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!right_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
   } else {
     rem = right_res.rem;
     right = right_res.node;
@@ -786,8 +841,7 @@ SyntaxNodeResult parse_set_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -810,8 +864,7 @@ SyntaxNodeResult parse_expr_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -836,8 +889,7 @@ SyntaxNodeResult parse_if_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxNodeResult cond_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!cond_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
   } else {
     rem = cond_res.rem;
     condition = cond_res.node;
@@ -862,8 +914,7 @@ SyntaxNodeResult parse_if_stmt(const SyntaxParser *parser, Span span) {
     };
     SyntaxNodeResult else_res = complete_longest_match(results, COUNT_OF(results));
     if (!else_res.matched) {
-      errors = syntax_errorlist_prepend(parser->arena, errors,
-                                        syntax_error_create(SYNTAX_EXPECTED_BODY, rem));
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_BODY, rem));
     } else {
       rem = else_res.rem;
       else_stmt = else_res.node;
@@ -907,8 +958,7 @@ SyntaxNodeResult parse_break_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -929,8 +979,7 @@ SyntaxNodeResult parse_continue_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -962,8 +1011,7 @@ SyntaxNodeResult parse_return_stmt(const SyntaxParser *parser, Span span) {
 
   mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
   if (!mres.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
   } else {
     rem = mres.rem;
   }
@@ -986,8 +1034,7 @@ SyntaxNodeResult parse_while_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxNodeResult cond_res = parse_expr(parser, skip_trivia(parser->source, rem));
   if (!cond_res.matched) {
-    errors = syntax_errorlist_prepend(parser->arena, errors,
-                                      syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
   } else {
     rem = cond_res.rem;
     condition = cond_res.node;

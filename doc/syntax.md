@@ -414,7 +414,7 @@ Syntax:
 
 ```
 ContractDecl = [ Annotations ] "contract" identifier [ "<" GenericParams ">" ]
-               "(" [ CallParams ] ")" [ ":" Type ] .
+               "(" [ CallParams ] ")" [ ":" Type ] ";" .
 ```
 
 Example:

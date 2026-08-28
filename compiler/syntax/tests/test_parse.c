@@ -938,6 +938,99 @@ void test_call_param_annotated(void) {
   TEST_ASSERT_NULL(r.errors);
 }
 
+/* ---- let declaration --------------------------------------------------- */
+
+void test_let_decl_three_forms(void) {
+  // Value only, through the dispatch: parse_decl picks the let branch.
+  fx_begin("let PI = 3.1415926;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, r.node->kind);
+  const SyntaxLetDecl *d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "PI");
+  TEST_ASSERT_NULL(d->type);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, d->value->kind);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->annotations));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("let PI = 3.1415926;"), r.rem.start);
+
+  // Both type and value.
+  fx_begin("let PI: f64 = 3.1415926;");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, d->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("let PI: f64 = 3.1415926;"), r.rem.start);
+
+  // Type only.
+  fx_begin("let TMP: i32;");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->type->kind);
+  TEST_ASSERT_NULL(d->value);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("let TMP: i32;"), r.rem.start);
+
+  // Annotations ride along (doc example).
+  fx_begin("@import(\"COUNT\") let COUNT: usize;");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->annotations));
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "COUNT");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->type->kind);
+  TEST_ASSERT_NULL(d->value);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("@import(\"COUNT\") let COUNT: usize;"), r.rem.start);
+}
+
+void test_let_decl_malforms(void) {
+  // Neither type nor value: one diagnostic for the likelier intent.
+  fx_begin("let x;");
+  SyntaxNodeResult r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxLetDecl *d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "x");
+  TEST_ASSERT_NULL(d->type);
+  TEST_ASSERT_NULL(d->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("let x;"), r.rem.start);
+
+  // Missing ";".
+  fx_begin("let x = 1");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NOT_NULL(((const SyntaxLetDecl *)r.node)->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("let x = 1"), r.rem.start);
+
+  // Missing identifier still binds the value.
+  fx_begin("let = 1;");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_NULL(d->id);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, d->value->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+
+  // Dangling ":" reports the missing type and still closes.
+  fx_begin("let x : ;");
+  r = parse_let_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxLetDecl *)r.node;
+  TEST_ASSERT_NULL(d->type);
+  TEST_ASSERT_NULL(d->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("let x : ;"), r.rem.start);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1384,6 +1477,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"generic_param_annotated", test_generic_param_annotated},
     {"call_param_requires_colon_and_type", test_call_param_requires_colon_and_type},
     {"call_param_annotated", test_call_param_annotated},
+    {"let_decl_three_forms", test_let_decl_three_forms},
+    {"let_decl_malforms", test_let_decl_malforms},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},

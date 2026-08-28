@@ -42,6 +42,7 @@ set(PARSE_CASES
     annotations_none annotations_single_and_multi annotations_error_frame
     generic_param_bare_and_bound generic_param_annotated
     call_param_requires_colon_and_type call_param_annotated
+    let_decl_three_forms let_decl_malforms
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal
