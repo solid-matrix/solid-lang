@@ -827,6 +827,117 @@ void test_expr_ct_operand_position(void) {
   as_int(op->args->node, "0");
 }
 
+/* ---- decl helpers ------------------------------------------------------ */
+
+static size_t error_chain_length(const SyntaxErrorList *e) {
+  size_t n = 0;
+  for (; e != NULL; e = e->next)
+    n++;
+  return n;
+}
+
+static const SyntaxCompileTime *as_ct_node(const SyntaxNode *n) {
+  TEST_ASSERT_NOT_NULL(n);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, n->kind);
+  return (const SyntaxCompileTime *)n;
+}
+
+void test_annotations_none(void) {
+  fx_begin("foo");
+  SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_NULL(l.list); // zero annotations: empty chain
+  TEST_ASSERT_NULL(l.errors);
+  TEST_ASSERT_EQUAL_size_t(0, l.rem.start);
+}
+
+void test_annotations_single_and_multi(void) {
+  fx_begin("@a @b(1) foo");
+  SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(l.list));
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->node)->id->value, "b");
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->next->node)->id->value, "a");
+  TEST_ASSERT_NULL(l.errors);
+  // Trivia before the next non-annotation stays with the enclosing sequence.
+  TEST_ASSERT_EQUAL_size_t(strlen("@a @b(1)"), l.rem.start);
+}
+
+void test_annotations_error_frame(void) {
+  // A bare "@" keeps its frame (node with no name) and one diagnostic.
+  fx_begin("@");
+  SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
+
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(l.list));
+  TEST_ASSERT_NULL(as_ct_node(l.list->node)->id);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(l.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(1, l.rem.start);
+}
+
+void test_generic_param_bare_and_bound(void) {
+  fx_begin("T");
+  SyntaxNodeResult r = parse_generic_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxGenericParam *p = (const SyntaxGenericParam *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(p->id->value, "T");
+  TEST_ASSERT_NULL(p->type);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(p->annotations));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(1, r.rem.start);
+
+  fx_begin("T : i32");
+  r = parse_generic_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  p = (const SyntaxGenericParam *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, p->type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("T : i32"), r.rem.start);
+}
+
+void test_generic_param_annotated(void) {
+  fx_begin("@align(8) T: i32");
+  SyntaxNodeResult r = parse_generic_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxGenericParam *p = (const SyntaxGenericParam *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(p->annotations));
+  TEST_ASSERT_STRVIEW_EQ(p->id->value, "T");
+  TEST_ASSERT_NOT_NULL(p->type);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_call_param_requires_colon_and_type(void) {
+  fx_begin("x: i32");
+  SyntaxNodeResult r = parse_call_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxCallParam *p = (const SyntaxCallParam *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(p->id->value, "x");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, p->type->kind);
+  TEST_ASSERT_NULL(r.errors);
+
+  // No colon and no type: the frame survives with two diagnostics.
+  fx_begin("x");
+  r = parse_call_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  p = (const SyntaxCallParam *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(p->id->value, "x");
+  TEST_ASSERT_NULL(p->type);
+  TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->next->error.code);
+}
+
+void test_call_param_annotated(void) {
+  fx_begin("@intrinsic x : i32");
+  SyntaxNodeResult r = parse_call_param(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxCallParam *p = (const SyntaxCallParam *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(p->annotations));
+  TEST_ASSERT_STRVIEW_EQ(p->id->value, "x");
+  TEST_ASSERT_NOT_NULL(p->type);
+  TEST_ASSERT_NULL(r.errors);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1266,6 +1377,13 @@ static const TestDispatchEntry ENTRIES[] = {
     {"ct_missing_name_frame", test_ct_missing_name_frame},
     {"ct_unclosed_args_frame", test_ct_unclosed_args_frame},
     {"expr_ct_operand_position", test_expr_ct_operand_position},
+    {"annotations_none", test_annotations_none},
+    {"annotations_single_and_multi", test_annotations_single_and_multi},
+    {"annotations_error_frame", test_annotations_error_frame},
+    {"generic_param_bare_and_bound", test_generic_param_bare_and_bound},
+    {"generic_param_annotated", test_generic_param_annotated},
+    {"call_param_requires_colon_and_type", test_call_param_requires_colon_and_type},
+    {"call_param_annotated", test_call_param_annotated},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},

@@ -174,10 +174,10 @@ add<i32, i32, F = i32_add>
 Syntax:
 
 ```
-CallConv = "cdecl" | "stdcall" | "winapi" | "thiscall" | "fastcall" .
+CallConv = identifier .
 ```
 
-The words `cdecl`, `stdcall`, `winapi`, `thiscall`, and `fastcall` are not keywords; they are ordinary identifiers that are interpreted as calling conventions only at the CallConv position.
+The CallConv position reads an ordinary identifier; whether it names a supported calling convention is decided by the semantic analyzer.
 
 ### Program
 

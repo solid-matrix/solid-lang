@@ -43,9 +43,11 @@ SyntaxNodeResult parse_identifier(const SyntaxParser *parser, Span span);
 
 SyntaxNodeResult parse_compile_time(const SyntaxParser *parser, Span span);
 
-// SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span);
+SyntaxListResult parse_annotations(const SyntaxParser *parser, Span span);
 
-// SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span);
+SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span);
+
+SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span);
 
 SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span);
 

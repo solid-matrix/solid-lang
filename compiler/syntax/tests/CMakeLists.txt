@@ -39,6 +39,9 @@ set(PARSE_CASES
     break_continue_stmts return_with_and_without_expr return_malform
     if_else_if_chain if_empty_bodies if_missing_body_reports_body
     loop_stmt while_stmt stmt_keyword_boundaries stmt_dispatch_ladder
+    annotations_none annotations_single_and_multi annotations_error_frame
+    generic_param_bare_and_bound generic_param_annotated
+    call_param_requires_colon_and_type call_param_annotated
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal
