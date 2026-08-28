@@ -147,6 +147,77 @@ SyntaxListResult parse_identifier_list(const SyntaxParser *parser, Span span, St
   return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
 }
 
+SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span) {
+  Span rem = span;
+  SyntaxNodeList *list = syntax_nodelist_empty();
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  SyntaxNodeResult res = parse_generic_param(parser, rem);
+  if (res.matched) {
+    list = syntax_nodelist_prepend(parser->arena, list, res.node);
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+
+    while (true) {
+      SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+      if (!mres.matched)
+        break;
+
+      rem = mres.rem;
+
+      res = parse_generic_param(parser, skip_trivia(parser->source, rem));
+      if (!res.matched) {
+        SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+        errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      } else {
+        list = syntax_nodelist_prepend(parser->arena, list, res.node);
+        errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+        rem = res.rem;
+      }
+    }
+  }
+
+  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+}
+
+SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field) {
+  Span rem = span;
+  SyntaxNodeList *list = syntax_nodelist_empty();
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  SyntaxNodeResult res = parse_field(parser, rem);
+  if (res.matched) {
+    rem = res.rem;
+    list = syntax_nodelist_prepend(parser->arena, list, res.node);
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+
+    while (true) {
+      SyntaxMatchResult sep = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+      if (!sep.matched)
+        break;
+      rem = sep.rem;
+
+      Span adv = skip_trivia(parser->source, rem);
+
+      // A trailing comma hands the closing brace back to the caller.
+      if (match(parser->source, adv, PUNCTUATION_RBRACE).matched)
+        break;
+
+      res = parse_field(parser, adv);
+      if (!res.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+        break;
+      }
+
+      rem = res.rem;
+      list = syntax_nodelist_prepend(parser->arena, list, res.node);
+      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    }
+  }
+
+  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+}
+
 SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword) {
   if (keyword.len == 0 || keyword.len > span_len(span)) {
     return (SyntaxMatchResult){.matched = false, .rem = span};
@@ -462,10 +533,9 @@ SyntaxNodeResult parse_func_type(const SyntaxParser *parser, Span span) {
 
 SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
-      parse_namespace_decl(parser, span),
-      parse_using_decl(parser, span),
-      parse_let_decl(parser, span),
-      // TODO: struct, enum, union, variant, contract, func
+      parse_namespace_decl(parser, span), parse_using_decl(parser, span), parse_let_decl(parser, span),
+      parse_struct_decl(parser, span),    parse_union_decl(parser, span),
+      // TODO: enum, variant, contract, func
   };
   return complete_longest_match(results, COUNT_OF(results));
 }
@@ -609,11 +679,125 @@ SyntaxNodeResult parse_let_decl(const SyntaxParser *parser, Span span) {
   return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 
+static SyntaxNodeResult parse_struct_field(const SyntaxParser *parser, Span span) {
+  SyntaxListResult ann = parse_annotations(parser, span);
+  Span rem = ann.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNode *type = NULL;
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched)
+    return syntax_node_result_not_match(span);
+
+  rem = id_res.rem;
+  id = (SyntaxIdentifier *)id_res.node;
+  errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+
+  SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_COLON, rem));
+  } else {
+    rem = mres.rem;
+  }
+
+  SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
+  if (!type_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+  } else {
+    rem = type_res.rem;
+    type = type_res.node;
+    errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+  }
+
+  SyntaxStructField *field = arena_alloc(parser->arena, sizeof(SyntaxStructField));
+  field->header = syntax_node_create(SYNTAX_KIND_STRUCT_FIELD, span_consumed(span, rem));
+  field->annotations = ann.list;
+  field->id = id;
+  field->type = type;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)field, errors);
+}
+
 SyntaxNodeResult parse_struct_decl(const SyntaxParser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return syntax_node_result_not_match(span);
+  SyntaxListResult ann = parse_annotations(parser, span);
+
+  SyntaxMatchResult mres = match_keyword(parser->source, skip_trivia(parser->source, ann.rem), KEYWORD_STRUCT);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNodeList *generic_params = syntax_nodelist_empty();
+  SyntaxNodeList *fields = syntax_nodelist_empty();
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+  } else {
+    rem = id_res.rem;
+    id = (SyntaxIdentifier *)id_res.node;
+    errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+  }
+
+  // Optional generic clause: "<" GenericParams ">".
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LT);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxListResult glist = parse_generic_param_list(parser, skip_trivia(parser->source, rem));
+    generic_params = glist.list;
+    errors = syntax_errorlist_concat(parser->arena, glist.errors, errors);
+    rem = glist.rem;
+
+    // GenericParams requires at least one parameter.
+    if (syntax_nodelist_is_empty(generic_params)) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+    }
+
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
+    if (!mres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_GT, rem));
+    } else {
+      rem = mres.rem;
+    }
+  }
+
+  // Body: ";" or "{" [ fields ] "}".
+  Span adv = skip_trivia(parser->source, rem);
+  mres = match(parser->source, adv, PUNCTUATION_SEMICOLON);
+  if (mres.matched) {
+    rem = mres.rem;
+  } else {
+    mres = match(parser->source, adv, PUNCTUATION_LBRACE);
+    if (mres.matched) {
+      rem = mres.rem;
+
+      SyntaxListResult flist = parse_field_list(parser, skip_trivia(parser->source, rem), parse_struct_field);
+      fields = flist.list;
+      errors = syntax_errorlist_concat(parser->arena, flist.errors, errors);
+      rem = flist.rem;
+
+      mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACE);
+      if (!mres.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
+      } else {
+        rem = mres.rem;
+      }
+    } else {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
+    }
+  }
+
+  SyntaxStructDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxStructDecl));
+  decl->header = syntax_node_create(SYNTAX_KIND_STRUCT_DECL, span_consumed(span, rem));
+  decl->annotations = ann.list;
+  decl->id = id;
+  decl->generic_params = generic_params;
+  decl->fields = fields;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 
 SyntaxNodeResult parse_enum_decl(const SyntaxParser *parser, Span span) {
@@ -623,11 +807,125 @@ SyntaxNodeResult parse_enum_decl(const SyntaxParser *parser, Span span) {
   return syntax_node_result_not_match(span);
 }
 
+static SyntaxNodeResult parse_union_field(const SyntaxParser *parser, Span span) {
+  SyntaxListResult ann = parse_annotations(parser, span);
+  Span rem = ann.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNode *type = NULL;
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched)
+    return syntax_node_result_not_match(span);
+
+  rem = id_res.rem;
+  id = (SyntaxIdentifier *)id_res.node;
+  errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+
+  SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_COLON, rem));
+  } else {
+    rem = mres.rem;
+  }
+
+  SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
+  if (!type_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+  } else {
+    rem = type_res.rem;
+    type = type_res.node;
+    errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+  }
+
+  SyntaxUnionField *field = arena_alloc(parser->arena, sizeof(SyntaxUnionField));
+  field->header = syntax_node_create(SYNTAX_KIND_UNION_FIELD, span_consumed(span, rem));
+  field->annotations = ann.list;
+  field->id = id;
+  field->type = type;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)field, errors);
+}
+
 SyntaxNodeResult parse_union_decl(const SyntaxParser *parser, Span span) {
-  // TODO
-  (void)parser;
-  (void)span;
-  return syntax_node_result_not_match(span);
+  SyntaxListResult ann = parse_annotations(parser, span);
+
+  SyntaxMatchResult mres = match_keyword(parser->source, skip_trivia(parser->source, ann.rem), KEYWORD_UNION);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = ann.errors;
+  SyntaxIdentifier *id = NULL;
+  SyntaxNodeList *generic_params = syntax_nodelist_empty();
+  SyntaxNodeList *fields = syntax_nodelist_empty();
+
+  SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+  if (!id_res.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+  } else {
+    rem = id_res.rem;
+    id = (SyntaxIdentifier *)id_res.node;
+    errors = syntax_errorlist_concat(parser->arena, id_res.errors, errors);
+  }
+
+  // Optional generic clause: "<" GenericParams ">".
+  mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LT);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxListResult glist = parse_generic_param_list(parser, skip_trivia(parser->source, rem));
+    generic_params = glist.list;
+    errors = syntax_errorlist_concat(parser->arena, glist.errors, errors);
+    rem = glist.rem;
+
+    // GenericParams requires at least one parameter.
+    if (syntax_nodelist_is_empty(generic_params)) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+    }
+
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
+    if (!mres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_GT, rem));
+    } else {
+      rem = mres.rem;
+    }
+  }
+
+  // Body: ";" or "{" [ fields ] "}".
+  Span adv = skip_trivia(parser->source, rem);
+  mres = match(parser->source, adv, PUNCTUATION_SEMICOLON);
+  if (mres.matched) {
+    rem = mres.rem;
+  } else {
+    mres = match(parser->source, adv, PUNCTUATION_LBRACE);
+    if (mres.matched) {
+      rem = mres.rem;
+
+      SyntaxListResult flist = parse_field_list(parser, skip_trivia(parser->source, rem), parse_union_field);
+      fields = flist.list;
+      errors = syntax_errorlist_concat(parser->arena, flist.errors, errors);
+      rem = flist.rem;
+
+      mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_RBRACE);
+      if (!mres.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_RBRACE, rem));
+      } else {
+        rem = mres.rem;
+      }
+    } else {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_DECL_BODY, rem));
+    }
+  }
+
+  SyntaxUnionDecl *decl = arena_alloc(parser->arena, sizeof(SyntaxUnionDecl));
+  decl->header = syntax_node_create(SYNTAX_KIND_UNION_DECL, span_consumed(span, rem));
+  decl->annotations = ann.list;
+  decl->id = id;
+  decl->generic_params = generic_params;
+  decl->fields = fields;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }
 
 SyntaxNodeResult parse_variant_decl(const SyntaxParser *parser, Span span) {

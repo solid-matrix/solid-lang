@@ -5,6 +5,8 @@
 
 #pragma region AUXILLIARY
 
+typedef SyntaxNodeResult (*SyntaxFieldFn)(const SyntaxParser *, Span);
+
 bool is_letter_or_underscore(uint8_t c);
 
 bool is_letter_digit_or_underscore(uint8_t c);
@@ -30,6 +32,10 @@ SyntaxNodeResult complete_longest_match(SyntaxNodeResult *results, size_t count)
 SyntaxListResult parse_expr_list(const SyntaxParser *parser, Span span, Strview separator);
 
 SyntaxListResult parse_identifier_list(const SyntaxParser *parser, Span span, Strview separator);
+
+SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span);
+
+SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field);
 
 SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword);
 

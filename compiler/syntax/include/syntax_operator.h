@@ -51,6 +51,8 @@ static const Strview KEYWORD_WHILE = STRVIEW("while");
 static const Strview KEYWORD_BREAK = STRVIEW("break");
 static const Strview KEYWORD_CONTINUE = STRVIEW("continue");
 static const Strview KEYWORD_RETURN = STRVIEW("return");
+static const Strview KEYWORD_STRUCT = STRVIEW("struct");
+static const Strview KEYWORD_UNION = STRVIEW("union");
 
 static const Strview OPERATOR_LOR = STRVIEW("||");
 static const Strview OPERATOR_LXOR = STRVIEW("^^");
@@ -95,6 +97,8 @@ static const Strview PUNCTUATION_SINGLE_QUOTE = STRVIEW("'");
 static const Strview PUNCTUATION_DOUBLE_QUOTE = STRVIEW("\"");
 static const Strview PUNCTUATION_COLON = STRVIEW(":");
 static const Strview PUNCTUATION_EQUALS = STRVIEW("=");
+static const Strview PUNCTUATION_LT = STRVIEW("<");
+static const Strview PUNCTUATION_GT = STRVIEW(">");
 static const Strview PUNCTUATION_SCOPE = STRVIEW("::");
 static const Strview PUNCTUATION_SEMICOLON = STRVIEW(";");
 static const Strview PUNCTUATION_AMP = STRVIEW("&");

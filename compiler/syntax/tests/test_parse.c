@@ -1031,6 +1031,147 @@ void test_let_decl_malforms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("let x : ;"), r.rem.start);
 }
 
+/* ---- struct / union declarations --------------------------------------- */
+
+void test_struct_decl_bare_and_empty_body(void) {
+  // Bare form, through the dispatch.
+  fx_begin("struct Foo;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_DECL, r.node->kind);
+  const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "Foo");
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->generic_params));
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(d->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct Foo;"), r.rem.start);
+
+  // Empty braced body.
+  fx_begin("struct Foo {}");
+  r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxStructDecl *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct Foo {}"), r.rem.start);
+}
+
+void test_struct_decl_fields_and_trailing_comma(void) {
+  fx_begin("struct Vector2F { x: f32, y: f32 }");
+  SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  // Newest-at-head: y leads.
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->node)->id->value, "y");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->next->node)->id->value, "x");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->node)->type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct Vector2F { x: f32, y: f32 }"), r.rem.start);
+
+  // A trailing comma hands the brace back cleanly.
+  fx_begin("struct V { x: f32, }");
+  r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructDecl *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct V { x: f32, }"), r.rem.start);
+}
+
+void test_struct_decl_generics(void) {
+  fx_begin("@pack(4) struct Vector2<T> { x: T, y: T }");
+  SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->annotations));
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->node)->id->value, "T");
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->node)->type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("@pack(4) struct Vector2<T> { x: T, y: T }"), r.rem.start);
+}
+
+void test_struct_decl_generics_malforms(void) {
+  // Empty "<>" reports the missing parameter and still closes.
+  fx_begin("struct V<> { x: i32 }");
+  SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxStructDecl *)r.node)->generic_params));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+
+  // Missing ">": the clause frame survives and the body still parses.
+  fx_begin("struct V<T { x: i32 }");
+  r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructDecl *)r.node)->generic_params));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->error.code);
+}
+
+void test_struct_field_frames(void) {
+  // Missing colon: the frame survives holding the type.
+  fx_begin("struct V { x i32 }");
+  SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
+  const SyntaxStructField *f = (const SyntaxStructField *)d->fields->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, f->type->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->error.code);
+
+  // Missing type: the frame survives with a NULL type.
+  fx_begin("struct V { x: }");
+  r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  d = (const SyntaxStructDecl *)r.node;
+  f = (const SyntaxStructField *)d->fields->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
+  TEST_ASSERT_NULL(f->type);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+}
+
+void test_struct_decl_body_malforms(void) {
+  // Neither ";" nor "{": one DECL_BODY diagnostic, rem at the header end.
+  fx_begin("struct Foo");
+  SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DECL_BODY, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct Foo"), r.rem.start);
+
+  // Missing "}": the fields frame survives.
+  fx_begin("struct V { x: f32");
+  r = parse_struct_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructDecl *)r.node)->fields));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("struct V { x: f32"), r.rem.start);
+}
+
+void test_union_decl_forms(void) {
+  fx_begin("union U;");
+  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_UNION_DECL, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("union U;"), r.rem.start);
+
+  fx_begin("union FooUnion<T> { value: T, ptr: &T }");
+  r = parse_union_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxUnionDecl *d = (const SyntaxUnionDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
+  // The reference-typed field keeps REF_TYPE with a NAMED inner type.
+  const SyntaxUnionField *ptr = (const SyntaxUnionField *)d->fields->node; // newest-at-head
+  TEST_ASSERT_STRVIEW_EQ(ptr->id->value, "ptr");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, ptr->type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxRefType *)ptr->type)->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("union FooUnion<T> { value: T, ptr: &T }"), r.rem.start);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
@@ -1479,6 +1620,13 @@ static const TestDispatchEntry ENTRIES[] = {
     {"call_param_annotated", test_call_param_annotated},
     {"let_decl_three_forms", test_let_decl_three_forms},
     {"let_decl_malforms", test_let_decl_malforms},
+    {"struct_decl_bare_and_empty_body", test_struct_decl_bare_and_empty_body},
+    {"struct_decl_fields_and_trailing_comma", test_struct_decl_fields_and_trailing_comma},
+    {"struct_decl_generics", test_struct_decl_generics},
+    {"struct_decl_generics_malforms", test_struct_decl_generics_malforms},
+    {"struct_field_frames", test_struct_field_frames},
+    {"struct_decl_body_malforms", test_struct_decl_body_malforms},
+    {"union_decl_forms", test_union_decl_forms},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},
