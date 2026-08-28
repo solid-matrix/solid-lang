@@ -14,7 +14,7 @@
 
 #pragma region PARSER
 
-SyntaxParser *parser_create(const Source *source) {
+SyntaxParser *syntax_parser_create(const Source *source) {
   Arena *arena = arena_create();
 
   SyntaxParser *parser = xmalloc(sizeof(SyntaxParser));
@@ -22,7 +22,7 @@ SyntaxParser *parser_create(const Source *source) {
   return parser;
 }
 
-void parser_destroy(SyntaxParser *parser) {
+void syntax_parser_destroy(SyntaxParser *parser) {
   assert(parser != NULL);
 
   arena_destroy(parser->arena); // reclaims every node of this parse

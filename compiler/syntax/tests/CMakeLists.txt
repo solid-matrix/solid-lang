@@ -32,6 +32,13 @@ set(PARSE_CASES
     type_dispatch_prefers_ref_for_amp
     program_accumulates_decls_newest_first
     program_junk_tail_reports_expected_eof program_empty_and_trivia_only
+    empty_stmt_bare body_stmt_empty_and_stmts body_stmt_nested
+    body_stmt_trivia body_stmt_missing_rbrace_frame
+    let_stmt_typed_and_inferred let_stmt_malforms set_stmt_basic
+    set_stmt_malforms expr_stmt_basic expr_stmt_missing_semicolon_frame
+    break_continue_stmts return_with_and_without_expr return_malform
+    if_else_if_chain if_empty_bodies if_missing_body_reports_body
+    loop_stmt while_stmt stmt_keyword_boundaries stmt_dispatch_ladder
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal

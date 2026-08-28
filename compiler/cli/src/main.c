@@ -36,7 +36,7 @@ SyntaxProgram *parse(const SyntaxParser *parser) {
 
 int main(int argc, char *argv[]) {
   Source *source = source_from_cstr(source_code);
-  SyntaxParser *parser = parser_create(source);
+  SyntaxParser *parser = syntax_parser_create(source);
 
   SyntaxProgram *program = parse(parser);
   if (program != NULL) {
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   }
 
   // int _ = irgen_example();
-  parser_destroy(parser);
+  syntax_parser_destroy(parser);
   source_destroy(source);
   return 0;
 }

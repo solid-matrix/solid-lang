@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "syntax_parser.h"
 #include "source.h"
+#include "syntax_parser.h"
 
 static Source *fx_source;
 static SyntaxParser *fx_parser;
@@ -16,17 +16,17 @@ static SyntaxParser *fx_parser;
 /** Points the fixture at @p text, releasing any previous parse. */
 static void fx_begin(const char *text) {
   if (fx_parser != NULL) {
-    parser_destroy(fx_parser);
+    syntax_parser_destroy(fx_parser);
     source_destroy(fx_source);
   }
   fx_source = source_from_cstr(text);
-  fx_parser = parser_create(fx_source);
+  fx_parser = syntax_parser_create(fx_source);
 }
 
 /** Releases the current parse; safe to call repeatedly. */
 static void fx_release(void) {
   if (fx_parser != NULL) {
-    parser_destroy(fx_parser);
+    syntax_parser_destroy(fx_parser);
     fx_parser = NULL;
   }
   if (fx_source != NULL) {

@@ -31,7 +31,7 @@ typedef struct {
  * @return The new Parser, owned by the caller; released exactly once
  *         with parser_destroy().
  */
-SyntaxParser *parser_create(const Source *source);
+SyntaxParser *syntax_parser_create(const Source *source);
 
 /**
  * @brief Frees a Parser created by parser_create(), together with its
@@ -40,4 +40,4 @@ SyntaxParser *parser_create(const Source *source);
  *               and be destroyed exactly once. The Source is not
  *               touched: it is not owned by the Parser.
  */
-void parser_destroy(SyntaxParser *parser);
+void syntax_parser_destroy(SyntaxParser *parser);

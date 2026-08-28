@@ -431,7 +431,7 @@ Syntax:
 FuncDecl = [ Annotations ] "func" identifier
            [ "<" GenericParams ">" ]
            "(" [ CallParams ] ")" [ CallConv ] [ ":" Type ] [ "fulfills" Named { "," Named } ]
-           ( ";" | BodyStmt ) .
+           ( BodyStmt | EmptyStmt ) .
 ```
 
 Example:
@@ -445,7 +445,7 @@ func foo(a: i32, b: i32, c: i32): i32{
 
 @intrinsic func add_f32(left: f32, right: f32): f32 fulfills Addable<f32,f32,f32>;
 
-func add<TLeft, TRight, TResult, Fadd: Addable<TLeft, TRight, TResult>>(left: TLeft, right: TRight, iadd: IAdd): TResult{
+func add<TLeft, TRight, TResult, IAdd: Addable<TLeft, TRight, TResult>>(left: TLeft, right: TRight, iadd: IAdd): TResult{
 	return iadd(left, right);
 }
 
@@ -542,7 +542,7 @@ foo();
 Syntax:
 
 ```
-IfStmt = "if" Expr BodyStmt [ "else" ( BodyStmt | IfStmt ) ] .
+IfStmt = "if" Expr ( BodyStmt | EmptyStmt ) [ "else" ( BodyStmt | EmptyStmt | IfStmt ) ] .
 ```
 
 Example:
@@ -560,7 +560,7 @@ if cond1 { } else if cond2 { } else { }
 Syntax:
 
 ```
-LoopStmt = "loop" BodyStmt .
+LoopStmt = "loop" ( BodyStmt | EmptyStmt ) .
 ```
 
 Example:
@@ -618,7 +618,7 @@ return 10;
 Syntax:
 
 ```
-WhileStmt = "while" Expr BodyStmt .
+WhileStmt = "while" Expr ( BodyStmt | EmptyStmt ) .
 ```
 
 Example:
