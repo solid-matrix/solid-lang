@@ -158,6 +158,8 @@ typedef enum {
 } SyntaxRefKind;
 
 typedef enum {
+  SYNTAX_OPERATOR_INVALID = 0,
+
   SYNTAX_OPERATOR_PLUS,  // +
   SYNTAX_OPERATOR_MINUS, // -
 

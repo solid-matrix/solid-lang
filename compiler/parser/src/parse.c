@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 
 #include "arena.h"
 #include "parse_internal.h"
@@ -576,50 +577,27 @@ static ParserResult parse_postfix_expr(const Parser *parser, Span span) {
 }
 
 static ParserResult parse_unary_expr(const Parser *parser, Span span) {
+
+  const static Strview OP_STRS[] = {OPERATOR_MINUS, OPERATOR_PLUS, OPERATOR_LNOT, OPERATOR_BNOT, OPERATOR_DEREF};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_MINUS, SYNTAX_OPERATOR_PLUS, SYNTAX_OPERATOR_LNOT,
+                                       SYNTAX_OPERATOR_BNOT, SYNTAX_OPERATOR_DEREF};
+
   Span rem = span;
   SyntaxErrorList *errors = syntax_errorlist_empty();
 
-  SyntaxOperator op;
-  ParserMatchResult mres;
-
-  mres = match(parser->source, span, OPERATOR_MINUS);
-  if (mres.matched) {
-    op = SYNTAX_OPERATOR_MINUS;
-    rem = mres.rem;
-    goto outside;
+  SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+  for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+    ParserMatchResult mres = match(parser->source, span, OP_STRS[i]);
+    if (mres.matched) {
+      op = OPS[i];
+      rem = mres.rem;
+      break;
+    }
   }
 
-  mres = match(parser->source, span, OPERATOR_PLUS);
-  if (mres.matched) {
-    op = SYNTAX_OPERATOR_PLUS;
-    rem = mres.rem;
-    goto outside;
+  if (op == SYNTAX_OPERATOR_INVALID) {
+    return parse_postfix_expr(parser, span);
   }
-
-  mres = match(parser->source, span, OPERATOR_LNOT);
-  if (mres.matched) {
-    op = SYNTAX_OPERATOR_LNOT;
-    rem = mres.rem;
-    goto outside;
-  }
-
-  mres = match(parser->source, span, OPERATOR_BNOT);
-  if (mres.matched) {
-    op = SYNTAX_OPERATOR_BNOT;
-    rem = mres.rem;
-    goto outside;
-  }
-
-  mres = match(parser->source, span, OPERATOR_DEREF);
-  if (mres.matched) {
-    op = SYNTAX_OPERATOR_DEREF;
-    rem = mres.rem;
-    goto outside;
-  }
-
-  return parse_postfix_expr(parser, span);
-
-outside:;
 
   ParserResult un_res = parse_unary_expr(parser, skip_trivia(parser->source, rem));
   if (!un_res.matched) {
@@ -640,6 +618,9 @@ outside:;
 
 static ParserResult parse_multiplicative_expr(const Parser *parser, Span span) {
 
+  const static Strview OP_STRS[] = {OPERATOR_MUL, OPERATOR_DIV, OPERATOR_MOD};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_MUL, SYNTAX_OPERATOR_DIV, SYNTAX_OPERATOR_MOD};
+
   ParserResult un_res = parse_unary_expr(parser, span);
   if (!un_res.matched)
     return parser_result_not_match(span);
@@ -651,33 +632,18 @@ static ParserResult parse_multiplicative_expr(const Parser *parser, Span span) {
   while (true) {
     Span adv = skip_trivia(parser->source, rem);
 
-    SyntaxOperator op;
-
-    ParserMatchResult mres;
-    mres = match(parser->source, adv, OPERATOR_MUL);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_MUL;
-      rem = mres.rem;
-      goto outside;
+    SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+    for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+      ParserMatchResult mres = match(parser->source, adv, OP_STRS[i]);
+      if (mres.matched) {
+        op = OPS[i];
+        rem = mres.rem;
+        break;
+      }
     }
 
-    mres = match(parser->source, adv, OPERATOR_DIV);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_DIV;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_MOD);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_MOD;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    break;
-
-  outside:;
+    if (op == SYNTAX_OPERATOR_INVALID)
+      break;
 
     un_res = parse_unary_expr(parser, skip_trivia(parser->source, rem));
     if (!un_res.matched) {
@@ -702,6 +668,9 @@ static ParserResult parse_multiplicative_expr(const Parser *parser, Span span) {
 
 static ParserResult parse_additive_expr(const Parser *parser, Span span) {
 
+  const static Strview OP_STRS[] = {OPERATOR_ADD, OPERATOR_SUB};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_ADD, SYNTAX_OPERATOR_SUB};
+
   ParserResult mul_res = parse_multiplicative_expr(parser, span);
   if (!mul_res.matched)
     return parser_result_not_match(span);
@@ -713,26 +682,18 @@ static ParserResult parse_additive_expr(const Parser *parser, Span span) {
   while (true) {
     Span adv = skip_trivia(parser->source, rem);
 
-    SyntaxOperator op;
-
-    ParserMatchResult mres;
-    mres = match(parser->source, adv, OPERATOR_ADD);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_ADD;
-      rem = mres.rem;
-      goto outside;
+    SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+    for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+      ParserMatchResult mres = match(parser->source, adv, OP_STRS[i]);
+      if (mres.matched) {
+        op = OPS[i];
+        rem = mres.rem;
+        break;
+      }
     }
 
-    mres = match(parser->source, adv, OPERATOR_SUB);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_SUB;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    break;
-
-  outside:;
+    if (op == SYNTAX_OPERATOR_INVALID)
+      break;
 
     mul_res = parse_multiplicative_expr(parser, skip_trivia(parser->source, rem));
     if (!mul_res.matched) {
@@ -757,6 +718,9 @@ static ParserResult parse_additive_expr(const Parser *parser, Span span) {
 
 static ParserResult parse_shift_expr(const Parser *parser, Span span) {
 
+  const static Strview OP_STRS[] = {OPERATOR_SHL, OPERATOR_SHR};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_SHL, SYNTAX_OPERATOR_SHR};
+
   ParserResult add_res = parse_additive_expr(parser, span);
   if (!add_res.matched)
     return parser_result_not_match(span);
@@ -768,26 +732,18 @@ static ParserResult parse_shift_expr(const Parser *parser, Span span) {
   while (true) {
     Span adv = skip_trivia(parser->source, rem);
 
-    SyntaxOperator op;
-
-    ParserMatchResult mres;
-    mres = match(parser->source, adv, OPERATOR_SHL);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_SHL;
-      rem = mres.rem;
-      goto outside;
+    SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+    for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+      ParserMatchResult mres = match(parser->source, adv, OP_STRS[i]);
+      if (mres.matched) {
+        op = OPS[i];
+        rem = mres.rem;
+        break;
+      }
     }
 
-    mres = match(parser->source, adv, OPERATOR_SHR);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_SHR;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    break;
-
-  outside:;
+    if (op == SYNTAX_OPERATOR_INVALID)
+      break;
 
     add_res = parse_additive_expr(parser, skip_trivia(parser->source, rem));
     if (!add_res.matched) {
@@ -812,6 +768,10 @@ static ParserResult parse_shift_expr(const Parser *parser, Span span) {
 
 static ParserResult parse_bitwise_expr(const Parser *parser, Span span) {
 
+  const static Strview OP_STRS[] = {OPERATOR_BAND, OPERATOR_BOR, OPERATOR_BXOR};
+  const static Strview OP_NOT_STRS[] = {OPERATOR_LAND, OPERATOR_LOR, OPERATOR_LXOR};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_BAND, SYNTAX_OPERATOR_BOR, SYNTAX_OPERATOR_BXOR};
+
   ParserResult sh_res = parse_shift_expr(parser, span);
   if (!sh_res.matched)
     return parser_result_not_match(span);
@@ -823,37 +783,19 @@ static ParserResult parse_bitwise_expr(const Parser *parser, Span span) {
   while (true) {
     Span adv = skip_trivia(parser->source, rem);
 
-    SyntaxOperator op;
-
-    ParserMatchResult mres, mres2;
-
-    mres = match(parser->source, adv, OPERATOR_BAND);
-    mres2 = match(parser->source, adv, OPERATOR_LAND);
-    if (mres.matched && !mres2.matched) {
-      op = SYNTAX_OPERATOR_BAND;
-      rem = mres.rem;
-      goto outside;
+    SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+    for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+      ParserMatchResult mres = match(parser->source, adv, OP_STRS[i]);
+      ParserMatchResult mres_not = match(parser->source, adv, OP_NOT_STRS[i]);
+      if (mres.matched && !mres_not.matched) {
+        op = OPS[i];
+        rem = mres.rem;
+        break;
+      }
     }
 
-    mres = match(parser->source, adv, OPERATOR_BOR);
-    mres2 = match(parser->source, adv, OPERATOR_LOR);
-    if (mres.matched && !mres2.matched) {
-      op = SYNTAX_OPERATOR_BOR;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_BXOR);
-    mres2 = match(parser->source, adv, OPERATOR_LXOR);
-    if (mres.matched && !mres2.matched) {
-      op = SYNTAX_OPERATOR_BXOR;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    break;
-
-  outside:;
+    if (op == SYNTAX_OPERATOR_INVALID)
+      break;
 
     sh_res = parse_shift_expr(parser, skip_trivia(parser->source, rem));
     if (!sh_res.matched) {
@@ -878,6 +820,10 @@ static ParserResult parse_bitwise_expr(const Parser *parser, Span span) {
 
 static ParserResult parse_relational_expr(const Parser *parser, Span span) {
 
+  const static Strview OP_STRS[] = {OPERATOR_EQ, OPERATOR_NEQ, OPERATOR_LTE, OPERATOR_GTE, OPERATOR_LT, OPERATOR_GT};
+  const static SyntaxOperator OPS[] = {SYNTAX_OPERATOR_EQ,  SYNTAX_OPERATOR_NEQ, SYNTAX_OPERATOR_LTE,
+                                       SYNTAX_OPERATOR_GTE, SYNTAX_OPERATOR_LT,  SYNTAX_OPERATOR_GT};
+
   ParserResult bw_res = parse_bitwise_expr(parser, span);
   if (!bw_res.matched)
     return parser_result_not_match(span);
@@ -889,54 +835,18 @@ static ParserResult parse_relational_expr(const Parser *parser, Span span) {
   while (true) {
     Span adv = skip_trivia(parser->source, rem);
 
-    SyntaxOperator op;
-
-    ParserMatchResult mres;
-    mres = match(parser->source, adv, OPERATOR_EQ);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_EQ;
-      rem = mres.rem;
-      goto outside;
+    SyntaxOperator op = SYNTAX_OPERATOR_INVALID;
+    for (size_t i = 0; i < COUNT_OF(OP_STRS); i++) {
+      ParserMatchResult mres = match(parser->source, adv, OP_STRS[i]);
+      if (mres.matched) {
+        op = OPS[i];
+        rem = mres.rem;
+        break;
+      }
     }
 
-    mres = match(parser->source, adv, OPERATOR_NEQ);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_NEQ;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_LTE);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_LTE;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_GTE);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_GTE;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_LT);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_LT;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    mres = match(parser->source, adv, OPERATOR_GT);
-    if (mres.matched) {
-      op = SYNTAX_OPERATOR_GT;
-      rem = mres.rem;
-      goto outside;
-    }
-
-    break;
-
-  outside:;
+    if (op == SYNTAX_OPERATOR_INVALID)
+      break;
 
     bw_res = parse_bitwise_expr(parser, skip_trivia(parser->source, rem));
     if (!bw_res.matched) {
