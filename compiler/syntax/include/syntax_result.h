@@ -70,6 +70,7 @@ typedef struct {
 typedef struct {
   bool matched;
   Span rem;
+  SyntaxErrorList *errors;
 } SyntaxMatchResult;
 
 SyntaxNodeResult syntax_node_result_not_match(Span span);

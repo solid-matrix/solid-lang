@@ -46,6 +46,10 @@ SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword
 
 SyntaxMatchResult match(const Source *source, Span span, Strview strview);
 
+SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span);
+
+SyntaxMatchResult match_utf8_char(const SyntaxParser *parser, Span span);
+
 #pragma endregion
 
 #pragma region COMMON

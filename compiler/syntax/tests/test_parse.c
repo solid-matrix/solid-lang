@@ -774,8 +774,8 @@ void test_ct_multi_string_args_reversed(void) {
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(ct->args));
   // newest-at-head: the second literal leads the chain.
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "\"LLVMContextCreate\"");
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "\"LLVM-C\"");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "LLVMContextCreate");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "LLVM-C");
 }
 
 void test_ct_missing_name_frame(void) {

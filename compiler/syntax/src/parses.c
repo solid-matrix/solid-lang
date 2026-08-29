@@ -304,29 +304,240 @@ static SyntaxNodeResult parse_body_position(const SyntaxParser *parser, Span spa
 
 SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword) {
   if (keyword.len == 0 || keyword.len > span_len(span)) {
-    return (SyntaxMatchResult){.matched = false, .rem = span};
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = syntax_errorlist_empty()};
   }
 
   Strview token = source_strview_at(source, span_slice(span, 0, keyword.len));
   if (!strview_equals(keyword, token))
-    return (SyntaxMatchResult){.matched = false, .rem = span};
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = syntax_errorlist_empty()};
 
   Span rem = span_advance(span, keyword.len);
   if (!span_is_empty(rem) && is_letter_digit_or_underscore(source_byte_at(source, rem.start)))
-    return (SyntaxMatchResult){.matched = false, .rem = span};
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = syntax_errorlist_empty()};
 
-  return (SyntaxMatchResult){.matched = true, .rem = rem};
+  return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = syntax_errorlist_empty()};
 }
 
 SyntaxMatchResult match(const Source *source, Span span, Strview strview) {
   if (strview.len == 0 || strview.len > span_len(span))
-    return (SyntaxMatchResult){.matched = false, .rem = span};
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = syntax_errorlist_empty()};
 
   Strview token = source_strview_at(source, span_slice(span, 0, strview.len));
   if (!strview_equals(strview, token))
-    return (SyntaxMatchResult){.matched = false, .rem = span};
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = syntax_errorlist_empty()};
 
-  return (SyntaxMatchResult){.matched = true, .rem = span_advance(span, strview.len)};
+  return (SyntaxMatchResult){
+      .matched = true, .rem = span_advance(span, strview.len), .errors = syntax_errorlist_empty()};
+}
+
+// A Unicode scalar value from a hex digit; digits are matched
+// case-insensitively.
+static uint32_t hex_value(uint8_t d) {
+  return is_decimal_digit(d) ? (uint32_t)(d - '0') : (uint32_t)((d | 0x20) - 'a' + 10);
+}
+
+// escape = quote_escape | ascii_escape | unicode_escape :
+//
+//   quote_escape   = "\'" | "\"" .
+//   ascii_escape   = "\n" | "\r" | "\t" | "\\" | "\0"
+//                  | "\x" octal_digit hex_digit .
+//   unicode_escape = "\u{" hex_digit { ["_"] hex_digit } "}" .
+//
+// A span that starts with "\\" is always consumed: recognized but
+// invalid escapes return matched == true with the specific diagnostic
+// (SYNTAX_UNKNOWN_ESCAPE, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_EXPECTED_BRACE,
+// or SYNTAX_ESCAPE_OUT_OF_RANGE) so the caller's recovery resumes right
+// after the escape. matched == false means the span does not start with
+// "\\" at all.
+SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
+  if (span_is_empty(span) || source_byte_at(parser->source, span.start) != '\\')
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = NULL};
+
+  if (span_len(span) < 2) { // "\\" at the end: the escape character is missing
+    Span consumed = span_slice(span, 0, 1);
+    SyntaxErrorList *errors =
+        syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_UNKNOWN_ESCAPE, consumed));
+    return (SyntaxMatchResult){.matched = true, .rem = (Span){.start = consumed.end, .end = span.end}, .errors = errors};
+  }
+
+  switch (source_byte_at(parser->source, span.start + 1)) {
+  case '\'':
+  case '"':
+  case 'n':
+  case 'r':
+  case 't':
+  case '\\':
+  case '0':
+    return (SyntaxMatchResult){.matched = true, .rem = span_advance(span, 2), .errors = NULL};
+
+  case 'x': {
+    // "\\x" octal_digit hex_digit -- two digits, value <= 0x7F.
+    size_t pos = span.start + 2;
+    size_t digits = 0;
+    while (digits < 2 && pos < span.end && is_base_digit(source_byte_at(parser->source, pos), 16)) {
+      digits++;
+      pos++;
+    }
+
+    Span rem = (Span){.start = pos, .end = span.end};
+    Span consumed = span_slice(span, 0, pos);
+
+    if (digits < 2) {
+      SyntaxErrorList *errors =
+          syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_EXPECTED_HEX_DIGIT, consumed));
+      return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = errors};
+    }
+
+    uint32_t value = hex_value(source_byte_at(parser->source, span.start + 2)) * 16 +
+                     hex_value(source_byte_at(parser->source, span.start + 3));
+    if (value > 0x7F) {
+      SyntaxErrorList *errors =
+          syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_ESCAPE_OUT_OF_RANGE, consumed));
+      return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = errors};
+    }
+
+    return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = NULL};
+  }
+
+  case 'u': {
+    // "\\u{" hex { ["_"] hex } "}" -- the value must be a Unicode scalar
+    // value and an underscore may only sit between two hex digits. The
+    // first error freezes validation; scanning continues to the closing
+    // brace so the whole escape is consumed.
+    if (span_len(span) < 3 || source_byte_at(parser->source, span.start + 2) != '{') {
+      Span consumed = span_slice(span, 0, 2);
+      SyntaxErrorList *errors =
+          syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_UNKNOWN_ESCAPE, consumed));
+      return (SyntaxMatchResult){.matched = true, .rem = (Span){.start = consumed.end, .end = span.end}, .errors = errors};
+    }
+
+    size_t pos = span.start + 3;
+    SyntaxErrorCode code = SYNTAX_OK;
+    uint32_t value = 0;
+    bool prev_hex = false;
+    bool any_hex = false;
+
+    while (true) {
+      if (pos >= span.end) {
+        if (code == SYNTAX_OK)
+          code = SYNTAX_EXPECTED_BRACE;
+        break;
+      }
+
+      uint8_t d = source_byte_at(parser->source, pos);
+      if (d == '}') {
+        pos++;
+        if (code == SYNTAX_OK) {
+          if (!any_hex)
+            code = SYNTAX_EXPECTED_HEX_DIGIT; // empty braces
+          else if (value >= 0xD800 && value <= 0xDFFF)
+            code = SYNTAX_ESCAPE_OUT_OF_RANGE; // surrogate
+        }
+        break;
+      }
+
+      if (code == SYNTAX_OK && is_base_digit(d, 16)) {
+        value = value * 16 + hex_value(d);
+        if (value > 0x10FFFF)
+          code = SYNTAX_ESCAPE_OUT_OF_RANGE; // the value can only grow
+        any_hex = true;
+        prev_hex = true;
+        pos++;
+        continue;
+      }
+
+      if (code == SYNTAX_OK && d == '_' && prev_hex && pos + 1 < span.end &&
+          is_base_digit(source_byte_at(parser->source, pos + 1), 16)) {
+        prev_hex = false;
+        pos++;
+        continue;
+      }
+
+      if (code == SYNTAX_OK)
+        code = SYNTAX_EXPECTED_HEX_DIGIT;
+
+      pos++;
+    }
+
+    Span rem = (Span){.start = pos, .end = span.end};
+    if (code == SYNTAX_OK)
+      return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = NULL};
+
+    SyntaxErrorList *errors =
+        syntax_errorlist_append(parser->arena, NULL, syntax_error_create(code, span_slice(span, 0, pos)));
+    return (SyntaxMatchResult){.matched = true, .rem = rem, .errors = errors};
+  }
+
+  default: {
+    Span consumed = span_slice(span, 0, 2);
+    SyntaxErrorList *errors =
+        syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_UNKNOWN_ESCAPE, consumed));
+    return (SyntaxMatchResult){.matched = true, .rem = (Span){.start = consumed.end, .end = span.end}, .errors = errors};
+  }
+  }
+}
+
+// One UTF-8 code point, validated strictly: every continuation byte
+// must be a continuation byte, and the decoded value must not be an
+// overlong encoding, a surrogate, or above U+10FFFF. An invalid byte
+// sequence consumes its lead byte and reports SYNTAX_INVALID_CHARACTER
+// so the caller's recovery can resume right after it. matched == false
+// only for an empty span.
+SyntaxMatchResult match_utf8_char(const SyntaxParser *parser, Span span) {
+  if (span_is_empty(span))
+    return (SyntaxMatchResult){.matched = false, .rem = span, .errors = NULL};
+
+  static const uint32_t MIN_VALUE[] = {0x80, 0x800, 0x10000};
+
+  uint8_t lead = source_byte_at(parser->source, span.start);
+  size_t len;
+  uint32_t value;
+  bool valid = true;
+
+  if (lead < 0x80) { // U+0000..U+007F: single byte
+    len = 1;
+    value = lead;
+  } else if (lead >= 0xC2 && lead <= 0xDF) { // U+0080..U+07FF
+    len = 2;
+    value = lead & 0x1F;
+  } else if (lead >= 0xE0 && lead <= 0xEF) { // U+0800..U+FFFF
+    len = 3;
+    value = lead & 0x0F;
+  } else if (lead >= 0xF0 && lead <= 0xF4) { // U+10000..U+10FFFF
+    len = 4;
+    value = lead & 0x07;
+  } else { // stray continuation byte, 0xC0/0xC1, or 0xF5..0xFF
+    len = 1;
+    valid = false;
+  }
+
+  for (size_t k = 1; valid && k < len; k++) {
+    if (span.start + k >= span.end) { // truncated sequence
+      valid = false;
+      break;
+    }
+
+    uint8_t cont = source_byte_at(parser->source, span.start + k);
+    if ((cont & 0xC0) != 0x80) { // not a continuation byte
+      valid = false;
+      break;
+    }
+
+    value = (value << 6) | (cont & 0x3F);
+  }
+
+  if (valid && len > 1 &&
+      (value < MIN_VALUE[len - 2] || (value >= 0xD800 && value <= 0xDFFF) || value > 0x10FFFF)) {
+    valid = false; // overlong encoding, surrogate, or outside the scalar range
+  }
+
+  if (valid)
+    return (SyntaxMatchResult){.matched = true, .rem = span_advance(span, len), .errors = NULL};
+
+  Span consumed = span_slice(span, 0, 1);
+  SyntaxErrorList *errors =
+      syntax_errorlist_append(parser->arena, NULL, syntax_error_create(SYNTAX_INVALID_CHARACTER, consumed));
+  return (SyntaxMatchResult){.matched = true, .rem = (Span){.start = consumed.end, .end = span.end}, .errors = errors};
 }
 
 #pragma endregion
@@ -2724,6 +2935,123 @@ static SyntaxNodeResult parse_struct_lit_field(const SyntaxParser *parser, Span 
   field->value = value;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)field, errors);
+}
+
+SyntaxNodeResult parse_rune_lit_expr(const SyntaxParser *parser, Span span) {
+  SyntaxMatchResult mres = match(parser->source, span, PUNCTUATION_SINGLE_QUOTE);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  size_t start = rem.start;
+
+  while (true) {
+    if (span_is_empty(rem)) {
+      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_CHARACTER, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      break;
+    }
+
+    uint8_t c = source_byte_at(parser->source, rem.start);
+    if (c == '\'') {
+      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_CHARACTER, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      break;
+    }
+
+    if (c == '\t' || c == '\n' || c == '\r') {
+      SyntaxError error = syntax_error_create(SYNTAX_INVALID_CHARACTER, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      rem = span_advance(rem, 1); // consume the offending byte
+      break;
+    }
+
+    mres = match_escape(parser, rem);
+    if (mres.matched) {
+      rem = mres.rem;
+      errors = syntax_errorlist_concat(parser->arena, mres.errors, errors);
+      break;
+    }
+
+    mres = match_utf8_char(parser, rem);
+    if (mres.matched) {
+      rem = mres.rem;
+      errors = syntax_errorlist_concat(parser->arena, mres.errors, errors);
+      break;
+    }
+
+    break;
+  }
+  size_t end = rem.start;
+
+  mres = match(parser->source, rem, PUNCTUATION_SINGLE_QUOTE);
+  if (mres.matched) {
+    rem = mres.rem;
+  } else {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_SINGLE_QUOTE, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  }
+
+  SyntaxRuneLitExpr *rune = arena_alloc(parser->arena, sizeof(SyntaxRuneLitExpr));
+  rune->header = syntax_node_create(SYNTAX_KIND_RUNE_LIT_EXPR, span_consumed(span, rem));
+  rune->value = source_strview_at(parser->source, span_create(start, end));
+  return syntax_node_result_matched(rem, (SyntaxNode *)rune, errors);
+}
+
+SyntaxNodeResult parse_string_lit_expr(const SyntaxParser *parser, Span span) {
+  SyntaxMatchResult mres = match(parser->source, span, PUNCTUATION_DOUBLE_QUOTE);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  size_t start = rem.start;
+
+  while (true) {
+    if (span_is_empty(rem)) {
+      SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_DOUBLE_QUOTE, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      break;
+    }
+
+    uint8_t c = source_byte_at(parser->source, rem.start);
+    if (c == '"') {
+      break; // the closing quote is consumed after the loop
+    }
+
+    if (c == '\t' || c == '\n' || c == '\r') {
+      SyntaxError error = syntax_error_create(SYNTAX_INVALID_CHARACTER, rem);
+      errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      rem = span_advance(rem, 1); // consume the offending byte; strings continue
+      continue;
+    }
+
+    mres = match_escape(parser, rem);
+    if (mres.matched) {
+      rem = mres.rem;
+      errors = syntax_errorlist_concat(parser->arena, mres.errors, errors);
+      continue;
+    }
+
+    mres = match_utf8_char(parser, rem);
+    rem = mres.rem;
+    errors = syntax_errorlist_concat(parser->arena, mres.errors, errors);
+  }
+
+  size_t end = rem.start;
+
+  mres = match(parser->source, rem, PUNCTUATION_DOUBLE_QUOTE);
+  if (mres.matched) {
+    rem = mres.rem;
+  }
+
+  SyntaxStringLitExpr *string = arena_alloc(parser->arena, sizeof(SyntaxStringLitExpr));
+  string->header = syntax_node_create(SYNTAX_KIND_STRING_LIT_EXPR, span_consumed(span, rem));
+  string->value = source_strview_at(parser->source, span_create(start, end));
+  return syntax_node_result_matched(rem, (SyntaxNode *)string, errors);
 }
 
 SyntaxNodeResult parse_struct_lit_expr(const SyntaxParser *parser, Span span) {

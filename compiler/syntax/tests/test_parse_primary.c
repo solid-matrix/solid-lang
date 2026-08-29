@@ -229,48 +229,80 @@ void test_boundaries_number(void) {
 /* ---- rune literals ------------------------------------------------- */
 
 void test_rune_simple_and_numeric(void) {
-  static const char *const SIMPLE[] = {"'a'",    "'字'",  "'\\''", "'\\\"'",
-                                       "'\\\\'", "'\\n'", "'\\r'", "'\\t'",
-                                       "'\\0'",  "'€'",   "'😀'"};
-  static const char *const NUMERIC[] = {
-      "'\\x41'",       "'\\x30'",        "'\\x7f'",
-      "'\\u{41}'",     "'\\u{0}'",       "'\\u{1_F600}'",
-      "'\\u{10FFFF}'", "'\\u{10_FFFF}'", "'\\u{00e9}'"};
+  static const struct {
+    const char *text;
+    const char *value;
+  } CASES[] = {
+      {"'a'", "a"},         {"'字'", "字"},           {"'\\''", "\\'"},
+      {"'\\\"'", "\\\""},   {"'\\\\'", "\\\\"},       {"'\\n'", "\\n"},
+      {"'\\r'", "\\r"},     {"'\\t'", "\\t"},         {"'\\0'", "\\0"},
+      {"'€'", "€"},         {"'😀'", "😀"},           {"'\\x41'", "\\x41"},
+      {"'\\x30'", "\\x30"}, {"'\\x7f'", "\\x7f"},     {"'\\u{41}'", "\\u{41}"},
+      {"'\\u{0}'", "\\u{0}"}, {"'\\u{1_F600}'", "\\u{1_F600}"}, {"'\\u{10FFFF}'", "\\u{10FFFF}"},
+      {"'\\u{10_FFFF}'", "\\u{10_FFFF}"}, {"'\\u{00e9}'", "\\u{00e9}"},
+  };
 
-  for (size_t i = 0; i < sizeof(SIMPLE) / sizeof(SIMPLE[0]); i++)
-    expect_whole(parse_rune, SIMPLE[i], SYNTAX_KIND_RUNE_LIT_EXPR);
-  for (size_t i = 0; i < sizeof(NUMERIC) / sizeof(NUMERIC[0]); i++)
-    expect_whole(parse_rune, NUMERIC[i], SYNTAX_KIND_RUNE_LIT_EXPR);
+  // The value view covers the character content between the quotes.
+  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+    fx_begin(CASES[i].text);
+    SyntaxNodeResult r = parse_rune(CASES[i].text);
+    TEST_ASSERT_TRUE(r.matched);
+    TEST_ASSERT_NULL(r.errors);
+    TEST_ASSERT_NOT_NULL(r.node);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_RUNE_LIT_EXPR, r.node->kind);
+    TEST_ASSERT_STRVIEW_EQ(((SyntaxRuneLitExpr *)r.node)->value, CASES[i].value);
+    TEST_ASSERT_EQUAL_size_t(strlen(CASES[i].text), r.rem.start);
+  }
 }
 
 void test_rune_malformed(void) {
-  static const char *const CASES[] = {
-      "''",            // empty rune
-      "'''",           // unescaped single quote
-      "'ab'",          // more than one character
-      "'ab",           // unterminated
-      "'\\q'",         // unknown escape
-      "'\\x'",         // missing digits
-      "'\\x8'",        // one digit missing
-      "'\\x80'",       // out of ASCII range
-      "'\\x7G'",       // G is not a hexadecimal digit
-      "'\\u{}'",       // empty unicode escape
-      "'\\u{_41}'",    // leading underscore
-      "'\\u{41_}'",    // trailing underscore
-      "'\\u{1__F}'",   // consecutive underscores
-      "'\\u{D800}'",   // surrogate
-      "'\\u{DFFF}'",   // surrogate
-      "'\\u{110000}'", // out of Unicode scalar range
-      "'\\u{FFFFFF}'", // far out of range
-      "'\t'",          // raw horizontal tab
-      "'\n'",          // raw line feed
-      "'\r'",          // raw carriage return
-      "'\x80'",        // lone continuation byte
-      "'\xc0\xaf'",    // overlong encoding
+  static const struct {
+    const char *text;
+    SyntaxErrorCode code;
+    size_t count;
+  } CASES[] = {
+      {"''", SYNTAX_EXPECTED_CHARACTER, 1},
+      {"'''", SYNTAX_EXPECTED_CHARACTER, 1},
+      {"'ab'", SYNTAX_EXPECTED_SINGLE_QUOTE, 1},
+      {"'ab", SYNTAX_EXPECTED_SINGLE_QUOTE, 1},
+      {"'\\q'", SYNTAX_UNKNOWN_ESCAPE, 1},
+      {"'\\x'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\x8'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\x80'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
+      {"'\\x7G'", SYNTAX_EXPECTED_HEX_DIGIT, 2},
+      {"'\\u{}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\u{_41}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\u{41_}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\u{1__F}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
+      {"'\\u{D800}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
+      {"'\\u{DFFF}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
+      {"'\\u{110000}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
+      {"'\\u{FFFFFF}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
+      {"'\t'", SYNTAX_INVALID_CHARACTER, 1},
+      {"'\n'", SYNTAX_INVALID_CHARACTER, 1},
+      {"'\r'", SYNTAX_INVALID_CHARACTER, 1},
+      {"'\x80'", SYNTAX_INVALID_CHARACTER, 1},
+      {"'\xc0\xaf'", SYNTAX_INVALID_CHARACTER, 2},
   };
 
-  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
-    expect_malformed(parse_rune, CASES[i], SYNTAX_MALFORMED_RUNE);
+  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+    fx_begin(CASES[i].text);
+    SyntaxNodeResult r = parse_rune(CASES[i].text);
+    TEST_ASSERT_TRUE(r.matched); // recovery frame carrying a partial node
+    TEST_ASSERT_NOT_NULL(r.node);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_RUNE_LIT_EXPR, r.node->kind);
+    TEST_ASSERT_EQUAL_size_t(CASES[i].count, error_count(&r));
+    TEST_ASSERT_NOT_NULL(r.errors);
+    if (r.errors != NULL) {
+      if (CASES[i].count == 2) {
+        // A failed closing quote is always the newest diagnostic.
+        TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SINGLE_QUOTE, r.errors->error.code);
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->next->error.code);
+      } else {
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->error.code);
+      }
+    }
+  }
 }
 
 void test_rune_not_match(void) {
@@ -282,41 +314,80 @@ void test_rune_not_match(void) {
 /* ---- string literals ----------------------------------------------- */
 
 void test_string_simple_and_escapes(void) {
-  static const char *const SIMPLE[] = {
-      "\"\"",     "\"hello\"",  "\"'a'\"",        "\"\\\"\"",
-      "\"\\\\\"", "\"中文😀\"", "\"tab\\there\"",
+  static const struct {
+    const char *text;
+    const char *value;
+  } SIMPLE[] = {
+      {"\"\"", ""},      {"\"hello\"", "hello"}, {"\"'a'\"", "'a'"},
+      {"\"\\\"\"", "\\\""}, {"\"\\\\\"", "\\\\"},   {"\"中文😀\"", "中文😀"},
+      {"\"tab\\there\"", "tab\\there"},
   };
-  static const char *const ESCAPES[] = {
-      "\"a\\nb\\tc\\0d\\r\"", "\"\\x09\"", "\"\\x7f\"",
-      "\"\\u{1F600}\"",       "\"\\u{10_FFFF}\"",
+  static const struct {
+    const char *text;
+    const char *value;
+  } ESCAPES[] = {
+      {"\"a\\nb\\tc\\0d\\r\"", "a\\nb\\tc\\0d\\r"}, {"\"\\x09\"", "\\x09"}, {"\"\\x7f\"", "\\x7f"},
+      {"\"\\u{1F600}\"", "\\u{1F600}"},             {"\"\\u{10_FFFF}\"", "\\u{10_FFFF}"},
   };
 
-  for (size_t i = 0; i < sizeof(SIMPLE) / sizeof(SIMPLE[0]); i++)
-    expect_whole(parse_string, SIMPLE[i], SYNTAX_KIND_STRING_LIT_EXPR);
-  for (size_t i = 0; i < sizeof(ESCAPES) / sizeof(ESCAPES[0]); i++)
-    expect_whole(parse_string, ESCAPES[i], SYNTAX_KIND_STRING_LIT_EXPR);
+  // The value view covers the content between the quotes.
+  for (size_t i = 0; i < sizeof(SIMPLE) / sizeof(SIMPLE[0]); i++) {
+    fx_begin(SIMPLE[i].text);
+    SyntaxNodeResult r = parse_string(SIMPLE[i].text);
+    TEST_ASSERT_TRUE(r.matched);
+    TEST_ASSERT_NULL(r.errors);
+    TEST_ASSERT_NOT_NULL(r.node);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, r.node->kind);
+    TEST_ASSERT_STRVIEW_EQ(((SyntaxStringLitExpr *)r.node)->value, SIMPLE[i].value);
+    TEST_ASSERT_EQUAL_size_t(strlen(SIMPLE[i].text), r.rem.start);
+  }
+  for (size_t i = 0; i < sizeof(ESCAPES) / sizeof(ESCAPES[0]); i++) {
+    fx_begin(ESCAPES[i].text);
+    SyntaxNodeResult r = parse_string(ESCAPES[i].text);
+    TEST_ASSERT_TRUE(r.matched);
+    TEST_ASSERT_NULL(r.errors);
+    TEST_ASSERT_STRVIEW_EQ(((SyntaxStringLitExpr *)r.node)->value, ESCAPES[i].value);
+    TEST_ASSERT_EQUAL_size_t(strlen(ESCAPES[i].text), r.rem.start);
+  }
 }
 
 void test_string_malformed(void) {
-  static const char *const CASES[] = {
-      "\"abc",          // missing closing quote
-      "\"a\nb\"",       // raw line feed
-      "\"a\r b\"",      // raw carriage return
-      "\"a\tb\"",       // raw horizontal tab
-      "\"\\q\"",        // unknown escape
-      "\"\\x\"",        // missing digits
-      "\"\\x7G\"",      // G is not a hexadecimal digit
-      "\"\\x8\"",       // one digit missing
-      "\"\x80\"",       // lone continuation byte
-      "\"\xc0\xaf\"",   // overlong encoding
-      "\"\\u{}\"",      // empty unicode escape
-      "\"\\u{41_}\"",   // trailing underscore
-      "\"\\u{D800}\"",  // surrogate
-      "\"\\u{110000}\"" // out of Unicode scalar range
+  static const struct {
+    const char *text;
+    size_t count;
+    SyntaxErrorCode head;
+    SyntaxErrorCode next;
+  } CASES[] = {
+      {"\"abc", 1, SYNTAX_EXPECTED_DOUBLE_QUOTE, SYNTAX_OK},
+      {"\"a\nb\"", 1, SYNTAX_INVALID_CHARACTER, SYNTAX_OK},
+      {"\"a\tb", 2, SYNTAX_EXPECTED_DOUBLE_QUOTE, SYNTAX_INVALID_CHARACTER},
+      {"\"\\q\"", 1, SYNTAX_UNKNOWN_ESCAPE, SYNTAX_OK},
+      {"\"\\x\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\x7G\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\x8\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\x80\"", 1, SYNTAX_ESCAPE_OUT_OF_RANGE, SYNTAX_OK},
+      {"\"\x80\"", 1, SYNTAX_INVALID_CHARACTER, SYNTAX_OK},
+      {"\"\xc0\xaf\"", 2, SYNTAX_INVALID_CHARACTER, SYNTAX_INVALID_CHARACTER},
+      {"\"\\u{}\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\u{_41}\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\u{41_}\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
+      {"\"\\u{D800}\"", 1, SYNTAX_ESCAPE_OUT_OF_RANGE, SYNTAX_OK},
+      {"\"\\u{110000}\"", 1, SYNTAX_ESCAPE_OUT_OF_RANGE, SYNTAX_OK},
   };
 
-  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
-    expect_malformed(parse_string, CASES[i], SYNTAX_MALFORMED_STRING);
+  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+    SyntaxNodeResult r = parse_string(CASES[i].text);
+    TEST_ASSERT_TRUE(r.matched); // recovery frame carrying a partial node
+    TEST_ASSERT_NOT_NULL(r.node);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, r.node->kind);
+    TEST_ASSERT_EQUAL_size_t(CASES[i].count, error_count(&r));
+    TEST_ASSERT_NOT_NULL(r.errors);
+    if (r.errors != NULL) {
+      TEST_ASSERT_EQUAL_HEX32(CASES[i].head, r.errors->error.code);
+      if (CASES[i].next != SYNTAX_OK)
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].next, r.errors->next->error.code);
+    }
+  }
 }
 
 void test_string_not_match(void) {
