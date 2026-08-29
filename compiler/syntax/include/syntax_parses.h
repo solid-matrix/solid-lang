@@ -42,9 +42,9 @@ SyntaxListResult parse_generic_arg_list(const SyntaxParser *parser, Span span);
 SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field,
                                   SyntaxErrorCode missing_code);
 
-SyntaxMatchResult match_keyword(const Source *source, Span span, Strview keyword);
+SyntaxMatchResult match_keyword(const SyntaxParser *parser, Span span, Strview keyword);
 
-SyntaxMatchResult match(const Source *source, Span span, Strview strview);
+SyntaxMatchResult match(const SyntaxParser *parser, Span span, Strview strview);
 
 SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span);
 
