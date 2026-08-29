@@ -37,6 +37,8 @@ SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span)
 
 SyntaxListResult parse_call_param_list(const SyntaxParser *parser, Span span);
 
+SyntaxListResult parse_generic_arg_list(const SyntaxParser *parser, Span span);
+
 SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field,
                                   SyntaxErrorCode missing_code);
 
@@ -58,9 +60,13 @@ SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span);
 
 SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span);
 
+SyntaxNodeResult parse_generic_arg(const SyntaxParser *parser, Span span);
+
 SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span);
 
-SyntaxNodeResult parse_named(const SyntaxParser *parser, Span span);
+SyntaxNodeResult parse_named_type(const SyntaxParser *parser, Span span);
+
+SyntaxNodeResult parse_named_expr(const SyntaxParser *parser, Span span);
 
 #pragma endregion
 

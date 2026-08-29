@@ -55,7 +55,13 @@ set(PARSE_CASES
     array_type_forms array_type_malform func_type_forms
     func_type_word_boundary func_type_malform struct_lit_forms
     struct_lit_not_a_literal struct_lit_field_frame array_lit_forms
-    array_lit_malform
+    array_lit_malform named_type_generic_forms named_type_generic_paren_escape
+    named_type_generic_nested named_type_generic_malform
+    named_expr_generic_call named_expr_relational_fallback
+    named_expr_shift_fallback named_expr_two_comparisons
+    named_expr_member_generic named_expr_condition_generic
+    generic_arg_compile_time_value generic_arg_named_generic_value
+    generic_struct_lit_generic_type generic_fulfills
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal

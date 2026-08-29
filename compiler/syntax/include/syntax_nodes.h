@@ -42,9 +42,16 @@ typedef struct {
 } SyntaxProgram;
 
 typedef struct {
-  SyntaxNode header;    // SYNTAX_KIND_NAMED
-  SyntaxNodeList *path; // SyntaxIdentifier nodes
+  SyntaxNode header;            // SYNTAX_KIND_NAMED
+  SyntaxNodeList *path;         // SyntaxIdentifier nodes
+  SyntaxNodeList *generic_args; // SyntaxGenericArg nodes
 } SyntaxNamed;
+
+typedef struct {
+  SyntaxNode header;    // SYNTAX_KIND_GENERIC_ARG
+  SyntaxIdentifier *id; // named form; NULL for the Type form
+  SyntaxNode *value;    // type node (Type form) or PrimaryExpr node (named form)
+} SyntaxGenericArg;
 
 typedef struct {
   SyntaxNode header;      // SYNTAX_KIND_REF_TYPE

@@ -213,6 +213,39 @@ SyntaxListResult parse_call_param_list(const SyntaxParser *parser, Span span) {
   return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
 }
 
+SyntaxListResult parse_generic_arg_list(const SyntaxParser *parser, Span span) {
+  Span rem = span;
+  SyntaxNodeList *list = syntax_nodelist_empty();
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+
+  SyntaxNodeResult res = parse_generic_arg(parser, rem);
+  if (res.matched) {
+    list = syntax_nodelist_prepend(parser->arena, list, res.node);
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+
+    while (true) {
+      SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_COMMA);
+      if (!mres.matched)
+        break;
+
+      rem = mres.rem;
+
+      res = parse_generic_arg(parser, skip_trivia(parser->source, rem));
+      if (!res.matched) {
+        SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+        errors = syntax_errorlist_prepend(parser->arena, errors, error);
+      } else {
+        list = syntax_nodelist_prepend(parser->arena, list, res.node);
+        errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+        rem = res.rem;
+      }
+    }
+  }
+
+  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+}
+
 SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field,
                                   SyntaxErrorCode missing_code) {
   Span rem = span;
@@ -402,17 +435,98 @@ SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span) {
   return syntax_node_result_matched(rem, (SyntaxNode *)program, errors);
 }
 
-SyntaxNodeResult parse_named(const SyntaxParser *parser, Span span) {
-  // Minimal Named: path segments only; generic arguments come later.
+SyntaxNodeResult parse_named_type(const SyntaxParser *parser, Span span) {
   SyntaxListResult lres = parse_identifier_list(parser, span, PUNCTUATION_SCOPE);
   if (syntax_nodelist_is_empty(lres.list))
     return syntax_node_result_not_match(span);
 
-  SyntaxNamed *node = arena_alloc(parser->arena, sizeof(SyntaxNamed));
-  node->header = syntax_node_create(SYNTAX_KIND_NAMED, span_consumed(span, lres.rem));
-  node->path = lres.list;
+  Span rem = lres.rem;
+  SyntaxErrorList *errors = lres.errors;
+  SyntaxNodeList *generic_arguments = syntax_nodelist_empty();
 
-  return syntax_node_result_matched(lres.rem, (SyntaxNode *)node, lres.errors);
+  SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_LT);
+  if (mres.matched) {
+    rem = mres.rem;
+
+    SyntaxListResult glist = parse_generic_arg_list(parser, skip_trivia(parser->source, rem));
+    generic_arguments = glist.list;
+    errors = syntax_errorlist_concat(parser->arena, glist.errors, errors);
+    rem = glist.rem;
+
+    if (syntax_nodelist_is_empty(generic_arguments)) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+    }
+
+    mres = match(parser->source, skip_trivia(parser->source, rem), PUNCTUATION_GT);
+    if (!mres.matched) {
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_GT, rem));
+    } else {
+      rem = mres.rem;
+    }
+  }
+
+  SyntaxNamed *node = arena_alloc(parser->arena, sizeof(SyntaxNamed));
+  node->header = syntax_node_create(SYNTAX_KIND_NAMED, span_consumed(span, rem));
+  node->path = lres.list;
+  node->generic_args = generic_arguments;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)node, errors);
+}
+
+SyntaxNodeResult parse_named_expr(const SyntaxParser *parser, Span span) {
+  SyntaxListResult path = parse_identifier_list(parser, span, PUNCTUATION_SCOPE);
+  if (syntax_nodelist_is_empty(path.list))
+    return syntax_node_result_not_match(span);
+
+  SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, path.rem), PUNCTUATION_LT);
+  if (mres.matched) {
+    Span t_rem = mres.rem;
+    SyntaxListResult glist = parse_generic_arg_list(parser, skip_trivia(parser->source, t_rem));
+
+    bool closed = false;
+    SyntaxMatchResult close = match(parser->source, skip_trivia(parser->source, glist.rem), PUNCTUATION_GT);
+    if (close.matched) {
+      closed = true;
+      t_rem = close.rem;
+    }
+
+    if (closed) {
+      const static Strview FOLLOW[] = {PUNCTUATION_LPAREN,    PUNCTUATION_RPAREN, PUNCTUATION_LBRACKET,
+                                       PUNCTUATION_RBRACKET,  PUNCTUATION_LBRACE, PUNCTUATION_RBRACE,
+                                       PUNCTUATION_SEMICOLON, PUNCTUATION_COMMA,  PUNCTUATION_DOT};
+      Span adv = skip_trivia(parser->source, t_rem);
+
+      bool gated = false;
+      for (size_t i = 0; i < COUNT_OF(FOLLOW); i++) {
+        if (match(parser->source, adv, FOLLOW[i]).matched) {
+          gated = true;
+          break;
+        }
+      }
+
+      if (gated) {
+        SyntaxErrorList *errors = glist.errors;
+        if (syntax_nodelist_is_empty(glist.list)) {
+          errors =
+              syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, t_rem));
+        }
+
+        SyntaxNamed *node = arena_alloc(parser->arena, sizeof(SyntaxNamed));
+        node->header = syntax_node_create(SYNTAX_KIND_NAMED, span_consumed(span, t_rem));
+        node->path = path.list;
+        node->generic_args = glist.list;
+
+        return syntax_node_result_matched(t_rem, (SyntaxNode *)node, errors);
+      }
+    }
+  }
+
+  SyntaxNamed *node = arena_alloc(parser->arena, sizeof(SyntaxNamed));
+  node->header = syntax_node_create(SYNTAX_KIND_NAMED, span_consumed(span, path.rem));
+  node->path = path.list;
+  node->generic_args = syntax_nodelist_empty();
+
+  return syntax_node_result_matched(path.rem, (SyntaxNode *)node, path.errors);
 }
 
 SyntaxListResult parse_annotations(const SyntaxParser *parser, Span span) {
@@ -462,7 +576,7 @@ SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span) {
   }
 
   SyntaxGenericParam *param = arena_alloc(parser->arena, sizeof(SyntaxGenericParam));
-  param->header = syntax_node_create(SYNTAX_KIND_GENERIC_PARAMETER, span_consumed(span, rem));
+  param->header = syntax_node_create(SYNTAX_KIND_GENERIC_PARAM, span_consumed(span, rem));
   param->annotations = ann.list;
   param->id = id;
   param->type = type;
@@ -502,12 +616,62 @@ SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span) {
   }
 
   SyntaxCallParam *param = arena_alloc(parser->arena, sizeof(SyntaxCallParam));
-  param->header = syntax_node_create(SYNTAX_KIND_CALL_PARAMETER, span_consumed(span, rem));
+  param->header = syntax_node_create(SYNTAX_KIND_CALL_PARAM, span_consumed(span, rem));
   param->annotations = ann.list;
   param->id = id;
   param->type = type;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)param, errors);
+}
+
+SyntaxNodeResult parse_generic_arg(const SyntaxParser *parser, Span span) {
+  SyntaxNodeResult probe = parse_identifier(parser, span);
+  if (probe.matched) {
+    SyntaxMatchResult mres = match(parser->source, skip_trivia(parser->source, probe.rem), PUNCTUATION_EQUALS);
+    if (mres.matched) {
+      Span rem = mres.rem;
+      SyntaxErrorList *errors = syntax_errorlist_empty();
+
+      SyntaxNodeResult results[] = {
+          parse_int_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_float_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_rune_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_string_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_named_type(parser, skip_trivia(parser->source, rem)),
+          parse_sub_expr(parser, skip_trivia(parser->source, rem)),
+          parse_struct_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_array_lit_expr(parser, skip_trivia(parser->source, rem)),
+          parse_compile_time(parser, skip_trivia(parser->source, rem)),
+      };
+      SyntaxNodeResult res = complete_longest_match(results, COUNT_OF(results));
+
+      SyntaxGenericArg *arg = arena_alloc(parser->arena, sizeof(SyntaxGenericArg));
+      arg->id = (SyntaxIdentifier *)probe.node;
+
+      if (!res.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EXPR, rem));
+        arg->header = syntax_node_create(SYNTAX_KIND_GENERIC_ARG, span_consumed(span, rem));
+        arg->value = NULL;
+        return syntax_node_result_matched(rem, (SyntaxNode *)arg, errors);
+      }
+
+      errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+      arg->header = syntax_node_create(SYNTAX_KIND_GENERIC_ARG, span_consumed(span, res.rem));
+      arg->value = res.node;
+      return syntax_node_result_matched(res.rem, (SyntaxNode *)arg, errors);
+    }
+  }
+
+  SyntaxNodeResult type_res = parse_type(parser, span);
+  if (!type_res.matched)
+    return syntax_node_result_not_match(span);
+
+  SyntaxGenericArg *arg = arena_alloc(parser->arena, sizeof(SyntaxGenericArg));
+  arg->header = syntax_node_create(SYNTAX_KIND_GENERIC_ARG, span_consumed(span, type_res.rem));
+  arg->id = NULL;
+  arg->value = type_res.node;
+
+  return syntax_node_result_matched(type_res.rem, (SyntaxNode *)arg, type_res.errors);
 }
 
 #pragma endregion
@@ -516,7 +680,7 @@ SyntaxNodeResult parse_call_param(const SyntaxParser *parser, Span span) {
 
 SyntaxNodeResult parse_type(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
-      parse_named(parser, span),
+      parse_named_type(parser, span),
       parse_ref_type(parser, span),
       parse_array_type(parser, span),
       parse_func_type(parser, span),
@@ -1516,7 +1680,7 @@ SyntaxNodeResult parse_func_decl(const SyntaxParser *parser, Span span) {
   if (mres.matched) {
     rem = mres.rem;
 
-    SyntaxNodeResult nres = parse_named(parser, skip_trivia(parser->source, rem));
+    SyntaxNodeResult nres = parse_named_type(parser, skip_trivia(parser->source, rem));
     if (!nres.matched) {
       errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
     } else {
@@ -1530,7 +1694,7 @@ SyntaxNodeResult parse_func_decl(const SyntaxParser *parser, Span span) {
           break;
         rem = sep.rem;
 
-        nres = parse_named(parser, skip_trivia(parser->source, rem));
+        nres = parse_named_type(parser, skip_trivia(parser->source, rem));
         if (!nres.matched) {
           errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
           break;
@@ -2523,7 +2687,7 @@ SyntaxNodeResult parse_postfix_expr(const SyntaxParser *parser, Span span) {
 SyntaxNodeResult parse_primary_expr(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
       parse_int_lit_expr(parser, span),    parse_float_lit_expr(parser, span), parse_rune_lit_expr(parser, span),
-      parse_string_lit_expr(parser, span), parse_named(parser, span),          parse_sub_expr(parser, span),
+      parse_string_lit_expr(parser, span), parse_named_expr(parser, span),     parse_sub_expr(parser, span),
       parse_struct_lit_expr(parser, span), parse_array_lit_expr(parser, span), parse_compile_time(parser, span),
   };
   return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
@@ -2563,7 +2727,7 @@ static SyntaxNodeResult parse_struct_lit_field(const SyntaxParser *parser, Span 
 }
 
 SyntaxNodeResult parse_struct_lit_expr(const SyntaxParser *parser, Span span) {
-  SyntaxNodeResult named = parse_named(parser, span);
+  SyntaxNodeResult named = parse_named_type(parser, span);
   if (!named.matched)
     return syntax_node_result_not_match(span);
 

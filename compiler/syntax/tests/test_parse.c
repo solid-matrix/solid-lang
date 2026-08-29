@@ -2,11 +2,11 @@
 
 #include <string.h>
 
-#include "syntax_parses.h"
 #include "parser_fixture.h"
-#include "syntax_nodes.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
+#include "syntax_nodes.h"
+#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
@@ -245,7 +245,7 @@ void test_using_decl_malforms(void) {
   expect_decl_bad(parse_using_decl, SYNTAX_KIND_USING_DECL, "using a::;", A, 1, IDENT, 1, strlen("using a::;"));
 }
 
-/* ---- parse_named / parse_ref_type ------------------------------------- */
+/* ---- parse_named_type / parse_ref_type -------------------------------- */
 // Minimal Named: path segments only, no generic arguments yet.
 
 static const SyntaxNamed *as_named(const SyntaxNode *n) {
@@ -256,7 +256,7 @@ static const SyntaxNamed *as_named(const SyntaxNode *n) {
 
 void test_named_type_single_and_path(void) {
   fx_begin("i32");
-  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
   static const char *const I32[] = {"i32"};
@@ -265,7 +265,7 @@ void test_named_type_single_and_path(void) {
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
 
   fx_begin("std::math::Vector2");
-  r = parse_named(fx_parser, source_get_span(fx_source));
+  r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   t = as_named(r.node);
   static const char *const PATH[] = {"std", "math", "Vector2"};
@@ -275,7 +275,7 @@ void test_named_type_single_and_path(void) {
 
 void test_named_type_trivia_between_segments(void) {
   fx_begin("a :: b");
-  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
   static const char *const AB[] = {"a", "b"};
@@ -285,7 +285,7 @@ void test_named_type_trivia_between_segments(void) {
 
 void test_named_type_not_match_on_non_identifier(void) {
   fx_begin("&i32");
-  SyntaxNodeResult r = parse_named(fx_parser, source_get_span(fx_source));
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_FALSE(r.matched);
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_NULL(r.errors);
@@ -1338,8 +1338,8 @@ void test_func_decl_full_ladder(void) {
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fulfills));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, d->body->kind);
   TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(
-      strlen("@private func add<T: i32, U>(x: T, y: U)cdecl: i32 fulfills Addable { return x; }"), r.rem.start);
+  TEST_ASSERT_EQUAL_size_t(strlen("@private func add<T: i32, U>(x: T, y: U)cdecl: i32 fulfills Addable { return x; }"),
+                           r.rem.start);
 }
 
 void test_func_decl_body_forms(void) {
@@ -1765,10 +1765,9 @@ void test_stmt_dispatch_ladder(void) {
   TEST_ASSERT_EQUAL_size_t(10, syntax_nodelist_length(b->stmts));
 
   static const SyntaxKind WANT[] = {
-      SYNTAX_KIND_RETURN_STMT, SYNTAX_KIND_CONTINUE_STMT, SYNTAX_KIND_BREAK_STMT,
-      SYNTAX_KIND_WHILE_STMT,  SYNTAX_KIND_LOOP_STMT,     SYNTAX_KIND_IF_STMT,
-      SYNTAX_KIND_EXPR_STMT,   SYNTAX_KIND_SET_STMT,      SYNTAX_KIND_LET_STMT,
-      SYNTAX_KIND_EMPTY_STMT,
+      SYNTAX_KIND_RETURN_STMT, SYNTAX_KIND_CONTINUE_STMT, SYNTAX_KIND_BREAK_STMT, SYNTAX_KIND_WHILE_STMT,
+      SYNTAX_KIND_LOOP_STMT,   SYNTAX_KIND_IF_STMT,       SYNTAX_KIND_EXPR_STMT,  SYNTAX_KIND_SET_STMT,
+      SYNTAX_KIND_LET_STMT,    SYNTAX_KIND_EMPTY_STMT,
   };
   const SyntaxNodeList *n = b->stmts;
   for (size_t i = 0; i < sizeof(WANT) / sizeof(WANT[0]); i++) {
@@ -1980,6 +1979,217 @@ void test_array_lit_malform(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1"), r.rem.start);
 }
 
+/* ---- generic arguments ------------------------------------------------- */
+
+void test_named_type_generic_forms(void) {
+  fx_begin("Array<i32, N = 5>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamed *t = as_named(r.node);
+  static const char *const PATH[] = {"Array"};
+  check_path(t->path, PATH, 1);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(t->generic_args));
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
+  TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, named->value->kind);
+  const SyntaxGenericArg *ty = (const SyntaxGenericArg *)t->generic_args->next->node;
+  TEST_ASSERT_NULL(ty->id);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ty->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Array<i32, N = 5>"), r.rem.start);
+
+  fx_begin("Box<[5]i32>");
+  r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = as_named(r.node);
+  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)t->generic_args->node;
+  TEST_ASSERT_NULL(arg->id);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_TYPE, arg->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Box<[5]i32>"), r.rem.start);
+}
+
+void test_named_type_generic_paren_escape(void) {
+  fx_begin("Array<i32, N = (LEN + 1)>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamed *t = as_named(r.node);
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
+  TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, named->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Array<i32, N = (LEN + 1)>"), r.rem.start);
+}
+
+void test_named_type_generic_nested(void) {
+  fx_begin("Box<Box<i32>>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamed *outer = as_named(r.node);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(outer->generic_args));
+  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)outer->generic_args->node;
+  TEST_ASSERT_NULL(arg->id);
+  const SyntaxNamed *inner = as_named(arg->value);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(inner->generic_args));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Box<Box<i32>>"), r.rem.start);
+}
+
+void test_named_type_generic_malform(void) {
+  fx_begin("a<>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(as_named(r.node)->generic_args));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("a<>"), r.rem.start);
+
+  fx_begin("a<b");
+  r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(as_named(r.node)->generic_args));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("a<b"), r.rem.start);
+}
+
+void test_named_expr_generic_call(void) {
+  fx_begin("f<a>(x)");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  const SyntaxNamed *receiver = as_named(call->receiver);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(receiver->generic_args));
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(call->args));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("f<a>(x)"), r.rem.start);
+}
+
+void test_named_expr_relational_fallback(void) {
+  fx_begin("a<b>c");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxBinaryExpr *gt = as_bin(r.node, SYNTAX_OPERATOR_GT);
+  const SyntaxBinaryExpr *lt = as_bin(gt->left, SYNTAX_OPERATOR_LT);
+  const SyntaxNamed *a = as_named(lt->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  const SyntaxNamed *b = as_named(lt->right);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->node)->value, "b");
+  const SyntaxNamed *c = as_named(gt->right);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("a<b>c"), r.rem.start);
+}
+
+void test_named_expr_shift_fallback(void) {
+  fx_begin("a<b>>c");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxBinaryExpr *lt = as_bin(r.node, SYNTAX_OPERATOR_LT);
+  const SyntaxNamed *a = as_named(lt->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  const SyntaxBinaryExpr *shr = as_bin(lt->right, SYNTAX_OPERATOR_SHR);
+  const SyntaxNamed *b = as_named(shr->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->node)->value, "b");
+  const SyntaxNamed *c = as_named(shr->right);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("a<b>>c"), r.rem.start);
+}
+
+void test_named_expr_two_comparisons(void) {
+  fx_begin("f(a<b, c>d)");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
+  const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(call->args));
+  const SyntaxBinaryExpr *gt = as_bin(call->args->node, SYNTAX_OPERATOR_GT);
+  const SyntaxNamed *c = as_named(gt->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  const SyntaxBinaryExpr *lt = as_bin(call->args->next->node, SYNTAX_OPERATOR_LT);
+  const SyntaxNamed *a = as_named(lt->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("f(a<b, c>d)"), r.rem.start);
+}
+
+void test_named_expr_member_generic(void) {
+  fx_begin("f<a>.x");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_DOT_EXPR, r.node->kind);
+  const SyntaxDotExpr *dot = (const SyntaxDotExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(as_named(dot->receiver)->generic_args));
+  TEST_ASSERT_STRVIEW_EQ(dot->id->value, "x");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("f<a>.x"), r.rem.start);
+}
+
+void test_named_expr_condition_generic(void) {
+  fx_begin("if (a<b) {} else {}");
+  SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxIfStmt *s = (const SyntaxIfStmt *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, s->condition->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_OPERATOR_LT, ((const SyntaxBinaryExpr *)s->condition)->operator);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("if (a<b) {} else {}"), r.rem.start);
+}
+
+void test_generic_arg_compile_time_value(void) {
+  fx_begin("M<i32, N = @sizeof(i32)>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamed *t = as_named(r.node);
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
+  TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, named->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("M<i32, N = @sizeof(i32)>"), r.rem.start);
+}
+
+void test_generic_arg_named_generic_value(void) {
+  fx_begin("add<i32, i32, F = Addable<i32, i32>>");
+  SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxNamed *t = as_named(r.node);
+  TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(t->generic_args));
+  const SyntaxGenericArg *f = (const SyntaxGenericArg *)t->generic_args->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "F");
+  const SyntaxNamed *v = as_named(f->value);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(v->generic_args));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("add<i32, i32, F = Addable<i32, i32>>"), r.rem.start);
+}
+
+void test_generic_struct_lit_generic_type(void) {
+  fx_begin("Vector2<f32>{ x = 0_f32 }");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, r.node->kind);
+  const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
+  const SyntaxNamed *t = as_named((const SyntaxNode *)s->type);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(t->generic_args));
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2<f32>{ x = 0_f32 }"), r.rem.start);
+}
+
+void test_generic_fulfills(void) {
+  fx_begin("func f() fulfills Addable<i32, i32>;");
+  SyntaxNodeResult r = parse_func_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fulfills));
+  const SyntaxNamed *n = as_named(d->fulfills->node);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(n->generic_args));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, d->body->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("func f() fulfills Addable<i32, i32>;"), r.rem.start);
+}
+
 /* ---- parse_program --------------------------------------------------- */
 
 static size_t top_level_count(const SyntaxProgram *p) {
@@ -2106,6 +2316,20 @@ static const TestDispatchEntry ENTRIES[] = {
     {"func_decl_body_forms", test_func_decl_body_forms},
     {"func_decl_callconv_and_fulfills", test_func_decl_callconv_and_fulfills},
     {"program_func_sample_end_to_end", test_program_func_sample_end_to_end},
+    {"named_type_generic_forms", test_named_type_generic_forms},
+    {"named_type_generic_paren_escape", test_named_type_generic_paren_escape},
+    {"named_type_generic_nested", test_named_type_generic_nested},
+    {"named_type_generic_malform", test_named_type_generic_malform},
+    {"named_expr_generic_call", test_named_expr_generic_call},
+    {"named_expr_relational_fallback", test_named_expr_relational_fallback},
+    {"named_expr_shift_fallback", test_named_expr_shift_fallback},
+    {"named_expr_two_comparisons", test_named_expr_two_comparisons},
+    {"named_expr_member_generic", test_named_expr_member_generic},
+    {"named_expr_condition_generic", test_named_expr_condition_generic},
+    {"generic_arg_compile_time_value", test_generic_arg_compile_time_value},
+    {"generic_arg_named_generic_value", test_generic_arg_named_generic_value},
+    {"generic_struct_lit_generic_type", test_generic_struct_lit_generic_type},
+    {"generic_fulfills", test_generic_fulfills},
     {"array_type_forms", test_array_type_forms},
     {"array_type_malform", test_array_type_malform},
     {"func_type_forms", test_func_type_forms},
