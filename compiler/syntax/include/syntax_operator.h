@@ -107,3 +107,11 @@ static const Strview PUNCTUATION_GT = STRVIEW(">");
 static const Strview PUNCTUATION_SCOPE = STRVIEW("::");
 static const Strview PUNCTUATION_SEMICOLON = STRVIEW(";");
 static const Strview PUNCTUATION_AMP = STRVIEW("&");
+
+static const Strview INT_SUFFIXES[] = {
+    STRVIEW("isize"), STRVIEW("usize"), STRVIEW("i128"), STRVIEW("u128"), STRVIEW("i64"),
+    STRVIEW("u64"),   STRVIEW("i32"),   STRVIEW("u32"),  STRVIEW("i16"),  STRVIEW("u16"),
+    STRVIEW("i8"),    STRVIEW("u8"),    STRVIEW("i"),    STRVIEW("u"),
+};
+
+static const Strview FLOAT_SUFFIXES[] = {STRVIEW("f32"), STRVIEW("f64"), STRVIEW("f"), STRVIEW("d")};

@@ -659,26 +659,26 @@ LitExpr            = int_lit | float_lit | rune_lit | string_lit | StructLit | A
 Syntax:
 
 ```
-int_lit          = (decimal_lit | binary_lit | octal_lit | hex_lit) [ [ "_" ] int_lit_suffix ] .
+int_lit          = (decimal_lit | binary_lit | octal_lit | hex_lit) [ { "_" } int_lit_suffix ] .
 
-decimal_lit      = ( "0" | ( "1" … "9" ) [ "_" ] decimal_digits ) .
-binary_lit       = "0" ( "b" | "B" ) [ "_" ] binary_digits .
-octal_lit        = "0" ( "o" | "O" ) [ "_" ] octal_digits .
-hex_lit          = "0" ( "x" | "X" ) [ "_" ] hex_digits .
+decimal_lit      = ( "0" | ( "1" … "9" ) { "_" } decimal_digits ) .
+binary_lit       = "0" ( "b" | "B" ) { "_" } binary_digits .
+octal_lit        = "0" ( "o" | "O" ) { "_" } octal_digits .
+hex_lit          = "0" ( "x" | "X" ) { "_" } hex_digits .
 
-decimal_digits   = decimal_digit { [ "_" ] decimal_digit } .
-binary_digits    = binary_digit { [ "_" ] binary_digit } .
-octal_digits     = octal_digit { [ "_" ] octal_digit } .
-hex_digits       = hex_digit { [ "_" ] hex_digit } .
+decimal_digits   = decimal_digit { { "_" } decimal_digit } .
+binary_digits    = binary_digit { { "_" } binary_digit } .
+octal_digits     = octal_digit { { "_" } octal_digit } .
+hex_digits       = hex_digit { { "_" } hex_digit } .
 
 int_lit_suffix   = "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "i"
                  | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "u" .
 
-float_lit        = ( decimal_lit [ "." decimal_digits ] float_exponent [ [ "_" ] float_lit_suffix ] )
-                 | ( decimal_lit "." [ decimal_digits ] [ [ "_" ] float_lit_suffix ] )
-                 | ( decimal_lit [ "_" ] float_lit_suffix ) .
+float_lit        = ( decimal_lit [ "." decimal_digits ] float_exponent [ { "_" } float_lit_suffix ] )
+                 | ( decimal_lit "." [ decimal_digits ] [ { "_" } float_lit_suffix ] )
+                 | ( decimal_lit { "_" } float_lit_suffix ) .
 
-float_exponent   = ( "e" | "E" ) [ "+" | "-" ] [ "_" ] decimal_lit .
+float_exponent   = ( "e" | "E" ) [ "+" | "-" ] { "_" } decimal_lit .
 float_lit_suffix = "f32" | "f64" | "f" | "d" .
 ```
 
@@ -689,11 +689,11 @@ Example:
 ```
 // integer - decimal
 0 0i32 0_i32 1 1i32 1_i32 12 12i32 12_i32 1_2 1_2i32 1_2_i32
-1_234_567 0isize 1u128
+1_234_567 0isize 1u128 1__2
 
 // integer - binary
 0b0 0b01 0b1 0b_0 0b_0000_1111 0B_0000_1111_u8
-0b1010_1101 0b1u8
+0b1010_1101 0b1u8 0b__0
 
 // integer - octal
 0o0 0o17 0o_123 0O_123 0o7_i16
@@ -712,21 +712,20 @@ Example:
 1e+_5  1e-_5                  // an optional "_" may follow the sign
 0e0  1_000e3                  // zero mantissa; separated mantissa
 1e5f64  1.5e5_f64             // suffix directly attached or after "_"
+1e__5                         // an underscore run may follow the sign
 
 // float - dot
 1.  1.5  1.5_f32  1.5f32  0.5
 0.0  12.75  1.5d
-1.f32                         // suffix straight after the dot, no digits
+1.f32  1._f32                 // suffix straight after the dot or after an "_" run
 
 // float - suffix
 1f  1f32  1_f32  0d
-1f64  0f
+1f64  0f  1__5f32
 
 // integer - invalid
 01 00       // leading zero
 0_0 0_      // zero cannot carry separators
-1__2        // consecutive underscores
-0b__0       // consecutive underscores
 1_          // trailing underscore
 0b 0x 0B 0O // missing digits
 0x_ 0x_g    // missing digits after underscore
@@ -744,8 +743,8 @@ Example:
 1.5e     // missing exponent digits
 1e5.5    // extra dot
 1e5_     // trailing underscore
-1__5     // consecutive underscores
-1._5     // "_" may not follow the dot directly
+1__5     // requires a float_lit_suffix
+1._5     // _ may not follow the dot directly
 ```
 
 ### Rune Literals
@@ -762,7 +761,7 @@ quote_escape    = "\\'" | "\\\"" .
 ascii_escape    = "\\n" | "\\r" | "\\t" | "\\\\" | "\\0"
                 | "\\x" octal_digit hex_digit .
 
-unicode_escape  = "\\u{" hex_digit { [ "_" ] hex_digit } "}" .
+unicode_escape  = "\\u{" hex_digit { { "_" } hex_digit } "}" .
 ```
 
 A *rune literal* is a single character enclosed within two U+0027 (single-quote) characters, with the exception of U+0027 itself, which must be escaped by a preceding U+005C character (`\`).

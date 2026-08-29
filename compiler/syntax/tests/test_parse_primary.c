@@ -1,9 +1,9 @@
 #include <string.h>
 
-#include "syntax_parses.h"
 #include "parser_fixture.h"
-#include "syntax_nodes.h"
 #include "syntax_node.h"
+#include "syntax_nodes.h"
+#include "syntax_parses.h"
 #include "test_support.h"
 
 static size_t error_count(const SyntaxNodeResult *r) {
@@ -68,10 +68,22 @@ static void expect_whole(ParseFn fn, const char *text, SyntaxKind kind) {
   TEST_ASSERT_EQUAL_size_t(strlen(text), r.rem.start);
 }
 
+// Asserts a recovery frame: matched, partial node of @p kind, exactly one
+// diagnostic of @p code, and the parse advanced to @p rem.
+static void expect_error_frame(const char *text, SyntaxKind kind, SyntaxErrorCode code, size_t rem) {
+  fx_begin(text);
+  SyntaxNodeResult r = parse_number_now();
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NOT_NULL(r.node);
+  TEST_ASSERT_EQUAL_HEX32(kind, r.node->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(code, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(rem, r.rem.start);
+}
+
 // Asserts that only the first tok_len bytes form the token; the rest
 // splits into later tokens (longest valid prefix).
-static void expect_split(ParseFn fn, const char *text, SyntaxKind kind,
-                         size_t tok_len) {
+static void expect_split(ParseFn fn, const char *text, SyntaxKind kind, size_t tok_len) {
   SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_TRUE(r.matched);
@@ -83,8 +95,7 @@ static void expect_split(ParseFn fn, const char *text, SyntaxKind kind,
 }
 
 // Asserts a recovery run: matched, no node, exactly one diagnostic.
-static void expect_malformed(ParseFn fn, const char *text,
-                             SyntaxErrorCode code) {
+static void expect_malformed(ParseFn fn, const char *text, SyntaxErrorCode code) {
   SyntaxNodeResult r = fn(text);
 
   TEST_ASSERT_TRUE(r.matched);
@@ -110,9 +121,8 @@ static void expect_not_match(ParseFn fn, const char *text) {
 
 void test_int_decimal(void) {
   static const char *const CASES[] = {
-      "0",         "0i32",   "0_i32",  "1",         "1i32",   "1_i32",
-      "12",        "12i32",  "12_i32", "1_2",       "1_2i32", "1_2_i32",
-      "1_234_567", "0isize", "1u128",  "1234567_u",
+      "0",      "0i32", "0_i32",  "1",       "1i32",      "1_i32",  "12",    "12i32",
+      "12_i32", "1_2",  "1_2i32", "1_2_i32", "1_234_567", "0isize", "1u128", "1234567_u",
   };
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_whole(parse_number, CASES[i], SYNTAX_KIND_INT_LIT_EXPR);
@@ -120,37 +130,37 @@ void test_int_decimal(void) {
 
 void test_int_base_prefixed(void) {
   static const char *const CASES[] = {
-      "0b0",         "0b01",         "0b1",
-      "0b_0",        "0b_0000_1111", "0B_0000_1111_u8",
-      "0b1010_1101", "0b1u8",        "0o0",
-      "0o17",        "0o_123",       "0O_123",
-      "0o7_i16",     "0x0",          "0xFF",
-      "0x_FFFF",     "0X_FFFF",      "0xDeAd_beEf",
-      "0xF_u32",     "0xFFu64",
+      "0b0",   "0b01",    "0b1",     "0b_0",        "0b_0000_1111", "0B_0000_1111_u8", "0b1010_1101",
+      "0b1u8", "0o0",     "0o17",    "0o_123",      "0O_123",       "0o7_i16",         "0x0",
+      "0xFF",  "0x_FFFF", "0X_FFFF", "0xDeAd_beEf", "0xF_u32",      "0xFFu64",
   };
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_whole(parse_number, CASES[i], SYNTAX_KIND_INT_LIT_EXPR);
 }
 
 void test_malformed_base_prefixes(void) {
-  // Prefix without digits, underscore without digits, or a digit
-  // outside the base: reported and recovered as one run.
+  // Prefix without digits, or a digit outside the base: reported at the
+  // failure byte; the recovery frame carries the partial IntLit node.
   static const char *const CASES[] = {
-      "0b",  "0B",   "0x",   "0X",  "0o",
-      "0O",  "0x_",  "0b_",  "0b__0", "0o8",
-      "0b2", "0o9",  "0xG",  "0x_g",
+      "0b", "0B", "0x", "0X", "0o", "0O", "0x_", "0b_", "0o8", "0b2", "0o9", "0xG", "0x_g",
   };
-  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
-    expect_malformed(parse_number, CASES[i], SYNTAX_MALFORMED_NUMBER);
+  for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+    fx_begin(CASES[i]);
+    SyntaxNodeResult r = parse_number_now();
+    TEST_ASSERT_TRUE(r.matched); // recovery frame carrying a partial node
+    TEST_ASSERT_NOT_NULL(r.node);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, r.node->kind);
+    TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DIGIT, r.errors->error.code);
+  }
 }
 
 /* ---- float literals ------------------------------------------------ */
 
 void test_float_exponent(void) {
   static const char *const CASES[] = {
-      "1e5",  "1e5_f32", "1.5e5",  "1.5e5_f32", "1e+5",  "1e-5",
-      "1e_5", "1E5",     "1E+5",   "1E-5",      "1e+_5", "1e-_5",
-      "0e0",  "1_000e3", "1e5f64", "1.5e5_f64",
+      "1e5",  "1e5_f32", "1.5e5", "1.5e5_f32", "1e+5", "1e-5",    "1e_5",   "1E5",
+      "1E+5", "1E-5",    "1e+_5", "1e-_5",     "0e0",  "1_000e3", "1e5f64", "1.5e5_f64",
   };
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_whole(parse_number, CASES[i], SYNTAX_KIND_FLOAT_LIT_EXPR);
@@ -158,8 +168,7 @@ void test_float_exponent(void) {
 
 void test_float_dot(void) {
   static const char *const CASES[] = {
-      "1.", "1.5", "1.5_f32", "1.5f32", "0.5", "0.0", "12.75", "1.f32",
-      "1.5d",
+      "1.", "1.5", "1.5_f32", "1.5f32", "0.5", "0.0", "12.75", "1.f32", "1.5d",
   };
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_whole(parse_number, CASES[i], SYNTAX_KIND_FLOAT_LIT_EXPR);
@@ -168,18 +177,22 @@ void test_float_dot(void) {
 /* ---- longest-prefix splits ----------------------------------------- */
 
 void test_splits_int(void) {
-  expect_split(parse_number, "01", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "00", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "1_", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "0_0", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "0_", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "1__2", SYNTAX_KIND_INT_LIT_EXPR, 1);
+  // Leading zeros: consumed as one token with a specific diagnostic.
+  expect_error_frame("01", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_INVALID_LEADING_ZERO, 2);
+  expect_error_frame("00", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_INVALID_LEADING_ZERO, 2);
+  // Zero cannot carry separators: same treatment.
+  expect_error_frame("0_0", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_INVALID_LEADING_ZERO, 3);
+  // Trailing underscores: consumed by the suffix-separator scan, reported.
+  expect_error_frame("1_", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_EXPECTED_SUFFIX, 2);
+  expect_error_frame("0_", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_EXPECTED_SUFFIX, 2);
+  // Consecutive underscores are grammatical under { "_" }: one clean token.
+  expect_whole(parse_number, "1__2", SYNTAX_KIND_INT_LIT_EXPR);
   expect_split(parse_number, "12abc", SYNTAX_KIND_INT_LIT_EXPR, 2);
   // "_" binds to a following suffix only, never to an exponent.
-  expect_split(parse_number, "1_e5", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  // A bare "e"/sign is not an exponent without digits.
-  expect_split(parse_number, "1e", SYNTAX_KIND_INT_LIT_EXPR, 1);
-  expect_split(parse_number, "1e+", SYNTAX_KIND_INT_LIT_EXPR, 1);
+  expect_error_frame("1_e5", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_EXPECTED_SUFFIX, 2);
+  // A dead exponent (marker/sign without digits) is consumed and reported.
+  expect_error_frame("1e", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_EXPECTED_DIGIT, 2);
+  expect_error_frame("1e+", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_EXPECTED_DIGIT, 3);
   // Suffix greediness stops at the first non-suffix character.
   expect_split(parse_number, "0i8x", SYNTAX_KIND_INT_LIT_EXPR, 3);
   expect_split(parse_number, "1u128x", SYNTAX_KIND_INT_LIT_EXPR, 5);
@@ -187,19 +200,22 @@ void test_splits_int(void) {
 
 void test_splits_float(void) {
   expect_split(parse_number, "1.e5", SYNTAX_KIND_FLOAT_LIT_EXPR, 2);
-  expect_split(parse_number, "1e05", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
+  // Leading zero in the exponent: consumed as one token with a diagnostic.
+  expect_error_frame("1e05", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_INVALID_LEADING_ZERO, 4);
   expect_split(parse_number, "1e5.5", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
-  expect_split(parse_number, "1e5_", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
+  // Trailing underscores: consumed by the suffix-separator scan, reported.
+  expect_error_frame("1e5_", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_EXPECTED_SUFFIX, 4);
   expect_split(parse_number, "1.e5f32", SYNTAX_KIND_FLOAT_LIT_EXPR, 2);
   // The dot branch stops before a second dot or a dead exponent.
   expect_split(parse_number, "1.5.5", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
   expect_split(parse_number, "1.fx", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
-  expect_split(parse_number, "1.5e", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
+  expect_error_frame("1.5e", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_EXPECTED_DIGIT, 4);
   // One exponent only; a second one splits.
   expect_split(parse_number, "1e5e5", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
   expect_split(parse_number, "1e5x", SYNTAX_KIND_FLOAT_LIT_EXPR, 3);
   expect_split(parse_number, "0dx", SYNTAX_KIND_FLOAT_LIT_EXPR, 2);
-  expect_split(parse_number, "1__5", SYNTAX_KIND_INT_LIT_EXPR, 1);
+  // Consecutive underscores are grammatical under { "_" }: one clean token.
+  expect_whole(parse_number, "1__5", SYNTAX_KIND_INT_LIT_EXPR);
 }
 
 void test_boundaries_number(void) {
@@ -209,8 +225,8 @@ void test_boundaries_number(void) {
   // Underscore-separated hex digits keep working with a suffix.
   expect_whole(parse_number, "0xF_F_u8", SYNTAX_KIND_INT_LIT_EXPR);
 
-  // Uppercase F32 is not a suffix; the token ends before it.
-  expect_split(parse_number, "0_F32", SYNTAX_KIND_INT_LIT_EXPR, 1);
+  // Uppercase F32 is not a suffix; the "_" is consumed and reported.
+  expect_error_frame("0_F32", SYNTAX_KIND_INT_LIT_EXPR, SYNTAX_EXPECTED_SUFFIX, 2);
 
   // A suffix must not swallow identifier characters beyond it.
   expect_split(parse_number, "12isizex", SYNTAX_KIND_INT_LIT_EXPR, 7);
@@ -233,13 +249,26 @@ void test_rune_simple_and_numeric(void) {
     const char *text;
     const char *value;
   } CASES[] = {
-      {"'a'", "a"},         {"'字'", "字"},           {"'\\''", "\\'"},
-      {"'\\\"'", "\\\""},   {"'\\\\'", "\\\\"},       {"'\\n'", "\\n"},
-      {"'\\r'", "\\r"},     {"'\\t'", "\\t"},         {"'\\0'", "\\0"},
-      {"'€'", "€"},         {"'😀'", "😀"},           {"'\\x41'", "\\x41"},
-      {"'\\x30'", "\\x30"}, {"'\\x7f'", "\\x7f"},     {"'\\u{41}'", "\\u{41}"},
-      {"'\\u{0}'", "\\u{0}"}, {"'\\u{1_F600}'", "\\u{1_F600}"}, {"'\\u{10FFFF}'", "\\u{10FFFF}"},
-      {"'\\u{10_FFFF}'", "\\u{10_FFFF}"}, {"'\\u{00e9}'", "\\u{00e9}"},
+      {"'a'", "a"},
+      {"'字'", "字"},
+      {"'\\''", "\\'"},
+      {"'\\\"'", "\\\""},
+      {"'\\\\'", "\\\\"},
+      {"'\\n'", "\\n"},
+      {"'\\r'", "\\r"},
+      {"'\\t'", "\\t"},
+      {"'\\0'", "\\0"},
+      {"'€'", "€"},
+      {"'😀'", "😀"},
+      {"'\\x41'", "\\x41"},
+      {"'\\x30'", "\\x30"},
+      {"'\\x7f'", "\\x7f"},
+      {"'\\u{41}'", "\\u{41}"},
+      {"'\\u{0}'", "\\u{0}"},
+      {"'\\u{1_F600}'", "\\u{1_F600}"},
+      {"'\\u{10FFFF}'", "\\u{10FFFF}"},
+      {"'\\u{10_FFFF}'", "\\u{10_FFFF}"},
+      {"'\\u{00e9}'", "\\u{00e9}"},
   };
 
   // The value view covers the character content between the quotes.
@@ -265,7 +294,7 @@ void test_rune_malformed(void) {
       {"'''", SYNTAX_EXPECTED_CHARACTER, 1},
       {"'ab'", SYNTAX_EXPECTED_SINGLE_QUOTE, 1},
       {"'ab", SYNTAX_EXPECTED_SINGLE_QUOTE, 1},
-      {"'\\q'", SYNTAX_UNKNOWN_ESCAPE, 1},
+      {"'\\q'", SYNTAX_INVALID_ESCAPE, 1},
       {"'\\x'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
       {"'\\x8'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
       {"'\\x80'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
@@ -318,16 +347,23 @@ void test_string_simple_and_escapes(void) {
     const char *text;
     const char *value;
   } SIMPLE[] = {
-      {"\"\"", ""},      {"\"hello\"", "hello"}, {"\"'a'\"", "'a'"},
-      {"\"\\\"\"", "\\\""}, {"\"\\\\\"", "\\\\"},   {"\"中文😀\"", "中文😀"},
+      {"\"\"", ""},
+      {"\"hello\"", "hello"},
+      {"\"'a'\"", "'a'"},
+      {"\"\\\"\"", "\\\""},
+      {"\"\\\\\"", "\\\\"},
+      {"\"中文😀\"", "中文😀"},
       {"\"tab\\there\"", "tab\\there"},
   };
   static const struct {
     const char *text;
     const char *value;
   } ESCAPES[] = {
-      {"\"a\\nb\\tc\\0d\\r\"", "a\\nb\\tc\\0d\\r"}, {"\"\\x09\"", "\\x09"}, {"\"\\x7f\"", "\\x7f"},
-      {"\"\\u{1F600}\"", "\\u{1F600}"},             {"\"\\u{10_FFFF}\"", "\\u{10_FFFF}"},
+      {"\"a\\nb\\tc\\0d\\r\"", "a\\nb\\tc\\0d\\r"},
+      {"\"\\x09\"", "\\x09"},
+      {"\"\\x7f\"", "\\x7f"},
+      {"\"\\u{1F600}\"", "\\u{1F600}"},
+      {"\"\\u{10_FFFF}\"", "\\u{10_FFFF}"},
   };
 
   // The value view covers the content between the quotes.
@@ -361,7 +397,7 @@ void test_string_malformed(void) {
       {"\"abc", 1, SYNTAX_EXPECTED_DOUBLE_QUOTE, SYNTAX_OK},
       {"\"a\nb\"", 1, SYNTAX_INVALID_CHARACTER, SYNTAX_OK},
       {"\"a\tb", 2, SYNTAX_EXPECTED_DOUBLE_QUOTE, SYNTAX_INVALID_CHARACTER},
-      {"\"\\q\"", 1, SYNTAX_UNKNOWN_ESCAPE, SYNTAX_OK},
+      {"\"\\q\"", 1, SYNTAX_INVALID_ESCAPE, SYNTAX_OK},
       {"\"\\x\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
       {"\"\\x7G\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
       {"\"\\x8\"", 1, SYNTAX_EXPECTED_HEX_DIGIT, SYNTAX_OK},
