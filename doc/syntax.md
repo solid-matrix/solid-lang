@@ -154,7 +154,7 @@ Syntax:
 
 ```
 Named      = NamePath [ "<" GenericArg { "," GenericArg } ">" ] .
-GenericArg = Type | identifier "=" Expr .
+GenericArg = Type | identifier "=" PrimaryExpr .
 ```
 
 Example:
@@ -165,8 +165,8 @@ std::math::Vector2<f32>
 Box<[5]i32>
 Box<&readonly T>
 Array<i32, N = 5>
-Array<i32, N = LEN + 1>
-add<i32, i32, F = i32_add>
+Array<i32, N = (LEN + 1)>
+add<i32, i32, F = Addable<i32, i32>>
 ```
 
 ### CallConv
@@ -542,17 +542,17 @@ foo();
 Syntax:
 
 ```
-IfStmt = "if" Expr ( BodyStmt | EmptyStmt ) [ "else" ( BodyStmt | EmptyStmt | IfStmt ) ] .
+IfStmt = "if" "(" Expr ")" ( BodyStmt | EmptyStmt ) [ "else" ( BodyStmt | EmptyStmt | IfStmt ) ] .
 ```
 
 Example:
 
 ```
-if cond { }
+if (cond) { }
 
-if cond { } else { }
+if (cond) { } else { }
 
-if cond1 { } else if cond2 { } else { }
+if (cond1) { } else if (cond2) { } else { }
 ```
 
 ### Loop Statements
@@ -618,13 +618,13 @@ return 10;
 Syntax:
 
 ```
-WhileStmt = "while" Expr ( BodyStmt | EmptyStmt ) .
+WhileStmt = "while" "(" Expr ")" ( BodyStmt | EmptyStmt ) .
 ```
 
 Example:
 
 ```
-while cond { }
+while (cond) { }
 ```
 
 ## Expressions

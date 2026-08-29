@@ -1633,7 +1633,7 @@ void test_return_malform(void) {
 }
 
 void test_if_else_if_chain(void) {
-  fx_begin("if a {} else if b {} else {}");
+  fx_begin("if (a) {} else if (b) {} else {}");
   SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IF_STMT, r.node->kind);
@@ -1648,22 +1648,22 @@ void test_if_else_if_chain(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, inner->then_stmt->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, inner->else_stmt->kind);
   TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(strlen("if a {} else if b {} else {}"), r.rem.start);
+  TEST_ASSERT_EQUAL_size_t(strlen("if (a) {} else if (b) {} else {}"), r.rem.start);
 }
 
 void test_if_empty_bodies(void) {
   // ";" is the empty body at both positions.
-  fx_begin("if a; else ;");
+  fx_begin("if (a); else ;");
   SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxIfStmt *s = (const SyntaxIfStmt *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, s->then_stmt->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, s->else_stmt->kind);
   TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(strlen("if a; else ;"), r.rem.start);
+  TEST_ASSERT_EQUAL_size_t(strlen("if (a); else ;"), r.rem.start);
 
   // Braced body, no else.
-  fx_begin("if a {}");
+  fx_begin("if (a) {}");
   r = parse_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   s = (const SyntaxIfStmt *)r.node;
@@ -1672,14 +1672,41 @@ void test_if_empty_bodies(void) {
 }
 
 void test_if_missing_body_reports_body(void) {
-  fx_begin("if a");
+  fx_begin("if (a)");
   SyntaxNodeResult r = parse_if_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxIfStmt *)r.node)->condition->kind);
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->then_stmt);
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->else_stmt);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->error.code);
-  TEST_ASSERT_EQUAL_size_t(4, r.rem.start);
+  TEST_ASSERT_EQUAL_size_t(6, r.rem.start);
+}
+
+void test_if_struct_lit_condition(void) {
+  // The parenthesized condition keeps the struct literal unambiguous.
+  fx_begin("if (a{c = 1}) {} else {}");
+  SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxIfStmt *s = (const SyntaxIfStmt *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, s->condition->kind);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructLitExpr *)s->condition)->fields));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, s->then_stmt->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, s->else_stmt->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("if (a{c = 1}) {} else {}"), r.rem.start);
+}
+
+void test_if_missing_lparen(void) {
+  fx_begin("if a {}");
+  SyntaxNodeResult r = parse_if_stmt(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->condition);
+  TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->then_stmt);
+  TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("if"), r.rem.start);
 }
 
 void test_loop_stmt(void) {
@@ -1698,7 +1725,7 @@ void test_loop_stmt(void) {
 }
 
 void test_while_stmt(void) {
-  fx_begin("while a {}");
+  fx_begin("while (a) {}");
   SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_WHILE_STMT, r.node->kind);
@@ -1707,7 +1734,7 @@ void test_while_stmt(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, s->stmt->kind);
   TEST_ASSERT_NULL(r.errors);
 
-  fx_begin("while a;");
+  fx_begin("while (a);");
   r = parse_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, ((const SyntaxWhileStmt *)r.node)->stmt->kind);
@@ -1732,7 +1759,7 @@ void test_stmt_keyword_boundaries(void) {
 
 void test_stmt_dispatch_ladder(void) {
   // One body holding every statement form; the chain is newest-at-head.
-  fx_begin("{ ; let a = 1; set a = 2; a; if a {} else ; loop {} while a; break; continue; return a; }");
+  fx_begin("{ ; let a = 1; set a = 2; a; if (a) {} else ; loop {} while (a); break; continue; return a; }");
   SyntaxNodeResult r = parse_body_stmt(fx_parser, source_get_span(fx_source));
   const SyntaxBodyStmt *b = as_body(r.node);
   TEST_ASSERT_EQUAL_size_t(10, syntax_nodelist_length(b->stmts));
@@ -1750,6 +1777,207 @@ void test_stmt_dispatch_ladder(void) {
   }
   TEST_ASSERT_NULL(n);
   TEST_ASSERT_NULL(r.errors);
+}
+
+/* ---- array / func types, struct / array literals ----------------------- */
+
+void test_array_type_forms(void) {
+  fx_begin("[5]i32");
+  SyntaxNodeResult r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_TYPE, r.node->kind);
+  const SyntaxArrayType *t = (const SyntaxArrayType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, t->len->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, t->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[5]i32"), r.rem.start);
+
+  fx_begin("[5+10]i32");
+  r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = (const SyntaxArrayType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, t->len->kind);
+
+  fx_begin("[2][2]i32");
+  r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = (const SyntaxArrayType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_TYPE, t->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[2][2]i32"), r.rem.start);
+}
+
+void test_array_type_malform(void) {
+  fx_begin("[]i32");
+  SyntaxNodeResult r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxArrayType *t = (const SyntaxArrayType *)r.node;
+  TEST_ASSERT_NULL(t->len);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, t->inner_type->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("[]i32"), r.rem.start);
+
+  fx_begin("[5 i32");
+  r = parse_array_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->error.code);
+
+  fx_begin("[5]");
+  r = parse_array_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(((const SyntaxArrayType *)r.node)->inner_type);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+}
+
+void test_func_type_forms(void) {
+  fx_begin("&func()");
+  SyntaxNodeResult r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_TYPE, r.node->kind);
+  const SyntaxFuncType *t = (const SyntaxFuncType *)r.node;
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(t->call_params));
+  TEST_ASSERT_NULL(t->callconv);
+  TEST_ASSERT_NULL(t->return_type);
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("&func(i32, i32):i32");
+  r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = (const SyntaxFuncType *)r.node;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(t->call_params));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, t->return_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("&func(i32, i32):i32"), r.rem.start);
+
+  fx_begin("&func(i32)cdecl:i32");
+  r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  t = (const SyntaxFuncType *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(t->callconv->value, "cdecl");
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(t->call_params));
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_func_type_word_boundary(void) {
+  fx_begin("&functional");
+  SyntaxNodeResult r = parse_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, r.node->kind);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("&functional"), r.rem.start);
+}
+
+void test_func_type_malform(void) {
+  fx_begin("&func(i32");
+  SyntaxNodeResult r = parse_func_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxFuncType *)r.node)->call_params));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("&func(i32"), r.rem.start);
+}
+
+void test_struct_lit_forms(void) {
+  fx_begin("Vector2{}");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, r.node->kind);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxStructLitExpr *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{}"), r.rem.start);
+
+  fx_begin("Vector2{ x = 0_f32, y = 1_f32 }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, s->type->header.kind);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->node)->id->value, "y");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = 0_f32, y = 1_f32 }"), r.rem.start);
+
+  fx_begin("Vector2{ x = 1_f32, }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructLitExpr *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("Segment{ from = Vector2{ x = 0_f32 } }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  s = (const SyntaxStructLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_struct_lit_not_a_literal(void) {
+  fx_begin("Vector2");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_struct_lit_field_frame(void) {
+  fx_begin("Vector2{ x = }");
+  SyntaxNodeResult r = parse_struct_lit_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxStructLitField *f = (const SyntaxStructLitField *)((const SyntaxStructLitExpr *)r.node)->fields->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
+  TEST_ASSERT_NULL(f->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = }"), r.rem.start);
+}
+
+void test_array_lit_forms(void) {
+  fx_begin("[5]i32{}");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, r.node->kind);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("[5]i32{ 1, 2, 3, 4, 5 }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxArrayLitExpr *a = (const SyntaxArrayLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(5, syntax_nodelist_length(a->elements));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1, 2, 3, 4, 5 }"), r.rem.start);
+
+  fx_begin("[5]i32{ 1, }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  a = (const SyntaxArrayLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(a->elements));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }"), r.rem.start);
+}
+
+void test_array_lit_malform(void) {
+  fx_begin("[5]i32{ 1 2 }");
+  SyntaxNodeResult r = parse_array_lit_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1"), r.rem.start);
 }
 
 /* ---- parse_program --------------------------------------------------- */
@@ -1878,6 +2106,16 @@ static const TestDispatchEntry ENTRIES[] = {
     {"func_decl_body_forms", test_func_decl_body_forms},
     {"func_decl_callconv_and_fulfills", test_func_decl_callconv_and_fulfills},
     {"program_func_sample_end_to_end", test_program_func_sample_end_to_end},
+    {"array_type_forms", test_array_type_forms},
+    {"array_type_malform", test_array_type_malform},
+    {"func_type_forms", test_func_type_forms},
+    {"func_type_word_boundary", test_func_type_word_boundary},
+    {"func_type_malform", test_func_type_malform},
+    {"struct_lit_forms", test_struct_lit_forms},
+    {"struct_lit_not_a_literal", test_struct_lit_not_a_literal},
+    {"struct_lit_field_frame", test_struct_lit_field_frame},
+    {"array_lit_forms", test_array_lit_forms},
+    {"array_lit_malform", test_array_lit_malform},
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
     {"body_stmt_nested", test_body_stmt_nested},
@@ -1895,6 +2133,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"if_else_if_chain", test_if_else_if_chain},
     {"if_empty_bodies", test_if_empty_bodies},
     {"if_missing_body_reports_body", test_if_missing_body_reports_body},
+    {"if_struct_lit_condition", test_if_struct_lit_condition},
+    {"if_missing_lparen", test_if_missing_lparen},
     {"loop_stmt", test_loop_stmt},
     {"while_stmt", test_while_stmt},
     {"stmt_keyword_boundaries", test_stmt_keyword_boundaries},

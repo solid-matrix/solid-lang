@@ -38,6 +38,7 @@ set(PARSE_CASES
     set_stmt_malforms expr_stmt_basic expr_stmt_missing_semicolon_frame
     break_continue_stmts return_with_and_without_expr return_malform
     if_else_if_chain if_empty_bodies if_missing_body_reports_body
+    if_struct_lit_condition if_missing_lparen
     loop_stmt while_stmt stmt_keyword_boundaries stmt_dispatch_ladder
     annotations_none annotations_single_and_multi annotations_error_frame
     generic_param_bare_and_bound generic_param_annotated
@@ -51,6 +52,10 @@ set(PARSE_CASES
     contract_decl_forms contract_decl_malforms
     func_decl_full_ladder func_decl_body_forms
     func_decl_callconv_and_fulfills program_func_sample_end_to_end
+    array_type_forms array_type_malform func_type_forms
+    func_type_word_boundary func_type_malform struct_lit_forms
+    struct_lit_not_a_literal struct_lit_field_frame array_lit_forms
+    array_lit_malform
     expr_precedence_mul_over_add expr_parens_override_grouping
     expr_left_associativity expr_unary_binds_tighter_than_mul
     expr_all_unary_operators expr_postfix_chain_on_literal
