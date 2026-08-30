@@ -2,7 +2,7 @@
 
 > The SOLID Programming Language, hereinafter referred to as SOLID, is a purely static, strongly explicit systems programming language.
 
-This project covers SOLID's language design, compiler development, and standard library development.
+This project covers SOLID's language design, compiler development, and core library development.
 
 Version: 0.0.5
 
@@ -12,7 +12,7 @@ Version: 0.0.5
 solid-lang/
 ├── compiler/   # The compiler
 ├── doc/        # Language design documents
-├── std/        # Standard library
+├── core/       # Core library
 ├── examples/   # Project examples
 ├── LICENSE
 └── README.md
@@ -43,18 +43,18 @@ doc/
 compiler/
 ├── common/             # Foundation: Strview, Arena, Source
 ├── syntax/             # AST definitions + lexing + parsing
-├── sema/               # Semantic analysis
+├── semantic/           # Semantic analysis
 ├── irgen/              # LLVM IR generation (the only LLVM C API user)
 └── cli/                # The `solid` executable (entry point)
 ```
 
-Dependency chain: `common <- syntax <- sema <- irgen <- cli`; CMake targets are named `solid-lang-*`.
+Dependency chain: `common <- syntax <- semantic <- irgen <- cli`; CMake targets are named `solid-lang-*`.
 
 ### Requirements
 
 - CMake >= 3.10
 - LLVM with the C API available; the `LLVM_DIR` environment variable must point at the install location
-- Windows: MSVC (Visual Studio); Linux: GCC or Clang
+- Windows: Clang; Linux: Clang
 
 ### Building and Testing
 
@@ -84,10 +84,10 @@ Executables go to `<build>/bin/`; on Windows the runtime `LLVM-C.dll` is copied 
 - Encoding: UTF-8 without BOM;
 - Comments: Doxygen JavaDoc; file headers carry `@file`, `@brief`, `@author`, `@version`; all in English
 
-## Standard Library
+## Core Library
 
 ```
-std/   # To be developed
+core/   # To be developed
 ```
 
 ## Examples
