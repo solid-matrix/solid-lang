@@ -1,21 +1,21 @@
+#define TEST_SUPPORT_NO_DEFAULT_FIXTURES
+
 #include <string.h>
 
+#include "parse_aux.h"
 #include "parser_fixture.h"
 #include "syntax_node.h"
 #include "syntax_nodes.h"
 #include "syntax_parses.h"
 #include "test_support.h"
 
-static size_t error_count(const SyntaxNodeResult *r) {
-  size_t n = 0;
-  for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
-    n++;
-  return n;
-}
+void setUp(void) {}
+void tearDown(void) { fx_release(); }
 
-/* ---- shared expectations ------------------------------------------- */
 
 // The number entry point: int and float branches, longest match wins.
+typedef SyntaxNodeResult (*ParseFn)(const char *);
+
 static SyntaxNodeResult parse_number_now(void) {
   Span span = source_get_span(fx_source);
   SyntaxNodeResult results[] = {
@@ -25,17 +25,16 @@ static SyntaxNodeResult parse_number_now(void) {
   return complete_longest_match(results, sizeof(results) / sizeof(results[0]));
 }
 
-// Parses the whole text as one literal of the given family.
-typedef SyntaxNodeResult (*ParseFn)(const char *);
-
 static SyntaxNodeResult parse_number(const char *t) {
   fx_begin(t);
   return parse_number_now();
 }
+
 static SyntaxNodeResult parse_rune(const char *t) {
   fx_begin(t);
   return parse_rune_lit_expr(fx_parser, source_get_span(fx_source));
 }
+
 static SyntaxNodeResult parse_string(const char *t) {
   fx_begin(t);
   return parse_string_lit_expr(fx_parser, source_get_span(fx_source));
@@ -55,8 +54,6 @@ static Strview lit_value(const SyntaxNode *node) {
   }
 }
 
-// Asserts that text scans wholly to one node whose value view is the
-// full text and which carries no diagnostics.
 static void expect_whole(ParseFn fn, const char *text, SyntaxKind kind) {
   SyntaxNodeResult r = fn(text);
 
@@ -82,7 +79,7 @@ static void expect_error_frame(const char *text, SyntaxKind kind, SyntaxErrorCod
 }
 
 // Asserts that only the first tok_len bytes form the token; the rest
-// splits into later tokens (longest valid prefix).
+// splits into later tokens.
 static void expect_split(ParseFn fn, const char *text, SyntaxKind kind, size_t tok_len) {
   SyntaxNodeResult r = fn(text);
 
@@ -217,6 +214,8 @@ void test_splits_float(void) {
   // Consecutive underscores are grammatical under { "_" }: one clean token.
   expect_whole(parse_number, "1__5", SYNTAX_KIND_INT_LIT_EXPR);
 }
+
+/* ---- boundaries ----------------------------------------------------- */
 
 void test_boundaries_number(void) {
   // Not a number start: rejected without consuming.
@@ -432,6 +431,119 @@ void test_string_not_match(void) {
   expect_not_match(parse_string, "");
 }
 
+/* ---- struct / array literals ----------------------------------------- */
+
+void test_struct_lit_forms(void) {
+  fx_begin("Vector2{}");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, r.node->kind);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxStructLitExpr *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{}"), r.rem.start);
+
+  fx_begin("Vector2{ x = 0_f32, y = 1_f32 }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, s->type->header.kind);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->node)->id->value, "y");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = 0_f32, y = 1_f32 }"), r.rem.start);
+
+  fx_begin("Vector2{ x = 1_f32, }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructLitExpr *)r.node)->fields));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("Segment{ from = Vector2{ x = 0_f32 } }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  s = (const SyntaxStructLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_struct_lit_not_a_literal(void) {
+  fx_begin("Vector2");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
+void test_struct_lit_field_frame(void) {
+  fx_begin("Vector2{ x = }");
+  SyntaxNodeResult r = parse_struct_lit_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxStructLitField *f = (const SyntaxStructLitField *)((const SyntaxStructLitExpr *)r.node)->fields->node;
+  TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
+  TEST_ASSERT_NULL(f->value);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = }"), r.rem.start);
+}
+
+void test_array_lit_forms(void) {
+  fx_begin("[5]i32{}");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, r.node->kind);
+  TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("[5]i32{ 1, 2, 3, 4, 5 }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxArrayLitExpr *a = (const SyntaxArrayLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(5, syntax_nodelist_length(a->elements));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1, 2, 3, 4, 5 }"), r.rem.start);
+
+  fx_begin("[5]i32{ 1, }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_NULL(r.errors);
+
+  fx_begin("[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }");
+  r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  a = (const SyntaxArrayLitExpr *)r.node;
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(a->elements));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }"), r.rem.start);
+}
+
+void test_array_lit_malform(void) {
+  fx_begin("[5]i32{ 1 2 }");
+  SyntaxNodeResult r = parse_array_lit_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxArrayLitExpr *)r.node)->elements));
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1"), r.rem.start);
+}
+
+void test_generic_struct_lit_generic_type(void) {
+  fx_begin("Vector2<f32>{ x = 0_f32 }");
+  SyntaxNodeResult r = parse_expr(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, r.node->kind);
+  const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
+  const SyntaxNamed *t = as_named((const SyntaxNode *)s->type);
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(t->generic_args));
+  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(s->fields));
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("Vector2<f32>{ x = 0_f32 }"), r.rem.start);
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"int_decimal", test_int_decimal},
     {"int_base_prefixed", test_int_base_prefixed},
@@ -447,6 +559,12 @@ static const TestDispatchEntry ENTRIES[] = {
     {"string_simple_and_escapes", test_string_simple_and_escapes},
     {"string_malformed", test_string_malformed},
     {"string_not_match", test_string_not_match},
+    {"struct_lit_forms", test_struct_lit_forms},
+    {"struct_lit_not_a_literal", test_struct_lit_not_a_literal},
+    {"struct_lit_field_frame", test_struct_lit_field_frame},
+    {"array_lit_forms", test_array_lit_forms},
+    {"array_lit_malform", test_array_lit_malform},
+    {"generic_struct_lit_generic_type", test_generic_struct_lit_generic_type},
 };
 
 TEST_DISPATCH_MAIN(ENTRIES)

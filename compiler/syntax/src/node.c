@@ -1,3 +1,10 @@
+/**
+ * @file node.c
+ * @brief Node header construction and kind-group tests.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #include "syntax_node.h"
 
 SyntaxNode syntax_node_create(SyntaxKind kind, Span span) { return (SyntaxNode){.kind = kind, .span = span}; }

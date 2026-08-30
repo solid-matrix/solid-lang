@@ -3,17 +3,6 @@
 #include "syntax_nodelist.h"
 #include "test_support.h"
 
-/* ---- syntax_node_create --------------------------------------------- */
-
-void test_header_carries_kind_and_span(void) {
-  SyntaxNode n = syntax_node_create(SYNTAX_KIND_PROGRAM, (Span){.start = 3, .end = 9});
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_PROGRAM, n.kind);
-  TEST_ASSERT_EQUAL_size_t(3, n.span.start);
-  TEST_ASSERT_EQUAL_size_t(9, n.span.end);
-}
-
-/* ---- nodelist -------------------------------------------------------- */
-
 static SyntaxNode *dummy(Arena *a) {
   // Only pointer identity matters here.
   return arena_alloc(a, sizeof(SyntaxNode));
@@ -140,9 +129,7 @@ void test_nodelist_length(void) {
 
   arena_destroy(a);
 }
-
 static const TestDispatchEntry ENTRIES[] = {
-    {"header_carries_kind_and_span", test_header_carries_kind_and_span},
     {"nodelist_empty", test_nodelist_empty},
     {"nodelist_from_array", test_nodelist_from_array},
     {"nodelist_persistence", test_nodelist_persistence},

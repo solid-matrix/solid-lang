@@ -1,9 +1,19 @@
-#include "syntax_parses.h"
+#define TEST_SUPPORT_NO_DEFAULT_FIXTURES
+
+#include <string.h>
+
+#include "parse_aux.h"
 #include "parser_fixture.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
 #include "test_support.h"
+
+void setUp(void) {}
+void tearDown(void) { fx_release(); }
+
+
+static Span span_over(const char *text) { return (Span){.start = 0, .end = strlen(text)}; }
 
 /* ---- character classes ---------------------------------------------- */
 
@@ -46,8 +56,6 @@ void test_whitespace_class(void) {
 }
 
 /* ---- trivia ---------------------------------------------------------- */
-
-static Span span_over(const char *text) { return (Span){.start = 0, .end = strlen(text)}; }
 
 void test_skip_trivia_consumes_runs(void) {
   static const char *const TEXT = " \t\n// note\nx";
@@ -124,6 +132,56 @@ void test_complete_longest_match_picks_furthest_rem(void) {
   TEST_ASSERT_EQUAL_size_t(2, best.rem.start);
 }
 
+/* ---- parse_identifier_list ------------------------------------------ */
+// Silent on a missing first element, diagnostic on a missing element
+// after a consumed separator, rem = last consumed element.
+
+void test_identifier_list_single(void) {
+  static const char *const ONE[] = {"std"};
+  fx_begin("std");
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+
+  check_path(l.list, ONE, 1);
+  TEST_ASSERT_EQUAL_size_t(strlen("std"), l.rem.start);
+  TEST_ASSERT_NULL(l.errors);
+}
+
+void test_identifier_list_multi_and_trivia(void) {
+  static const char *const TWO[] = {"std", "io"};
+  fx_begin("std :: io");
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+
+  check_path(l.list, TWO, 2);
+  TEST_ASSERT_EQUAL_size_t(strlen("std :: io"), l.rem.start);
+  TEST_ASSERT_NULL(l.errors); // junction trivia never leaks diagnostics
+}
+
+void test_identifier_list_trailing_separator_reports_identifier(void) {
+  static const char *const ONE[] = {"a"};
+  fx_begin("a::-1");
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+
+  // The [a] prefix is kept; the consumed "::" reports one diagnostic
+  // pointing past the separator.
+  check_path(l.list, ONE, 1);
+  TEST_ASSERT_EQUAL_size_t(strlen("a::"), l.rem.start);
+  TEST_ASSERT_NOT_NULL(l.errors);
+  if (l.errors) {
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->error.code);
+    TEST_ASSERT_NULL(l.errors->next);
+  }
+}
+
+void test_identifier_list_missing_first_is_silent(void) {
+  fx_begin(";abc");
+  SyntaxListResult l = parse_identifier_list(fx_parser, source_get_span(fx_source), PUNCTUATION_SCOPE);
+
+  // Missing first element: empty chain, no diagnostic, rem = input.
+  TEST_ASSERT_NULL(l.list);
+  TEST_ASSERT_EQUAL_size_t(0, l.rem.start);
+  TEST_ASSERT_NULL(l.errors);
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"digit_classes", test_digit_classes},
     {"letter_classes", test_letter_classes},
@@ -134,6 +192,11 @@ static const TestDispatchEntry ENTRIES[] = {
     {"span_consumed_measures_progress", test_span_consumed_measures_progress},
     {"match_keyword_positive_and_negative", test_match_keyword_positive_and_negative},
     {"complete_longest_match_picks_furthest_rem", test_complete_longest_match_picks_furthest_rem},
+    {"identifier_list_single", test_identifier_list_single},
+    {"identifier_list_multi_and_trivia", test_identifier_list_multi_and_trivia},
+    {"identifier_list_trailing_separator_reports_identifier",
+     test_identifier_list_trailing_separator_reports_identifier},
+    {"identifier_list_missing_first_is_silent", test_identifier_list_missing_first_is_silent},
 };
 
 TEST_DISPATCH_MAIN(ENTRIES)

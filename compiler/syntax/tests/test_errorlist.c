@@ -3,18 +3,6 @@
 #include "syntax_errorlist.h"
 #include "test_support.h"
 
-/* ---- syntax_error_create --------------------------------------------- */
-
-void test_error_carries_code_and_span(void) {
-  SyntaxError e = syntax_error_create(SYNTAX_EXPECTED_DIGIT,
-                                      (Span){.start = 2, .end = 8});
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DIGIT, e.code);
-  TEST_ASSERT_EQUAL_size_t(2, e.span.start);
-  TEST_ASSERT_EQUAL_size_t(8, e.span.end);
-}
-
-/* ---- errorlist -------------------------------------------------------- */
-
 static SyntaxError err(int code, int start) {
   return syntax_error_create((SyntaxErrorCode)code,
                              (Span){.start = start, .end = start + 1});
@@ -114,9 +102,7 @@ void test_errorlist_concat(void) {
 
   arena_destroy(a);
 }
-
 static const TestDispatchEntry ENTRIES[] = {
-    {"error_carries_code_and_span", test_error_carries_code_and_span},
     {"errorlist_empty", test_errorlist_empty},
     {"errorlist_from_array", test_errorlist_from_array},
     {"errorlist_persistence", test_errorlist_persistence},

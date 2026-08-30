@@ -1,3 +1,10 @@
+/**
+ * @file nodelist.c
+ * @brief Node chain operations.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #include <assert.h>
 
 #include "syntax_nodelist.h"

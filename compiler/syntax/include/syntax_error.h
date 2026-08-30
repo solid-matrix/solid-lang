@@ -1,7 +1,17 @@
+/**
+ * @file syntax_error.h
+ * @brief Diagnostic codes and values.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #pragma once
 
 #include "span.h"
 
+/**
+ * @brief Diagnostic codes reported by the parser.
+ */
 typedef enum {
   SYNTAX_OK = 0x0000,
   SYNTAX_EXPECTED_EOF = 0x0001,
@@ -33,9 +43,18 @@ typedef enum {
   SYNTAX_EXPECTED_DIGIT = 0x0020,
 } SyntaxErrorCode;
 
+/**
+ * @brief One diagnostic: a code anchored to a source span.
+ */
 typedef struct SyntaxError {
   SyntaxErrorCode code;
   Span span;
 } SyntaxError;
 
+/**
+ * @brief Makes a diagnostic value.
+ * @param code The diagnostic code.
+ * @param span The source text the diagnostic refers to.
+ * @return The diagnostic value.
+ */
 SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);

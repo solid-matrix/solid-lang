@@ -1,3 +1,10 @@
+/**
+ * @file errorlist.c
+ * @brief Diagnostic chain operations.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #include <assert.h>
 
 #include "syntax_errorlist.h"

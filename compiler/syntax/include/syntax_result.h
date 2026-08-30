@@ -1,3 +1,10 @@
+/**
+ * @file syntax_result.h
+ * @brief Outcome types shared by every parse function.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #pragma once
 
 #include "syntax_errorlist.h"
@@ -5,54 +12,22 @@
 #include "syntax_nodelist.h"
 
 /**
- * @struct SyntaxNodeResult
- * @brief Outcome of parsing one construct (see per-function contracts).
+ * @brief Outcome of parsing one construct; the contract of every
+ *        parse_XXX(const SyntaxParser *, Span span).
+ * @details Every parse function never consumes trivia itself:
+ *          span.start sits on a non-trivia byte (or the span is
+ *          empty), and on success rem points just past the consumed
+ *          text while trailing trivia stays with the enclosing
+ *          sequence.
  *
- * Layout discipline (the parser is scannerless, so trivia is handled
- * explicitly at composition points):
+ *          matched == false: the construct does not start at span.
+ *          Nothing is consumed and nothing is recorded — node == NULL,
+ *          errors == NULL, rem == span — so the caller may backtrack.
  *
- *   - Precondition of every parse_XXX(const SyntaxParser *, Span span): \p span.start
- *     sits on a non-trivia byte, or the span is empty. Leading trivia
- *     is consumed only by parse_program, at the start of the unit and
- *     before every top-level declaration.
- *   - Postcondition on success: \p rem points just past the consumed
- *     text. Trailing whitespace and comments are NOT stripped -> they
- *     belong to the enclosing sequence, which skips them between two
- *     juxtaposed elements (and re-tests separators or terminators on
- *     the skipped position). Consequences: rem.start - span.start is
- *     exactly the consumed length, longest-match selection is a pure
- *     length comparison, and a kept node's span satisfies
- *     node->span.end == rem.start.
- *   - Alternation needs no layout work: all branches start at the same
- *     span.
- *   - Adjacency-sensitive checks (literal suffixes, multi-character
- *     operators) must inspect raw bytes BEFORE any trivia skip.
- *   - A parse_XXX function must never consume trivia internally; doing
- *     so silently breaks the invariants above.
- *
- * Every parse_XXX(const SyntaxParser *, Span span) follows the same contract:
- *
- *   matched == false -> the construct does not start at \p span. Nothing
- *   is consumed and nothing is recorded:
- *       node == NULL, errors == NULL, rem == span.
- *   rem is returned exactly as received: the position was tested and
- *   rejected, so it is meaningless to strip anything here (that would
- *   make keyword/position checks accept input that does not literally
- *   start at \p span, and would corrupt backtracking).
- *   The caller may backtrack and try another alternative, or treat this
- *   as the end of the enclosing construct.
- *
- *   matched == true -> the construct was recognized and its input was
- *   consumed (see the postconditions above).
- *       errors == NULL means "no diagnostics" — the common case, at
- *       no allocation cost; consumers test errors for NULL before
- *       walking it.
- *       node != NULL -> a concrete AST node to keep (e.g. append it to
- *                       the enclosing node list);
- *       node == NULL -> nothing worth keeping (e.g. a dropped
- *                       construct); diagnostics, if any, still travel
- *                       in errors.
- *
+ *          matched == true: the construct was recognized and consumed.
+ *          node is the AST node, or NULL for a dropped recovery frame;
+ *          errors is NULL when there are no diagnostics, otherwise the
+ *          newest diagnostic is at the head of the chain.
  */
 typedef struct {
   bool matched;
@@ -61,26 +36,46 @@ typedef struct {
   SyntaxErrorList *errors;
 } SyntaxNodeResult;
 
+/**
+ * @brief Outcome of a list helper: the parsed node chain, the consumed
+ *        position and any diagnostics.
+ */
 typedef struct {
   Span rem;
   SyntaxNodeList *list;
   SyntaxErrorList *errors;
 } SyntaxListResult;
 
+/**
+ * @brief Outcome of a byte-level match attempt: matched, the position
+ *        just past the matched bytes, and any diagnostics.
+ */
 typedef struct {
   bool matched;
   Span rem;
   SyntaxErrorList *errors;
 } SyntaxMatchResult;
 
+/**
+ * @brief The not-matched outcome for @p span: nothing consumed,
+ *        nothing recorded.
+ * @param span The span that was tested.
+ * @return The not-matched outcome (rem == span).
+ */
 SyntaxNodeResult syntax_node_result_not_match(Span span);
 
+/**
+ * @brief The matched outcome carrying @p rem, @p node and @p errors.
+ * @param rem Position just past the consumed text.
+ * @param node The parsed node, or NULL for a recovery frame.
+ * @param errors Diagnostics, newest at head; NULL when silent.
+ * @return The matched outcome.
+ */
 SyntaxNodeResult syntax_node_result_matched(Span rem, SyntaxNode *node, SyntaxErrorList *errors);
 
 /**
  * @brief True when the attempt succeeded and produced no diagnostics.
- *
- * Convenience for the common success shape: matched == true with
- * errors == NULL.
+ * @param result The outcome to test.
+ * @return True for matched == true with errors == NULL.
  */
 bool syntax_node_result_is_ok(SyntaxNodeResult result);

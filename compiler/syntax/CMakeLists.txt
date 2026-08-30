@@ -4,7 +4,13 @@ add_library(solid-lang-syntax STATIC
   src/node.c
   src/nodelist.c
   src/parser.c
-  src/parses.c
+  src/parse_aux.c
+  src/parse_common.c
+  src/parse_decl.c
+  src/parse_expr.c
+  src/parse_lit.c
+  src/parse_stmt.c
+  src/parse_type.c
   src/result.c
   )
 
@@ -17,7 +23,8 @@ if(BUILD_TESTING)
   # top of the shared Unity glue; test executables only.
   add_library(solid-lang-syntax-tests-support INTERFACE)
   target_include_directories(solid-lang-syntax-tests-support
-                             INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+                             INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_link_libraries(solid-lang-syntax-tests-support
                         INTERFACE solid-lang-test-support)
 

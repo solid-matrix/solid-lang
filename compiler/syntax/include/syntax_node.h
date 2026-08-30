@@ -1,3 +1,10 @@
+/**
+ * @file syntax_node.h
+ * @brief Common node header and kind tags.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
 #pragma once
 
 #include <stdbool.h>
@@ -6,6 +13,12 @@
 
 #include "span.h"
 
+/**
+ * @brief Kind tag carried by every syntax node.
+ * @details Kinds marked `auxilliary` are helper nodes owned by their
+ *          enclosing node; they are never produced as a standalone
+ *          parse result.
+ */
 typedef enum {
   SYNTAX_KIND_INVALID = 0,
 
@@ -61,17 +74,46 @@ typedef enum {
   SYNTAX_KIND_ARRAY_LIT_EXPR,
 } SyntaxKind;
 
+/**
+ * @brief Common header of every AST node: kind plus source span.
+ */
 typedef struct SyntaxNode {
   SyntaxKind kind;
   Span span;
 } SyntaxNode;
 
+/**
+ * @brief Initializes a node header.
+ * @param kind The node's kind tag.
+ * @param span The source text the node was parsed from.
+ * @return The initialized header value.
+ */
 SyntaxNode syntax_node_create(SyntaxKind kind, Span span);
 
+/**
+ * @brief True when @p node's kind belongs to the type group.
+ * @param node The node to test.
+ * @return True for NAMED, REF_TYPE, ARRAY_TYPE or FUNC_TYPE.
+ */
 bool syntax_node_is_type(SyntaxNode *node);
 
+/**
+ * @brief True when @p node's kind belongs to the declaration group.
+ * @param node The node to test.
+ * @return True for the *_DECL kinds.
+ */
 bool syntax_node_is_decl(SyntaxNode *node);
 
+/**
+ * @brief True when @p node's kind belongs to the statement group.
+ * @param node The node to test.
+ * @return True for the *_STMT kinds.
+ */
 bool syntax_node_is_stmt(SyntaxNode *node);
 
+/**
+ * @brief True when @p node's kind belongs to the expression group.
+ * @param node The node to test.
+ * @return True for the *_EXPR kinds.
+ */
 bool syntax_node_is_expr(SyntaxNode *node);
