@@ -46,7 +46,7 @@ typedef enum {
 /**
  * @brief One diagnostic: a code anchored to a source span.
  */
-typedef struct SyntaxError {
+typedef struct {
   SyntaxErrorCode code;
   Span span;
 } SyntaxError;
