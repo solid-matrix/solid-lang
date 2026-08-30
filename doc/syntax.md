@@ -770,7 +770,7 @@ rune_char denotes any character except U+0027, U+005C (`\`), U+0009 (horizontal 
 
 The escape sequence `\x` is followed by exactly two digits, the first of which is restricted to `0` … `7`; it denotes the ASCII character with the given value, which therefore never exceeds `0x7F`.
 
-In the escape sequence `\u{…}`, an underscore may only appear between two hexadecimal digits, and the enclosed value must be a valid Unicode scalar value (U+0000 through U+10FFFF, excluding the surrogate range U+D800 through U+DFFF).
+In the escape sequence `\u{…}`, underscore runs may separate hexadecimal digits (as in integer literals), and the enclosed value must be a valid Unicode scalar value (U+0000 through U+10FFFF, excluding the surrogate range U+D800 through U+DFFF).
 
 Example:
 
@@ -781,7 +781,7 @@ Example:
 
 // numeric escapes
 '\x41' '\x30' '\x7f' '\u{41}' '\u{0}' '\u{1_F600}' '\u{10FFFF}'
-'\u{10_FFFF}' '\u{00e9}'
+'\u{10_FFFF}' '\u{00e9}' '\u{1__F600}'   // underscore runs are allowed
 
 // invalid
 ''           // empty rune
@@ -796,7 +796,6 @@ Example:
 '\u{}'       // empty unicode escape
 '\u{_41}'    // leading underscore
 '\u{41_}'    // trailing underscore
-'\u{1__F}'   // consecutive underscores
 '\u{D800}'   // surrogate
 '\u{DFFF}'   // surrogate
 '\u{110000}' // out of Unicode scalar range
@@ -827,7 +826,7 @@ Example:
 "中文😀" "tab\there"
 
 // escapes
-"a\nb\tc\0d\r" "\x09" "\x7f" "\u{1F600}" "\u{10_FFFF}"
+"a\nb\tc\0d\r" "\x09" "\x7f" "\u{1F600}" "\u{10_FFFF}" "\u{1__F600}"
 
 // invalid
 "abc         // missing closing quote
@@ -840,7 +839,6 @@ b"           // raw line feed
 "\u{}"       // empty unicode escape
 "\u{_41}"    // leading underscore
 "\u{41_}"    // trailing underscore
-"\u{1__F}"   // consecutive underscores
 "\u{D800}"   // surrogate
 "\u{110000}" // out of Unicode scalar range
 ```

@@ -71,10 +71,10 @@ SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
   }
 
   case 'u': {
-    // "\\u{" hex { ["_"] hex } "}" -- the value must be a Unicode scalar
-    // value and an underscore may only sit between two hex digits. The
-    // first error freezes validation; scanning continues to the closing
-    // brace so the whole escape is consumed.
+    // "\\u{" hex { { "_" } hex } "}" -- the value must be a Unicode scalar
+    // value; underscore runs may sit between hex digits. The first error
+    // freezes validation; scanning continues to the closing brace so the
+    // whole escape is consumed.
     if (span_len(span) < 3 || source_byte_at(parser->source, span.start + 2) != '{') {
       Span consumed = span_slice(span, 0, 2);
       SyntaxErrorList *errors =
@@ -86,7 +86,6 @@ SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
     size_t pos = span.start + 3;
     SyntaxErrorCode code = SYNTAX_OK;
     uint32_t value = 0;
-    bool prev_hex = false;
     bool any_hex = false;
 
     while (true) {
@@ -113,14 +112,21 @@ SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
         if (value > 0x10FFFF)
           code = SYNTAX_ESCAPE_OUT_OF_RANGE; // the value can only grow
         any_hex = true;
-        prev_hex = true;
         pos++;
         continue;
       }
 
-      if (code == SYNTAX_OK && d == '_' && prev_hex && pos + 1 < span.end &&
-          is_base_digit(source_byte_at(parser->source, pos + 1), 16)) {
-        prev_hex = false;
+      // An underscore run is grammatical only between hex digits: the
+      // braces must open on a hex digit, and the run must resume with one.
+      if (code == SYNTAX_OK && d == '_' && any_hex) {
+        size_t run = pos;
+        while (run < span.end && source_byte_at(parser->source, run) == '_')
+          run++;
+        if (run < span.end && is_base_digit(source_byte_at(parser->source, run), 16)) {
+          pos = run;
+          continue;
+        }
+        code = SYNTAX_EXPECTED_HEX_DIGIT;
         pos++;
         continue;
       }

@@ -267,6 +267,7 @@ void test_rune_simple_and_numeric(void) {
       {"'\\u{1_F600}'", "\\u{1_F600}"},
       {"'\\u{10FFFF}'", "\\u{10FFFF}"},
       {"'\\u{10_FFFF}'", "\\u{10_FFFF}"},
+      {"'\\u{1__F600}'", "\\u{1__F600}"},
       {"'\\u{00e9}'", "\\u{00e9}"},
   };
 
@@ -301,7 +302,6 @@ void test_rune_malformed(void) {
       {"'\\u{}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
       {"'\\u{_41}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
       {"'\\u{41_}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
-      {"'\\u{1__F}'", SYNTAX_EXPECTED_HEX_DIGIT, 1},
       {"'\\u{D800}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
       {"'\\u{DFFF}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
       {"'\\u{110000}'", SYNTAX_ESCAPE_OUT_OF_RANGE, 1},
@@ -363,6 +363,7 @@ void test_string_simple_and_escapes(void) {
       {"\"\\x7f\"", "\\x7f"},
       {"\"\\u{1F600}\"", "\\u{1F600}"},
       {"\"\\u{10_FFFF}\"", "\\u{10_FFFF}"},
+      {"\"\\u{1__F600}\"", "\\u{1__F600}"},
   };
 
   // The value view covers the content between the quotes.
