@@ -42,13 +42,13 @@ doc/
 ```
 compiler/
 ├── common/             # Foundation: Strview, Arena, Source
-├── parser/             # AST definitions + lexing + parsing
+├── syntax/             # AST definitions + lexing + parsing
 ├── sema/               # Semantic analysis
 ├── irgen/              # LLVM IR generation (the only LLVM C API user)
 └── cli/                # The `solid` executable (entry point)
 ```
 
-Dependency chain: `common <- parser <- sema <- irgen <- cli`; CMake targets are named `solid-lang-*`.
+Dependency chain: `common <- syntax <- sema <- irgen <- cli`; CMake targets are named `solid-lang-*`.
 
 ### Requirements
 
