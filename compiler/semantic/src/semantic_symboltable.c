@@ -130,39 +130,21 @@ static SemanticEntry *level_replace(Arena *arena, SemanticEntry *level, Semantic
   return copy;
 }
 
-// Flips an innermost-first chain into a root-first segment array: index 0 is
-// the outermost segment, index count-1 the innermost head.
-static const SemanticNamePath **path_reversed(Arena *arena, const SemanticNamePath *path, size_t *count) {
-  size_t depth = 0;
-  for (const SemanticNamePath *p = path; p != NULL; p = p->next)
-    depth++;
-
-  const SemanticNamePath **segments = arena_alloc(arena, depth * sizeof *segments);
-  size_t index = depth;
-  for (const SemanticNamePath *p = path; p != NULL; p = p->next)
-    segments[--index] = p;
-
-  *count = depth;
-  return segments;
-}
-
-// Defines segments[i..count-1] downward: segment i lives in @p level, segment
-// i+1 in its entry's down level, and so on until the innermost head. Returns
-// this level's new root, or NULL on collision — a symbol redefined, or a name
-// taken by the other kind. Redeclaring an existing namespace shares its node;
-// when a deeper level changed underneath a shared entry, the entry is
-// rewritten with the updated down pointer (same key, same priority).
-static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const SemanticNamePath **segments, size_t index,
-                                  size_t count, SyntaxNode *node) {
-  bool is_head = index == count - 1;
-  SemanticEntryKind kind = is_head && node != NULL ? SEMANTIC_ENTRY_SYMBOL : SEMANTIC_ENTRY_NAMESPACE;
+// Defines the chain from the outermost segment inward: each frame registers
+// its segment in @p level, then recurses into the entry's down level. On the
+// unwind every deeper level publishes its (possibly new) root upward — a
+// shared entry whose level changed is rewritten (same key, same priority).
+// Returns this level's new root, or NULL on collision — a symbol redefined,
+// or a name taken by the other kind.
+static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const SemanticNamePath *path, SyntaxNode *node) {
+  SemanticEntryKind kind = path->next == NULL && node != NULL ? SEMANTIC_ENTRY_SYMBOL : SEMANTIC_ENTRY_NAMESPACE;
 
   SemanticEntry *root = level;
-  SemanticEntry *hit = level_find(root, segments[index]->name);
+  SemanticEntry *hit = level_find(root, path->name);
   SemanticEntry *mine;
   if (hit == NULL) {
-    mine = entry_new(arena, segments[index]->name, kind);
-    if (is_head && node != NULL)
+    mine = entry_new(arena, path->name, kind);
+    if (path->next == NULL && node != NULL)
       mine->decl = node;
     root = level_insert(arena, root, mine);
   } else if (kind == SEMANTIC_ENTRY_NAMESPACE && hit->kind == SEMANTIC_ENTRY_NAMESPACE) {
@@ -171,8 +153,8 @@ static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const Sema
     return NULL;
   }
 
-  if (!is_head) {
-    SemanticEntry *inner_root = define_walk(arena, mine->down, segments, index + 1, count, node);
+  if (path->next != NULL) {
+    SemanticEntry *inner_root = define_walk(arena, mine->down, path->next, node);
     if (inner_root == NULL)
       return NULL;
     if (inner_root != mine->down) { // a deeper level changed: republish it
@@ -190,24 +172,18 @@ static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const Sema
   return root;
 }
 
-// Resolves the chain outward-in: the recursion reaches the outermost segment
-// (the chain tail) first, then each unwind searches one level deeper. The
-// head must name an entry of @p head_kind, every other segment a namespace.
-// Returns the head entry, or NULL.
-static SemanticEntry *resolve_levels(SemanticEntry *level, const SemanticNamePath *path, bool is_head,
-                                     SemanticEntryKind head_kind) {
-  SemanticEntry *root = level;
-  if (path->next != NULL) {
-    SemanticEntry *outer = resolve_levels(level, path->next, false, head_kind);
-    if (outer == NULL)
+// Resolves the chain level by level: the tail segment must name an entry of
+// @p head_kind, every other segment a namespace. Returns the tail entry, or
+// NULL when a segment is missing or mistyped.
+static SemanticEntry *resolve_levels(SemanticEntry *level, const SemanticNamePath *path, SemanticEntryKind head_kind) {
+  SemanticEntry *hit = NULL;
+  for (const SemanticNamePath *p = path; p != NULL; p = p->next) {
+    SemanticEntryKind kind = p->next == NULL ? head_kind : SEMANTIC_ENTRY_NAMESPACE;
+    hit = level_find(level, p->name);
+    if (hit == NULL || hit->kind != kind)
       return NULL;
-    root = outer->down;
+    level = hit->down;
   }
-
-  SemanticEntry *hit = level_find(root, path->name);
-  SemanticEntryKind kind = is_head ? head_kind : SEMANTIC_ENTRY_NAMESPACE;
-  if (hit == NULL || hit->kind != kind)
-    return NULL;
   return hit;
 }
 
@@ -223,9 +199,7 @@ SemanticSymbolTable *semantic_symboltable_define(SemanticSymbolTable *table, con
   if (table == NULL || path == NULL)
     return NULL;
 
-  size_t count = 0;
-  const SemanticNamePath **segments = path_reversed(table->arena, path, &count);
-  SemanticEntry *root = define_walk(table->arena, table->root, segments, 0, count, node);
+  SemanticEntry *root = define_walk(table->arena, table->root, path, node);
   if (root == NULL)
     return NULL;
 
@@ -238,7 +212,7 @@ SemanticSymbolTable *semantic_symboltable_define(SemanticSymbolTable *table, con
 SyntaxNode *semantic_symboltable_lookup(const SemanticSymbolTable *table, const SemanticNamePath *path) {
   if (table == NULL || path == NULL)
     return NULL;
-  SemanticEntry *hit = resolve_levels(table->root, path, true, SEMANTIC_ENTRY_SYMBOL);
+  SemanticEntry *hit = resolve_levels(table->root, path, SEMANTIC_ENTRY_SYMBOL);
   return hit != NULL ? hit->decl : NULL;
 }
 
@@ -248,7 +222,7 @@ const SemanticSymbolTable *semantic_symboltable_sub(const SemanticSymbolTable *t
   if (path == NULL)
     return table; // an empty chain views the whole table
 
-  SemanticEntry *ns = resolve_levels(table->root, path, true, SEMANTIC_ENTRY_NAMESPACE);
+  SemanticEntry *ns = resolve_levels(table->root, path, SEMANTIC_ENTRY_NAMESPACE);
   if (ns == NULL)
     return NULL;
 

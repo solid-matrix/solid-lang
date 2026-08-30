@@ -2,17 +2,15 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "node.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 static const SyntaxBinaryExpr *as_bin(const SyntaxNode *n, SyntaxOperator op) {
   TEST_ASSERT_NOT_NULL(n);
@@ -246,8 +244,8 @@ void test_expr_relational_two_byte_forms(void) {
   as_int(gte->right, "2");
 }
 
-void test_expr_call_args_reverse_order(void) {
-  // Arguments accumulate newest-at-head: chain holds [3, 2].
+void test_expr_call_args_in_source_order(void) {
+  // Arguments accumulate in source order: chain holds [2, 3].
   SyntaxNodeResult r = run_expr("(1)(2,3)");
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(r.errors);
@@ -255,8 +253,8 @@ void test_expr_call_args_reverse_order(void) {
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(call->args));
-  as_int(call->args->node, "3");
-  as_int(call->args->next->node, "2");
+  as_int(call->args->node, "2");
+  as_int(call->args->next->node, "3");
 }
 
 void test_expr_dot_missing_identifier_frame(void) {
@@ -416,12 +414,12 @@ void test_named_expr_two_comparisons(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(call->args));
-  const SyntaxBinaryExpr *gt = as_bin(call->args->node, SYNTAX_OPERATOR_GT);
-  const SyntaxNamed *c = as_named(gt->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
-  const SyntaxBinaryExpr *lt = as_bin(call->args->next->node, SYNTAX_OPERATOR_LT);
+  const SyntaxBinaryExpr *lt = as_bin(call->args->node, SYNTAX_OPERATOR_LT);
   const SyntaxNamed *a = as_named(lt->left);
   TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  const SyntaxBinaryExpr *gt = as_bin(call->args->next->node, SYNTAX_OPERATOR_GT);
+  const SyntaxNamed *c = as_named(gt->left);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("f(a<b, c>d)"), r.rem.start);
 }
@@ -465,7 +463,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"expr_malformed_empty_parens", test_expr_malformed_empty_parens},
     {"expr_malformed_dangling_unary", test_expr_malformed_dangling_unary},
     {"expr_relational_two_byte_forms", test_expr_relational_two_byte_forms},
-    {"expr_call_args_reverse_order", test_expr_call_args_reverse_order},
+    {"expr_call_args_in_source_order", test_expr_call_args_in_source_order},
     {"expr_dot_missing_identifier_frame", test_expr_dot_missing_identifier_frame},
     {"expr_index_frames", test_expr_index_frames},
     {"expr_call_missing_rparen_frame", test_expr_call_missing_rparen_frame},

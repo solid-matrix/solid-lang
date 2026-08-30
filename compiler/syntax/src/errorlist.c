@@ -7,7 +7,7 @@
 
 #include <assert.h>
 
-#include "syntax_errorlist.h"
+#include "error.h"
 
 SyntaxErrorList *syntax_errorlist_empty(void) { return NULL; }
 

@@ -6,5 +6,3 @@
  */
 
 #pragma once
-
-#include "syntax.h"

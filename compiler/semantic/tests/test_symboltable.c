@@ -14,22 +14,25 @@
 #include "syntax_node.h"
 #include "test_support.h"
 
-// 以根优先的字面顺序构建内层在前链：path_of(a, 2, "a", "X") 的头是 "X"。
 static SemanticNamePath *path_of(Arena *arena, int count, ...) {
-  SemanticNamePath *path = NULL;
+  SemanticNamePath *head = NULL;
+  SemanticNamePath *tail = NULL;
   va_list args;
   va_start(args, count);
   for (int i = 0; i < count; i++) {
     SemanticNamePath *segment = arena_alloc(arena, sizeof *segment);
     segment->name = strview_from_cstr(va_arg(args, const char *));
-    segment->next = path;
-    path = segment;
+    segment->next = NULL;
+    if (tail == NULL)
+      head = segment;
+    else
+      tail->next = segment;
+    tail = segment;
   }
   va_end(args);
-  return path;
+  return head;
 }
 
-// 生成一个可按指针与 tag 区分的声明节点。
 static SyntaxNode *decl_node(Arena *arena, int tag) {
   SyntaxNode *node = arena_alloc(arena, sizeof *node);
   *node = syntax_node_create(SYNTAX_KIND_FUNC_DECL, (Span){.start = (size_t)tag, .end = (size_t)tag + 1});
@@ -95,7 +98,7 @@ void test_define_nested_path_scoping(void) {
   TEST_ASSERT_TRUE(semantic_symboltable_lookup(t1, path_of(a, 3, "a", "b", "X")) == n);
   TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 2, "a", "X")));
   TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 1, "X")));
-  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 2, "a", "b"))); // 命名空间不是符号
+  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 2, "a", "b")));
 
   arena_destroy(a);
 }
@@ -125,7 +128,7 @@ void test_namespace_materializes_empty(void) {
   const SemanticSymbolTable *view = semantic_symboltable_sub(t1, path_of(a, 2, "a", "b"));
   TEST_ASSERT_NOT_NULL(view);
   TEST_ASSERT_NULL(semantic_symboltable_lookup(view, path_of(a, 1, "X")));
-  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 2, "a", "b"))); // 不是符号
+  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 2, "a", "b")));
 
   arena_destroy(a);
 }
@@ -152,8 +155,8 @@ void test_namespace_redefine_reuses_entry(void) {
   TEST_ASSERT_NOT_NULL(t1);
   TEST_ASSERT_NOT_NULL(t2);
   TEST_ASSERT_NOT_NULL(t3);
-  TEST_ASSERT_TRUE(semantic_symboltable_lookup(t3, path_of(a, 3, "a", "b", "X")) == n); // 合并保留
-  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 3, "a", "b", "X")));      // 旧表不动
+  TEST_ASSERT_TRUE(semantic_symboltable_lookup(t3, path_of(a, 3, "a", "b", "X")) == n);
+  TEST_ASSERT_NULL(semantic_symboltable_lookup(t1, path_of(a, 3, "a", "b", "X")));
 
   arena_destroy(a);
 }
@@ -209,29 +212,27 @@ void test_sub_chained_views(void) {
   TEST_ASSERT_NOT_NULL(va);
   TEST_ASSERT_NOT_NULL(vb);
   TEST_ASSERT_TRUE(semantic_symboltable_lookup(vb, path_of(a, 1, "X")) == n);
-  TEST_ASSERT_TRUE(semantic_symboltable_sub(t1, NULL) == t1); // 空路径 = 整表视图
+  TEST_ASSERT_TRUE(semantic_symboltable_sub(t1, NULL) == t1);
 
   arena_destroy(a);
 }
 
 static const char *const MANY_NAMES[] = {
-    "alpha", "beta",  "gamma",  "delta", "epsilon", "zeta",  "eta",   "theta", "iota",   "kappa",
-    "lambda", "mu",   "nu",     "xi",    "omicron", "pi",    "rho",   "sigma", "tau",    "upsilon",
-    "phi",   "chi",   "psi",    "omega", "foo",     "bar",   "baz",   "qux",   "quux",   "corge",
-    "grault", "garply", "waldo", "fred",  "plugh",   "xyzzy", "thud",  "main",  "print",  "value",
+    "alpha",  "beta",   "gamma", "delta", "epsilon", "zeta",  "eta",  "theta", "iota",  "kappa",
+    "lambda", "mu",     "nu",    "xi",    "omicron", "pi",    "rho",  "sigma", "tau",   "upsilon",
+    "phi",    "chi",    "psi",   "omega", "foo",     "bar",   "baz",  "qux",   "quux",  "corge",
+    "grault", "garply", "waldo", "fred",  "plugh",   "xyzzy", "thud", "main",  "print", "value",
 };
 
 static int compare_by_name(const void *l, const void *r) {
   return strcmp(MANY_NAMES[*(const size_t *)l], MANY_NAMES[*(const size_t *)r]);
 }
 
-// 按给定顺序全量定义并验证：每个名字命中自己的节点，未定义名 miss。
 static void define_and_verify(SemanticSymbolTable **table, Arena *arena, const size_t *order, size_t count) {
   SyntaxNode *nodes[64];
   for (size_t k = 0; k < count; k++) {
     nodes[k] = decl_node(arena, (int)k);
-    SemanticSymbolTable *next =
-        semantic_symboltable_define(*table, path_of(arena, 1, MANY_NAMES[order[k]]), nodes[k]);
+    SemanticSymbolTable *next = semantic_symboltable_define(*table, path_of(arena, 1, MANY_NAMES[order[k]]), nodes[k]);
     TEST_ASSERT_NOT_NULL(next);
     *table = next;
   }
@@ -270,7 +271,7 @@ void test_deterministic_behavior_across_orders(void) {
   for (size_t i = 0; i < count; i++) {
     natural[i] = i;
     reversed[count - 1 - i] = i;
-    by_name[i] = decl_node(a, (int)i); // 一个名字一个节点，两个表共用
+    by_name[i] = decl_node(a, (int)i);
   }
 
   for (size_t k = 0; k < count; k++) {

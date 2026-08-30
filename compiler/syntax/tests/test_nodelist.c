@@ -1,6 +1,5 @@
 #include "arena.h"
-#include "syntax_node.h"
-#include "syntax_nodelist.h"
+#include "node.h"
 #include "test_support.h"
 
 static SyntaxNode *dummy(Arena *a) {

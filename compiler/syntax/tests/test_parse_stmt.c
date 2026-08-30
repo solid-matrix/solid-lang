@@ -2,17 +2,15 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "node.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 static const SyntaxBodyStmt *as_body(const SyntaxNode *n) {
   TEST_ASSERT_NOT_NULL(n);
@@ -369,16 +367,16 @@ void test_stmt_keyword_boundaries(void) {
 }
 
 void test_stmt_dispatch_ladder(void) {
-  // One body holding every statement form; the chain is newest-at-head.
+  // One body holding every statement form; the chain is in source order.
   fx_begin("{ ; let a = 1; set a = 2; a; if (a) {} else ; loop {} while (a); break; continue; return a; }");
   SyntaxNodeResult r = parse_body_stmt(fx_parser, source_get_span(fx_source));
   const SyntaxBodyStmt *b = as_body(r.node);
   TEST_ASSERT_EQUAL_size_t(10, syntax_nodelist_length(b->stmts));
 
   static const SyntaxKind WANT[] = {
-      SYNTAX_KIND_RETURN_STMT, SYNTAX_KIND_CONTINUE_STMT, SYNTAX_KIND_BREAK_STMT, SYNTAX_KIND_WHILE_STMT,
-      SYNTAX_KIND_LOOP_STMT,   SYNTAX_KIND_IF_STMT,       SYNTAX_KIND_EXPR_STMT,  SYNTAX_KIND_SET_STMT,
-      SYNTAX_KIND_LET_STMT,    SYNTAX_KIND_EMPTY_STMT,
+      SYNTAX_KIND_EMPTY_STMT,    SYNTAX_KIND_LET_STMT,    SYNTAX_KIND_SET_STMT,   SYNTAX_KIND_EXPR_STMT,
+      SYNTAX_KIND_IF_STMT,       SYNTAX_KIND_LOOP_STMT,   SYNTAX_KIND_WHILE_STMT, SYNTAX_KIND_BREAK_STMT,
+      SYNTAX_KIND_CONTINUE_STMT, SYNTAX_KIND_RETURN_STMT,
   };
   const SyntaxNodeList *n = b->stmts;
   for (size_t i = 0; i < sizeof(WANT) / sizeof(WANT[0]); i++) {

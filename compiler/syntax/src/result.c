@@ -5,7 +5,8 @@
  * @version 0.0.5
  */
 
-#include "syntax_result.h"
+#include "result.h"
+#include "error.h"
 
 SyntaxNodeResult syntax_node_result_not_match(Span span) {
   return (SyntaxNodeResult){

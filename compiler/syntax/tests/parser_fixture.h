@@ -8,42 +8,42 @@
 
 #pragma once
 
+#include "arena.h"
+#include "parse.h"
 #include "source.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parser.h"
-#include "syntax_result.h"
 #include "test_support.h"
 
 static Source *fx_source;
-static SyntaxParser *fx_parser;
-
-/**
- * @brief Points the fixture at @p text, releasing any previous parse.
- * @param text The source text to parse.
- */
-static void fx_begin(const char *text) {
-  if (fx_parser != NULL) {
-    syntax_parser_destroy(fx_parser);
-    source_destroy(fx_source);
-  }
-  fx_source = source_from_cstr(text);
-  fx_parser = syntax_parser_create(fx_source);
-}
+static Arena *fx_arena;
+static SyntaxParser fx_parser_storage;
+static SyntaxParser *fx_parser; // points at fx_parser_storage
 
 /**
  * @brief Releases the current parse.
  * @note Safe to call repeatedly.
  */
 static void fx_release(void) {
-  if (fx_parser != NULL) {
-    syntax_parser_destroy(fx_parser);
-    fx_parser = NULL;
+  fx_parser = NULL;
+  if (fx_arena != NULL) {
+    arena_destroy(fx_arena); // reclaims every node of this parse
+    fx_arena = NULL;
   }
   if (fx_source != NULL) {
     source_destroy(fx_source);
     fx_source = NULL;
   }
+}
+
+/**
+ * @brief Points the fixture at @p text, releasing any previous parse.
+ * @param text The source text to parse.
+ */
+static void fx_begin(const char *text) {
+  fx_release();
+  fx_source = source_from_cstr(text);
+  fx_arena = arena_create();
+  fx_parser_storage = (SyntaxParser){.source = fx_source, .arena = fx_arena};
+  fx_parser = &fx_parser_storage;
 }
 
 /* ---- shared expectations ---------------------------------------------- */
@@ -73,8 +73,8 @@ static inline size_t error_chain_length(const SyntaxErrorList *e) {
 }
 
 /**
- * @brief Asserts that the chain holds exactly the given segments in
- *        newest-at-head order: chain[i] is expected[count - 1 - i].
+ * @brief Asserts that the chain holds exactly the given segments in source
+ *        order: chain[i] is expected[i].
  * @param chain The path chain to check.
  * @param expected Segments in source order; NULL asserts an empty chain.
  * @param count Number of segments.
@@ -91,7 +91,7 @@ static inline void check_path(const SyntaxNodeList *chain, const char *const *ex
     if (!n)
       return;
 
-    const char *want = expected[count - 1 - i];
+    const char *want = expected[i];
     const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->node;
     TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IDENTIFIER, id->header.kind);
     TEST_ASSERT_STRVIEW_EQ(id->value, want);

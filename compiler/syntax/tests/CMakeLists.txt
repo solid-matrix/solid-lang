@@ -49,9 +49,9 @@ foreach(case_name IN LISTS PARSE_AUX_CASES)
 endforeach()
 
 set(PARSE_COMMON_CASES identifier_basic identifier_stops_at_non_word identifier_rejects_digit_start ct_bare
-    ct_with_args ct_multi_string_args_reversed ct_missing_name_frame ct_unclosed_args_frame annotations_none
+    ct_with_args ct_multi_string_args_in_source_order ct_missing_name_frame ct_unclosed_args_frame annotations_none
     annotations_single_and_multi annotations_error_frame generic_param_bare_and_bound generic_param_annotated
-    call_param_requires_colon_and_type call_param_annotated program_accumulates_decls_newest_first
+    call_param_requires_colon_and_type call_param_annotated program_accumulates_decls_in_source_order
     program_junk_tail_reports_expected_eof program_empty_and_trivia_only program_func_sample_end_to_end)
 foreach(case_name IN LISTS PARSE_COMMON_CASES)
   add_test(NAME parser.parse_common.${case_name}
@@ -75,7 +75,7 @@ set(PARSE_EXPR_CASES expr_precedence_mul_over_add expr_parens_override_grouping 
     expr_call_empty_args expr_float_dot_beats_member_access expr_malformed_missing_right_hand_side
     expr_malformed_missing_rhs_logical_or expr_malformed_dangling_call_comma expr_malformed_unclosed_paren
     expr_malformed_empty_parens expr_malformed_dangling_unary expr_relational_two_byte_forms
-    expr_call_args_reverse_order expr_dot_missing_identifier_frame expr_index_frames
+    expr_call_args_in_source_order expr_dot_missing_identifier_frame expr_index_frames
     expr_call_missing_rparen_frame expr_full_ladder_shape expr_ct_operand_position named_expr_generic_call
     named_expr_relational_fallback named_expr_shift_fallback named_expr_two_comparisons
     named_expr_member_generic named_expr_condition_generic)
@@ -116,7 +116,7 @@ foreach(case_name IN LISTS PARSE_TYPE_CASES)
            COMMAND test_parse_type ${case_name})
 endforeach()
 
-set(PARSER_CASES create_returns_usable_parser create_distinct_instances destroy_cycle_is_repeatable)
+set(PARSER_CASES parser_borrows_caller_state refreeze_replaces_state cycle_is_repeatable)
 foreach(case_name IN LISTS PARSER_CASES)
   add_test(NAME parser.parser.${case_name}
            COMMAND test_parser ${case_name})

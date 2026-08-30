@@ -10,14 +10,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "node.h"
+#include "parse.h"
 #include "source.h"
 #include "span.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 SyntaxNodeResult parse_identifier(const SyntaxParser *parser, Span span) {
   if (span_is_empty(span))
@@ -111,7 +109,7 @@ SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span) {
 
   SyntaxProgram *program = arena_alloc(parser->arena, sizeof(SyntaxProgram));
   program->header = syntax_node_create(SYNTAX_KIND_PROGRAM, span_consumed(span, rem));
-  program->top_levels = decls;
+  program->top_levels = syntax_nodelist_reverse(parser->arena, decls);
 
   rem = skip_trivia(parser->source, rem);
 
@@ -135,7 +133,7 @@ SyntaxListResult parse_annotations(const SyntaxParser *parser, Span span) {
     res = parse_compile_time(parser, skip_trivia(parser->source, rem));
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxNodeResult parse_generic_param(const SyntaxParser *parser, Span span) {

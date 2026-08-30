@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "source.h"
 #include "span.h"
@@ -11,7 +11,6 @@
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 static Span span_over(const char *text) { return (Span){.start = 0, .end = strlen(text)}; }
 

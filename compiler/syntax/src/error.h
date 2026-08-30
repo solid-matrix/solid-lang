@@ -1,27 +1,14 @@
-/**
- * @file syntax_errorlist.h
- * @brief Persistent singly-linked diagnostic chain, newest at head.
- * @author solid-matrix
- * @version 0.0.5
- */
-
 #pragma once
-
-#include <stdbool.h>
-#include <stddef.h>
 
 #include "arena.h"
 #include "syntax_error.h"
-
 /**
- * @brief A chain cell. Lists are persistent: sharing cells is safe
- *        because they are never mutated after allocation.
+ * @brief Makes a diagnostic value.
+ * @param code The diagnostic code.
+ * @param span The source text the diagnostic refers to.
+ * @return The diagnostic value.
  */
-typedef struct SyntaxErrorList SyntaxErrorList;
-struct SyntaxErrorList {
-  SyntaxError error;
-  SyntaxErrorList *next;
-};
+SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
 
 /**
  * @brief The empty list. Returns NULL; exists for explicit call sites.

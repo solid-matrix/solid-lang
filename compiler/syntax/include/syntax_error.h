@@ -1,6 +1,6 @@
 /**
  * @file syntax_error.h
- * @brief Diagnostic codes and values.
+ * @brief Diagnostic codes, values and the diagnostic chain type.
  * @author solid-matrix
  * @version 0.0.5
  */
@@ -52,9 +52,11 @@ typedef struct {
 } SyntaxError;
 
 /**
- * @brief Makes a diagnostic value.
- * @param code The diagnostic code.
- * @param span The source text the diagnostic refers to.
- * @return The diagnostic value.
+ * @brief A chain cell. Lists are persistent: sharing cells is safe
+ *        because they are never mutated after allocation.
  */
-SyntaxError syntax_error_create(SyntaxErrorCode code, Span span);
+typedef struct SyntaxErrorList SyntaxErrorList;
+struct SyntaxErrorList {
+  SyntaxError error;
+  SyntaxErrorList *next;
+};

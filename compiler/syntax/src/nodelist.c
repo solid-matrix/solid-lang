@@ -7,7 +7,7 @@
 
 #include <assert.h>
 
-#include "syntax_nodelist.h"
+#include "node.h"
 
 SyntaxNodeList *syntax_nodelist_empty(void) { return NULL; }
 

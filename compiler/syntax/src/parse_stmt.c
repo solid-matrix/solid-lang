@@ -9,13 +9,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "node.h"
+#include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 SyntaxNodeResult parse_stmt(const SyntaxParser *parser, Span span) {
   // Keyword-led statements come before expr_stmt: a bare keyword whose
@@ -76,7 +74,7 @@ SyntaxNodeResult parse_body_stmt(const SyntaxParser *parser, Span span) {
 
   SyntaxBodyStmt *stmt = arena_alloc(parser->arena, sizeof(SyntaxBodyStmt));
   stmt->header = syntax_node_create(SYNTAX_KIND_BODY_STMT, span_consumed(span, rem));
-  stmt->stmts = stmts;
+  stmt->stmts = syntax_nodelist_reverse(parser->arena, stmts);
 
   return syntax_node_result_matched(rem, (SyntaxNode *)stmt, errors);
 }

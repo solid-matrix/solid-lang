@@ -2,16 +2,14 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "node.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_node.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 // The number entry point: int and float branches, longest match wins.
 typedef SyntaxNodeResult (*ParseFn)(const char *);
@@ -449,7 +447,7 @@ void test_struct_lit_forms(void) {
   const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, s->type->header.kind);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(s->fields));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->node)->id->value, "y");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->node)->id->value, "x"); // source order
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = 0_f32, y = 1_f32 }"), r.rem.start);

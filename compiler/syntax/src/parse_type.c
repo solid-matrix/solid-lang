@@ -9,13 +9,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "node.h"
+#include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 SyntaxNodeResult parse_type(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
@@ -187,7 +185,7 @@ SyntaxNodeResult parse_func_type(const SyntaxParser *parser, Span span) {
 
   SyntaxFuncType *type = arena_alloc(parser->arena, sizeof(SyntaxFuncType));
   type->header = syntax_node_create(SYNTAX_KIND_FUNC_TYPE, span_consumed(span, rem));
-  type->call_params = call_params;
+  type->call_params = syntax_nodelist_reverse(parser->arena, call_params);
   type->callconv = callconv;
   type->return_type = return_type;
 

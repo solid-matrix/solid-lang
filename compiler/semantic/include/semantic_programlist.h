@@ -1,6 +1,6 @@
 #pragma once
 
-#include "syntax_nodes.h"
+#include "syntax_node.h"
 
 typedef struct SemanticProgramList SemanticProgramList;
 struct SemanticProgramList {

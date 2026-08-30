@@ -12,10 +12,10 @@
 #include "syntax_node.h"
 
 /**
- * @brief Chain of name segments ordered innermost first.
- * @details The head names the innermost entity: for define()/lookup() it is
- *          the symbol name, for sub() the innermost namespace. Trailing
- *          segments walk outward, so `a::b::X` reads as X -> b -> a.
+ * @brief Chain of name segments in source order.
+ * @details The chain reads as written: for `a::b::X` the head is `a` and the
+ *          tail `X`. For define()/lookup() the tail names the symbol; for
+ *          sub() it names the innermost namespace.
  */
 typedef struct SemanticNamePath SemanticNamePath;
 struct SemanticNamePath {
@@ -43,7 +43,7 @@ SemanticSymbolTable *semantic_symboltable_create(Arena *arena);
 /**
  * @brief Registers a symbol or materializes a namespace path.
  * @param table The owning table to define into — never a sub() view.
- * @param path Innermost-first chain. With @p node non-NULL the head is the
+ * @param path Source-order chain. With @p node non-NULL the tail is the
  *             symbol name and the rest is its namespace chain; with NULL
  *             every segment materializes as a namespace, and redeclaring an
  *             existing namespace reuses its node (declarations across files
@@ -60,7 +60,7 @@ SemanticSymbolTable *semantic_symboltable_define(SemanticSymbolTable *table, con
 /**
  * @brief Looks a name up along its namespace chain.
  * @param table The table, or a sub() view, to search.
- * @param path Innermost-first chain whose head is the symbol name.
+ * @param path Source-order chain whose tail is the symbol name.
  * @return The declaration node, or NULL when the name is unknown.
  */
 SyntaxNode *semantic_symboltable_lookup(const SemanticSymbolTable *table, const SemanticNamePath *path);
@@ -70,7 +70,7 @@ SyntaxNode *semantic_symboltable_lookup(const SemanticSymbolTable *table, const 
  * @param table The table to view. Must have seen its last define() — which
  *              the collect-then-resolve pass order guarantees — because the
  *              view aliases the frozen tree.
- * @param path Innermost-first chain of namespace names; an empty chain views
+ * @param path Source-order chain of namespace names; an empty chain views
  *             the whole table.
  * @return The read-only view, or NULL when a segment is missing or names a
  *         symbol.

@@ -9,15 +9,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "parse.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
   if (span_is_empty(span) || source_byte_at(parser->source, span.start) != '\\')

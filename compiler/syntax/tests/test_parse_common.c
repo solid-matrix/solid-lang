@@ -2,17 +2,15 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "node.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 static const SyntaxCompileTime *as_ct(const SyntaxNodeResult *r, const char *name) {
   TEST_ASSERT_TRUE(r->matched);
@@ -93,7 +91,7 @@ void test_ct_with_args(void) {
   as_int(ct->args->node, "16");
 }
 
-void test_ct_multi_string_args_reversed(void) {
+void test_ct_multi_string_args_in_source_order(void) {
   fx_begin("@import(\"LLVM-C\",\"LLVMContextCreate\")");
   SyntaxNodeResult r = parse_compile_time(fx_parser, source_get_span(fx_source));
 
@@ -103,10 +101,10 @@ void test_ct_multi_string_args_reversed(void) {
   if (!ct)
     return;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(ct->args));
-  // newest-at-head: the second literal leads the chain.
+  // Source order: the first literal leads the chain.
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "LLVMContextCreate");
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "LLVM-C");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "LLVM-C");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "LLVMContextCreate");
 }
 
 void test_ct_missing_name_frame(void) {
@@ -153,8 +151,8 @@ void test_annotations_single_and_multi(void) {
   SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(l.list));
-  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->node)->id->value, "b");
-  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->next->node)->id->value, "a");
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->node)->id->value, "a");
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->next->node)->id->value, "b");
   TEST_ASSERT_NULL(l.errors);
   // Trivia before the next non-annotation stays with the enclosing sequence.
   TEST_ASSERT_EQUAL_size_t(strlen("@a @b(1)"), l.rem.start);
@@ -239,7 +237,7 @@ void test_call_param_annotated(void) {
 
 /* ---- parse_program ---------------------------------------------------- */
 
-void test_program_accumulates_decls_newest_first(void) {
+void test_program_accumulates_decls_in_source_order(void) {
   fx_begin("namespace a;\nusing b;\n");
   SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
 
@@ -250,9 +248,9 @@ void test_program_accumulates_decls_newest_first(void) {
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_EQUAL_size_t(2, top_level_count(p));
 
-  // Newest-at-head: the using decl was parsed last.
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->next->node->kind);
+  // Source order: the namespace decl was parsed first.
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->next->node->kind);
 }
 
 void test_program_junk_tail_reports_expected_eof(void) {
@@ -295,9 +293,9 @@ void test_program_func_sample_end_to_end(void) {
 
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(p->top_levels));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->next->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->next->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->next->next->node->kind);
 }
 
 static const TestDispatchEntry ENTRIES[] = {
@@ -306,7 +304,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"identifier_rejects_digit_start", test_identifier_rejects_digit_start},
     {"ct_bare", test_ct_bare},
     {"ct_with_args", test_ct_with_args},
-    {"ct_multi_string_args_reversed", test_ct_multi_string_args_reversed},
+    {"ct_multi_string_args_in_source_order", test_ct_multi_string_args_in_source_order},
     {"ct_missing_name_frame", test_ct_missing_name_frame},
     {"ct_unclosed_args_frame", test_ct_unclosed_args_frame},
     {"annotations_none", test_annotations_none},
@@ -316,7 +314,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"generic_param_annotated", test_generic_param_annotated},
     {"call_param_requires_colon_and_type", test_call_param_requires_colon_and_type},
     {"call_param_annotated", test_call_param_annotated},
-    {"program_accumulates_decls_newest_first", test_program_accumulates_decls_newest_first},
+    {"program_accumulates_decls_in_source_order", test_program_accumulates_decls_in_source_order},
     {"program_junk_tail_reports_expected_eof", test_program_junk_tail_reports_expected_eof},
     {"program_empty_and_trivia_only", test_program_empty_and_trivia_only},
     {"program_func_sample_end_to_end", test_program_func_sample_end_to_end},

@@ -9,13 +9,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "node.h"
+#include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
@@ -902,7 +900,7 @@ SyntaxNodeResult parse_func_decl(const SyntaxParser *parser, Span span) {
   decl->call_params = call_params;
   decl->callconv = callconv;
   decl->return_type = return_type;
-  decl->fulfills = fulfills;
+  decl->fulfills = syntax_nodelist_reverse(parser->arena, fulfills);
   decl->body = body;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);

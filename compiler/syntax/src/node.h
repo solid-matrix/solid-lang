@@ -1,27 +1,7 @@
-/**
- * @file syntax_nodelist.h
- * @brief Persistent singly-linked node chain, newest at head.
- * @author solid-matrix
- * @version 0.0.5
- */
-
 #pragma once
-
-#include <stdbool.h>
-#include <stddef.h>
 
 #include "arena.h"
 #include "syntax_node.h"
-
-/**
- * @brief A chain cell. Lists are persistent: sharing cells is safe
- *        because they are never mutated after allocation.
- */
-typedef struct SyntaxNodeList SyntaxNodeList;
-struct SyntaxNodeList {
-  SyntaxNode *node;
-  SyntaxNodeList *next;
-};
 
 /**
  * @brief The empty list. Returns NULL; exists for explicit call sites.

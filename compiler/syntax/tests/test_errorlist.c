@@ -1,11 +1,9 @@
 #include "arena.h"
-#include "syntax_error.h"
-#include "syntax_errorlist.h"
+#include "error.h"
 #include "test_support.h"
 
 static SyntaxError err(int code, int start) {
-  return syntax_error_create((SyntaxErrorCode)code,
-                             (Span){.start = start, .end = start + 1});
+  return syntax_error_create((SyntaxErrorCode)code, (Span){.start = start, .end = start + 1});
 }
 
 static bool err_equals(SyntaxError e, int code, int start) {
@@ -51,8 +49,7 @@ void test_errorlist_persistence(void) {
   TEST_ASSERT_TRUE(err_equals(syntax_errorlist_head(one), 1, 10));
   TEST_ASSERT_NULL(one->next);
 
-  SyntaxErrorList *three =
-      syntax_errorlist_append(a, two, err(3, 30)); // [2,1,3]
+  SyntaxErrorList *three = syntax_errorlist_append(a, two, err(3, 30)); // [2,1,3]
   TEST_ASSERT_EQUAL_size_t(3, syntax_errorlist_length(three));
   TEST_ASSERT_TRUE(err_equals(syntax_errorlist_at(three, 0), 2, 20));
   TEST_ASSERT_TRUE(err_equals(syntax_errorlist_at(three, 1), 1, 10));

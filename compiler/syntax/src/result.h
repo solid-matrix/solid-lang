@@ -1,15 +1,7 @@
-/**
- * @file syntax_result.h
- * @brief Outcome types shared by every parse function.
- * @author solid-matrix
- * @version 0.0.5
- */
-
 #pragma once
 
-#include "syntax_errorlist.h"
+#include "syntax_error.h"
 #include "syntax_node.h"
-#include "syntax_nodelist.h"
 
 /**
  * @brief Outcome of parsing one construct; the contract of every

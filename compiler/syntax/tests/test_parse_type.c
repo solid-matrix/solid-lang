@@ -2,17 +2,15 @@
 
 #include <string.h>
 
-#include "parse_aux.h"
+#include "node.h"
+#include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
 #include "syntax_node.h"
-#include "syntax_nodes.h"
-#include "syntax_parses.h"
 #include "test_support.h"
 
 void setUp(void) {}
 void tearDown(void) { fx_release(); }
-
 
 /* ---- parse_named_type -------------------------------------------------- */
 
@@ -272,12 +270,12 @@ void test_named_type_generic_forms(void) {
   static const char *const PATH[] = {"Array"};
   check_path(t->path, PATH, 1);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(t->generic_args));
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
-  TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, named->value->kind);
-  const SyntaxGenericArg *ty = (const SyntaxGenericArg *)t->generic_args->next->node;
+  const SyntaxGenericArg *ty = (const SyntaxGenericArg *)t->generic_args->node; // source order
   TEST_ASSERT_NULL(ty->id);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ty->value->kind);
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
+  TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("Array<i32, N = 5>"), r.rem.start);
 
@@ -297,7 +295,7 @@ void test_named_type_generic_paren_escape(void) {
   SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
   TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -341,7 +339,7 @@ void test_generic_arg_compile_time_value(void) {
   SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->node;
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
   TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -354,7 +352,7 @@ void test_generic_arg_named_generic_value(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(t->generic_args));
-  const SyntaxGenericArg *f = (const SyntaxGenericArg *)t->generic_args->node;
+  const SyntaxGenericArg *f = (const SyntaxGenericArg *)t->generic_args->next->next->node; // source order
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "F");
   const SyntaxNamed *v = as_named(f->value);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(v->generic_args));

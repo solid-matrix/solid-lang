@@ -9,14 +9,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "parse_aux.h"
+#include "error.h"
+#include "node.h"
+#include "parse.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
-#include "syntax_errorlist.h"
-#include "syntax_parses.h"
-#include "syntax_result.h"
 
 bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 
@@ -119,7 +118,7 @@ SyntaxListResult parse_expr_list(const SyntaxParser *parser, Span span, Strview 
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxListResult parse_identifier_list(const SyntaxParser *parser, Span span, Strview separator) {
@@ -152,7 +151,7 @@ SyntaxListResult parse_identifier_list(const SyntaxParser *parser, Span span, St
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span) {
@@ -185,7 +184,7 @@ SyntaxListResult parse_generic_param_list(const SyntaxParser *parser, Span span)
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxListResult parse_call_param_list(const SyntaxParser *parser, Span span) {
@@ -218,7 +217,7 @@ SyntaxListResult parse_call_param_list(const SyntaxParser *parser, Span span) {
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxListResult parse_generic_arg_list(const SyntaxParser *parser, Span span) {
@@ -251,7 +250,7 @@ SyntaxListResult parse_generic_arg_list(const SyntaxParser *parser, Span span) {
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxFieldFn parse_field,
@@ -287,7 +286,7 @@ SyntaxListResult parse_field_list(const SyntaxParser *parser, Span span, SyntaxF
     }
   }
 
-  return (SyntaxListResult){.list = list, .errors = errors, .rem = rem};
+  return (SyntaxListResult){.list = syntax_nodelist_reverse(parser->arena, list), .errors = errors, .rem = rem};
 }
 
 SyntaxNodeResult parse_body_position(const SyntaxParser *parser, Span span) {
