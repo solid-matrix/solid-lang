@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include "arena.h"
-#include "semantic_symboltable.h"
+#include "symboltable.h"
 #include "syntax_node.h"
 #include "test_support.h"
 
@@ -35,7 +35,7 @@ static SemanticNamePath *path_of(Arena *arena, int count, ...) {
 
 static SyntaxNode *decl_node(Arena *arena, int tag) {
   SyntaxNode *node = arena_alloc(arena, sizeof *node);
-  *node = syntax_node_create(SYNTAX_KIND_FUNC_DECL, (Span){.start = (size_t)tag, .end = (size_t)tag + 1});
+  *node = (SyntaxNode){.kind = SYNTAX_KIND_FUNC_DECL, .span = {.start = (size_t)tag, .end = (size_t)tag + 1}};
   return node;
 }
 

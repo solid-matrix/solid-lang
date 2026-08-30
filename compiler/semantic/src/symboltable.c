@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "semantic_symboltable.h"
+#include "symboltable.h"
 
 // One keyed entry within a single namespace level: a name maps to either a
 // nested namespace (down) or a declaration (decl). Treap order: left/right

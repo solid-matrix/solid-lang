@@ -126,7 +126,7 @@ typedef enum {
 /**
  * @brief Common header of every AST node: kind plus source span.
  */
-typedef struct SyntaxNode {
+typedef struct {
   SyntaxKind kind;
   Span span;
 } SyntaxNode;
@@ -527,14 +527,6 @@ typedef struct {
   SyntaxNode *type;         // SyntaxArrayType
   SyntaxNodeList *elements; // expr nodes
 } SyntaxArrayLitExpr;
-
-/**
- * @brief Initializes a node header.
- * @param kind The node's kind tag.
- * @param span The source text the node was parsed from.
- * @return The initialized header value.
- */
-SyntaxNode syntax_node_create(SyntaxKind kind, Span span);
 
 /**
  * @brief True when @p node's kind belongs to the type group.

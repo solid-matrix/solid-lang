@@ -4,6 +4,14 @@
 #include "syntax_node.h"
 
 /**
+ * @brief Initializes a node header.
+ * @param kind The node's kind tag.
+ * @param span The source text the node was parsed from.
+ * @return The initialized header value.
+ */
+SyntaxNode syntax_node_create(SyntaxKind kind, Span span);
+
+/**
  * @brief The empty list. Returns NULL; exists for explicit call sites.
  * @return NULL.
  */

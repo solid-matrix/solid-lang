@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "error.h"
+#include "node.h"
 #include "parse.h"
 #include "source.h"
 #include "span.h"

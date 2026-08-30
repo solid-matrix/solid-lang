@@ -7,6 +7,4 @@
 
 #pragma once
 
-#include "semantic.h"
-
 int irgen_example(void);
