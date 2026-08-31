@@ -1,5 +1,5 @@
 /**
- * @file semantic_symboltable.c
+ * @file symboltable.c
  * @brief Namespace tree of name-keyed treap levels.
  * @author solid-matrix
  * @version 0.0.5
@@ -12,8 +12,11 @@
 #include "symboltable.h"
 
 // One keyed entry within a single namespace level: a name maps to either a
-// nested namespace (down) or a declaration (decl). Treap order: left/right
-// subtrees by name, ancestors above descendants by priority.
+// nested namespace (down, decl empty) or a declaration (decl). Treap order:
+// left/right subtrees by name, ancestors above descendants by priority.
+
+// Resolve discriminator: what the tail segment of a lookup path must name.
+// Never stored — entries encode it in the decl pointer (NULL = namespace).
 typedef enum {
   SEMANTIC_ENTRY_NAMESPACE,
   SEMANTIC_ENTRY_SYMBOL,
@@ -22,9 +25,8 @@ typedef enum {
 typedef struct SemanticEntry SemanticEntry;
 struct SemanticEntry {
   Strview name;
-  SemanticEntryKind kind;
-  SyntaxNode *decl;    // SYMBOL only
-  SemanticEntry *down; // NAMESPACE only: the next level's tree root
+  SyntaxNode *decl;    // NULL for a namespace; the declaration for a symbol
+  SemanticEntry *down; // namespace only: the next level's tree root
   SemanticEntry *left;
   SemanticEntry *right;
   uint32_t priority;
@@ -53,11 +55,13 @@ static bool entry_outranks(const SemanticEntry *node, const SemanticEntry *other
   return strview_compare(node->name, other->name) < 0;
 }
 
-static SemanticEntry *entry_new(Arena *arena, Strview name, SemanticEntryKind kind) {
+// True when the entry is a namespace: the empty decl is the discriminator.
+static bool entry_is_namespace(const SemanticEntry *entry) { return entry->decl == NULL; }
+
+static SemanticEntry *entry_new(Arena *arena, Strview name, SyntaxNode *decl) {
   SemanticEntry *entry = arena_alloc(arena, sizeof *entry);
   entry->name = name;
-  entry->kind = kind;
-  entry->decl = NULL;
+  entry->decl = decl;
   entry->down = NULL;
   entry->left = NULL;
   entry->right = NULL;
@@ -137,17 +141,15 @@ static SemanticEntry *level_replace(Arena *arena, SemanticEntry *level, Semantic
 // Returns this level's new root, or NULL on collision — a symbol redefined,
 // or a name taken by the other kind.
 static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const SemanticNamePath *path, SyntaxNode *node) {
-  SemanticEntryKind kind = path->next == NULL && node != NULL ? SEMANTIC_ENTRY_SYMBOL : SEMANTIC_ENTRY_NAMESPACE;
+  bool symbol_here = path->next == NULL && node != NULL;
 
   SemanticEntry *root = level;
   SemanticEntry *hit = level_find(root, path->name);
   SemanticEntry *mine;
   if (hit == NULL) {
-    mine = entry_new(arena, path->name, kind);
-    if (path->next == NULL && node != NULL)
-      mine->decl = node;
+    mine = entry_new(arena, path->name, symbol_here ? node : NULL);
     root = level_insert(arena, root, mine);
-  } else if (kind == SEMANTIC_ENTRY_NAMESPACE && hit->kind == SEMANTIC_ENTRY_NAMESPACE) {
+  } else if (!symbol_here && entry_is_namespace(hit)) {
     mine = hit; // namespace redeclaration: share the in-tree entry
   } else {
     return NULL;
@@ -178,9 +180,9 @@ static SemanticEntry *define_walk(Arena *arena, SemanticEntry *level, const Sema
 static SemanticEntry *resolve_levels(SemanticEntry *level, const SemanticNamePath *path, SemanticEntryKind head_kind) {
   SemanticEntry *hit = NULL;
   for (const SemanticNamePath *p = path; p != NULL; p = p->next) {
-    SemanticEntryKind kind = p->next == NULL ? head_kind : SEMANTIC_ENTRY_NAMESPACE;
+    bool need_symbol = p->next == NULL && head_kind == SEMANTIC_ENTRY_SYMBOL;
     hit = level_find(level, p->name);
-    if (hit == NULL || hit->kind != kind)
+    if (hit == NULL || entry_is_namespace(hit) == need_symbol) // wrong kind
       return NULL;
     level = hit->down;
   }

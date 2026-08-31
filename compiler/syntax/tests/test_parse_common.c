@@ -298,6 +298,49 @@ void test_program_func_sample_end_to_end(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->next->next->node->kind);
 }
 
+void test_program_misplaced_namespace_reports_and_drops(void) {
+  fx_begin("let x:i32;\nnamespace b;\nusing c;\n");
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
+
+  const SyntaxProgram *p = (const SyntaxProgram *)r.node;
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, top_level_count(p));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_size_t(2, error_count(&r));
+  // Newest first inside parse_program: the later-in-source using heads the chain.
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->next->error.code);
+  // Everything consumed: no junk-tail EXPECTED_EOF.
+  TEST_ASSERT_EQUAL_size_t(strlen("let x:i32;\nnamespace b;\nusing c;\n"), r.rem.start);
+}
+
+void test_program_misplaced_using_reports_and_drops(void) {
+  fx_begin("let x:i32;\nusing b;\n");
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
+
+  const SyntaxProgram *p = (const SyntaxProgram *)r.node;
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(1, top_level_count(p));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("let x:i32;\nusing b;\n"), r.rem.start);
+}
+
+void test_program_double_namespace_reports_second(void) {
+  fx_begin("namespace a;\nnamespace b;\nlet x:i32;\n");
+  SyntaxNodeResult r = parse_program(fx_parser, source_get_span(fx_source));
+
+  const SyntaxProgram *p = (const SyntaxProgram *)r.node;
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_size_t(2, top_level_count(p));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->next->node->kind);
+  TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("namespace a;\nnamespace b;\nlet x:i32;\n"), r.rem.start);
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"identifier_basic", test_identifier_basic},
     {"identifier_stops_at_non_word", test_identifier_stops_at_non_word},
@@ -318,6 +361,9 @@ static const TestDispatchEntry ENTRIES[] = {
     {"program_junk_tail_reports_expected_eof", test_program_junk_tail_reports_expected_eof},
     {"program_empty_and_trivia_only", test_program_empty_and_trivia_only},
     {"program_func_sample_end_to_end", test_program_func_sample_end_to_end},
+    {"program_misplaced_namespace_reports_and_drops", test_program_misplaced_namespace_reports_and_drops},
+    {"program_misplaced_using_reports_and_drops", test_program_misplaced_using_reports_and_drops},
+    {"program_double_namespace_reports_second", test_program_double_namespace_reports_second},
 };
 
 TEST_DISPATCH_MAIN(ENTRIES)

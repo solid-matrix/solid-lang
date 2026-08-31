@@ -184,8 +184,10 @@ The CallConv position reads an ordinary identifier; whether it names a supported
 Syntax:
 
 ```
-Program = { Decl } .
+Program = [ NamespaceDecl ] { UsingDecl } { Decl } .
 ```
+
+A namespace declaration, when present, must be first; using declarations may only precede all other declarations. A declaration out of order is reported as a diagnostic, anchored at the declaration itself, and dropped from the translation unit.
 
 ## Types
 

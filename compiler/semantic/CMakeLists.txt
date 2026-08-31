@@ -1,5 +1,9 @@
 add_library(solid-lang-semantic STATIC
-  src/symboltable.c)
+  src/symboltable.c
+  src/namepath.c
+  src/error.c
+  src/collect.c
+  src/analyze.c)
 
 target_include_directories(solid-lang-semantic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

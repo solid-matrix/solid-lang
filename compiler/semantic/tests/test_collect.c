@@ -1,0 +1,305 @@
+/**
+ * @file test_collect.c
+ * @brief Unit tests for the collect pass.
+ * @author solid-matrix
+ * @version 0.0.5
+ */
+
+#include <stdarg.h>
+#include <stdlib.h>
+
+#include "arena.h"
+#include "collect.h"
+#include "error.h"
+#include "source.h"
+#include "syntax_parse.h"
+#include "test_support.h"
+
+// Parses a syntactically clean unit; collect tests never feed broken
+// sources, so fixture misuse aborts.
+static SyntaxProgram *parse_unit(Arena *arena, const char *text) {
+  Source *source = source_from_cstr(text);
+  SyntaxParseResult r = syntax_parse(source, arena);
+  if (r.errors != NULL)
+    abort();
+  return r.program;
+}
+
+static SemanticNamePath *path_vof(Arena *arena, int count, va_list args) {
+  SemanticNamePath *head = NULL;
+  SemanticNamePath *tail = NULL;
+  for (int i = 0; i < count; i++) {
+    SemanticNamePath *cell = arena_alloc(arena, sizeof *cell);
+    cell->name = strview_from_cstr(va_arg(args, const char *));
+    cell->next = NULL;
+    if (tail == NULL)
+      head = cell;
+    else
+      tail->next = cell;
+    tail = cell;
+  }
+  return head;
+}
+
+static SemanticNamePath *path_of(Arena *arena, int count, ...) {
+  va_list args;
+  va_start(args, count);
+  SemanticNamePath *path = path_vof(arena, count, args);
+  va_end(args);
+  return path;
+}
+
+static SyntaxNode *lookup_at(SemanticSymbolTable *table, Arena *arena, int count, ...) {
+  va_list args;
+  va_start(args, count);
+  SemanticNamePath *path = path_vof(arena, count, args);
+  va_end(args);
+  return semantic_symboltable_lookup(table, path);
+}
+
+// Translation units in source order, each parsed from a C string.
+static SemanticProgramList *units_of(Arena *arena, int count, ...) {
+  va_list args;
+  va_start(args, count);
+  SemanticProgramList *head = NULL;
+  SemanticProgramList *tail = NULL;
+  for (int i = 0; i < count; i++) {
+    SemanticProgramList *cell = arena_alloc(arena, sizeof *cell);
+    cell->program = parse_unit(arena, va_arg(args, const char *));
+    cell->next = NULL;
+    if (tail == NULL)
+      head = cell;
+    else
+      tail->next = cell;
+    tail = cell;
+  }
+  va_end(args);
+  return head;
+}
+
+static SemanticModule *module_of(Arena *arena, SemanticNamePath *path, SemanticProgramList *units) {
+  SemanticModule *module = arena_alloc(arena, sizeof *module);
+  module->path = path;
+  module->programs = units;
+  return module;
+}
+
+static SemanticModuleList *modules_of(Arena *arena, int count, ...) {
+  va_list args;
+  va_start(args, count);
+  SemanticModuleList *head = NULL;
+  SemanticModuleList *tail = NULL;
+  for (int i = 0; i < count; i++) {
+    SemanticModuleList *cell = arena_alloc(arena, sizeof *cell);
+    cell->module = va_arg(args, SemanticModule *);
+    cell->next = NULL;
+    if (tail == NULL)
+      head = cell;
+    else
+      tail->next = cell;
+    tail = cell;
+  }
+  va_end(args);
+  return head;
+}
+
+static SemanticCollectResult run_collect(Arena *arena, const SemanticModuleList *modules) {
+  return semantic_collect(arena, modules, NULL);
+}
+
+void test_symbols_at_root_and_namespaced(void) {
+  Arena *a = arena_create();
+  SemanticModule *app =
+      module_of(a, path_of(a, 1, "app"), units_of(a, 2, "struct T;\n", "namespace x;\nstruct Inner;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "T"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "Inner"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 2, "app", "Inner"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 1, "T"));
+
+  arena_destroy(a);
+}
+
+void test_namespace_context_from_prologue(void) {
+  Arena *a = arena_create();
+  const char *text = "namespace x;\nstruct S;\nlet v:i32;\nfunc f():i32;\n";
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, text));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "S"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "v"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "f"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 2, "app", "S"));
+
+  arena_destroy(a);
+}
+
+void test_nested_namespace_segments(void) {
+  Arena *a = arena_create();
+  const char *text = "namespace x::y;\nstruct S;\n";
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, text));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 4, "app", "x", "y", "S"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "S"));
+
+  arena_destroy(a);
+}
+
+void test_two_files_merge_namespace(void) {
+  Arena *a = arena_create();
+  SemanticModule *app =
+      module_of(a, path_of(a, 1, "app"), units_of(a, 2, "namespace x;\nstruct T;\n", "namespace x;\nstruct U;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "T"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "U"));
+
+  arena_destroy(a);
+}
+
+void test_distinct_modules_no_collision(void) {
+  Arena *a = arena_create();
+  const char *text = "namespace x;\nstruct T;\n";
+  SemanticModule *am = module_of(a, path_of(a, 2, "a", "m"), units_of(a, 1, text));
+  SemanticModule *bm = module_of(a, path_of(a, 2, "b", "m"), units_of(a, 1, text));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 2, am, bm));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 4, "a", "m", "x", "T"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 4, "b", "m", "x", "T"));
+
+  arena_destroy(a);
+}
+
+void test_symbol_redefined_reports_and_keeps_first(void) {
+  Arena *a = arena_create();
+  SyntaxProgram *unit = parse_unit(a, "struct T;\nstruct T;\n");
+  SemanticProgramList *units = arena_alloc(a, sizeof *units);
+  units->program = unit;
+  units->next = NULL;
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units);
+  SyntaxNode *first = unit->top_levels->node;
+  SyntaxNode *second = unit->top_levels->next->node;
+
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_EQUAL_size_t(1, semantic_errorlist_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_SYMBOL_REDEFINED, r.errors->error.code);
+  TEST_ASSERT_EQUAL_size_t(second->span.start, r.errors->error.span.start);
+  TEST_ASSERT_TRUE(lookup_at(r.symbols, a, 2, "app", "T") == first);
+
+  arena_destroy(a);
+}
+
+void test_clash_symbol_then_namespace(void) {
+  Arena *a = arena_create();
+  SemanticModule *app =
+      module_of(a, path_of(a, 1, "app"), units_of(a, 2, "namespace m;\nstruct x;\n", "namespace m::x::y;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_EQUAL_size_t(1, semantic_errorlist_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_SYMBOL_NAMESPACE_CLASH, r.errors->error.code);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "m", "x"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 4, "app", "m", "x", "y"));
+
+  arena_destroy(a);
+}
+
+void test_clash_namespace_then_symbol(void) {
+  Arena *a = arena_create();
+  SemanticModule *app =
+      module_of(a, path_of(a, 1, "app"), units_of(a, 2, "namespace m::x;\n", "namespace m;\nstruct x;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_EQUAL_size_t(1, semantic_errorlist_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_SYMBOL_NAMESPACE_CLASH, r.errors->error.code);
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 3, "app", "m", "x"));
+
+  arena_destroy(a);
+}
+
+void test_enum_fields_not_registered(void) {
+  Arena *a = arena_create();
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, "enum Color { Red, Green }\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "Color"));
+  TEST_ASSERT_NULL(lookup_at(r.symbols, a, 3, "app", "Color", "Red"));
+
+  arena_destroy(a);
+}
+
+void test_all_decl_kinds_defined(void) {
+  Arena *a = arena_create();
+  const char *text = "let v:i32;\n"
+                     "struct S;\n"
+                     "enum E { A }\n"
+                     "union U { m:i32 }\n"
+                     "variant V { None, Some:i32 }\n"
+                     "contract C(p:i32):i32;\n"
+                     "func f():i32;\n";
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, text));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "v"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "S"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "E"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "U"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "V"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "C"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "f"));
+
+  arena_destroy(a);
+}
+
+void test_errors_newest_first_order_contract(void) {
+  Arena *a = arena_create();
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, "struct T;\nstruct T;\nstruct T;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_EQUAL_size_t(2, semantic_errorlist_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_SYMBOL_REDEFINED, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_SYMBOL_REDEFINED, r.errors->next->error.code);
+  TEST_ASSERT_TRUE(r.errors->error.span.start > r.errors->next->error.span.start);
+
+  arena_destroy(a);
+}
+
+void test_using_declarations_skipped(void) {
+  Arena *a = arena_create();
+  SemanticModule *app =
+      module_of(a, path_of(a, 1, "app"),
+                units_of(a, 2, "namespace x;\nusing a;\nusing b::c;\nstruct T;\n", "using d;\nstruct U;\n"));
+  SemanticCollectResult r = run_collect(a, modules_of(a, 1, app));
+
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 3, "app", "x", "T"));
+  TEST_ASSERT_NOT_NULL(lookup_at(r.symbols, a, 2, "app", "U"));
+
+  arena_destroy(a);
+}
+
+static const TestDispatchEntry ENTRIES[] = {
+    {"symbols_at_root_and_namespaced", test_symbols_at_root_and_namespaced},
+    {"namespace_context_from_prologue", test_namespace_context_from_prologue},
+    {"nested_namespace_segments", test_nested_namespace_segments},
+    {"two_files_merge_namespace", test_two_files_merge_namespace},
+    {"distinct_modules_no_collision", test_distinct_modules_no_collision},
+    {"symbol_redefined_reports_and_keeps_first", test_symbol_redefined_reports_and_keeps_first},
+    {"clash_symbol_then_namespace", test_clash_symbol_then_namespace},
+    {"clash_namespace_then_symbol", test_clash_namespace_then_symbol},
+    {"enum_fields_not_registered", test_enum_fields_not_registered},
+    {"all_decl_kinds_defined", test_all_decl_kinds_defined},
+    {"using_declarations_skipped", test_using_declarations_skipped},
+    {"errors_newest_first_order_contract", test_errors_newest_first_order_contract},
+};
+
+TEST_DISPATCH_MAIN(ENTRIES)

@@ -1,5 +1,5 @@
 /**
- * @file semantic_symboltable.h
+ * @file symboltable.h
  * @brief Immutable symbol table: a namespace tree of name-keyed levels.
  * @author solid-matrix
  * @version 0.0.5
@@ -8,23 +8,11 @@
 #pragma once
 
 #include "arena.h"
-#include "strview.h"
+#include "semantic_common.h"
 #include "syntax_node.h"
 
 /**
- * @brief Chain of name segments in source order.
- * @details The chain reads as written: for `a::b::X` the head is `a` and the
- *          tail `X`. For define()/lookup() the tail names the symbol; for
- *          sub() it names the innermost namespace.
- */
-typedef struct SemanticNamePath SemanticNamePath;
-struct SemanticNamePath {
-  Strview name;
-  SemanticNamePath *next;
-};
-
-/**
- * @brief Immutable symbol table holding one package's namespace tree.
+ * @brief Immutable symbol table holding one module's namespace tree.
  * @details define() returns a new table and leaves the old one untouched,
  *          so tables are values: persistent, shareable, and safe to keep
  *          across definitions. All storage lives in the arena given to

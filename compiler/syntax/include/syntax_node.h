@@ -179,7 +179,7 @@ typedef struct {
 } SyntaxCallParam;
 
 /**
- * @brief Translation unit: top-level declarations, newest at head.
+ * @brief Translation unit: top-level declarations in source order.
  */
 typedef struct {
   SyntaxNode header;

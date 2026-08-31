@@ -52,7 +52,9 @@ set(PARSE_COMMON_CASES identifier_basic identifier_stops_at_non_word identifier_
     ct_with_args ct_multi_string_args_in_source_order ct_missing_name_frame ct_unclosed_args_frame annotations_none
     annotations_single_and_multi annotations_error_frame generic_param_bare_and_bound generic_param_annotated
     call_param_requires_colon_and_type call_param_annotated program_accumulates_decls_in_source_order
-    program_junk_tail_reports_expected_eof program_empty_and_trivia_only program_func_sample_end_to_end)
+    program_junk_tail_reports_expected_eof program_empty_and_trivia_only program_func_sample_end_to_end
+    program_misplaced_namespace_reports_and_drops program_misplaced_using_reports_and_drops
+    program_double_namespace_reports_second)
 foreach(case_name IN LISTS PARSE_COMMON_CASES)
   add_test(NAME parser.parse_common.${case_name}
            COMMAND test_parse_common ${case_name})

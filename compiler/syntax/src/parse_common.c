@@ -88,11 +88,21 @@ SyntaxNodeResult parse_compile_time(const SyntaxParser *parser, Span span) {
   return syntax_node_result_matched(rem, (SyntaxNode *)node, errors);
 }
 
+// Top-level order: [NamespaceDecl] {UsingDecl} {Decl}. Phases track how much
+// of the prologue has been consumed; a misplaced declaration is diagnosed at
+// its own span and dropped, keeping top_levels prologue-shaped.
+typedef enum {
+  PROGRAM_PHASE_NAMESPACE,
+  PROGRAM_PHASE_USING,
+  PROGRAM_PHASE_DECLS,
+} ProgramPhase;
+
 SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span) {
   span = skip_trivia(parser->source, span);
 
   SyntaxErrorList *errors = syntax_errorlist_empty();
   SyntaxNodeList *decls = syntax_nodelist_empty();
+  ProgramPhase phase = PROGRAM_PHASE_NAMESPACE;
   Span rem = span;
 
   while (!span_is_empty(rem)) {
@@ -102,9 +112,24 @@ SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span) {
     if (!res.matched)
       break;
 
+    SyntaxKind kind = res.node->kind;
+    bool misplaced = (kind == SYNTAX_KIND_NAMESPACE_DECL && phase != PROGRAM_PHASE_NAMESPACE) ||
+                     (kind == SYNTAX_KIND_USING_DECL && phase == PROGRAM_PHASE_DECLS);
+
     rem = res.rem;
     errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
-    decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
+
+    if (misplaced) {
+      SyntaxErrorCode code = kind == SYNTAX_KIND_NAMESPACE_DECL ? SYNTAX_MISPLACED_NAMESPACE : SYNTAX_MISPLACED_USING;
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(code, res.node->span));
+    } else {
+      decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
+
+      if (kind == SYNTAX_KIND_NAMESPACE_DECL || kind == SYNTAX_KIND_USING_DECL)
+        phase = PROGRAM_PHASE_USING;
+      else
+        phase = PROGRAM_PHASE_DECLS;
+    }
   }
 
   SyntaxProgram *program = arena_alloc(parser->arena, sizeof(SyntaxProgram));
