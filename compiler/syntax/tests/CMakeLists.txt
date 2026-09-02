@@ -31,7 +31,7 @@ foreach(case_name IN LISTS NODE_CASES)
            COMMAND test_node ${case_name})
 endforeach()
 
-set(NODELIST_CASES nodelist_empty nodelist_from_array nodelist_persistence nodelist_tail nodelist_reverse
+set(NODELIST_CASES nodelist_empty nodelist_from_array nodelist_persistence nodelist_reverse
     nodelist_concat nodelist_length)
 foreach(case_name IN LISTS NODELIST_CASES)
   add_test(NAME parser.nodelist.${case_name}

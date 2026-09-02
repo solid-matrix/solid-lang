@@ -1,5 +1,5 @@
 #include "arena.h"
-#include "error.h"
+#include "semantic_error.h"
 #include "test_support.h"
 
 static SemanticError err(int code, int start) {
@@ -29,7 +29,7 @@ void test_errorlist_from_array(void) {
   SemanticErrorList *l = semantic_errorlist_from_array(a, errors, 3);
   TEST_ASSERT_FALSE(semantic_errorlist_is_empty(l));
   TEST_ASSERT_EQUAL_size_t(3, semantic_errorlist_length(l));
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(l), 1, 10));
+  TEST_ASSERT_TRUE(err_equals(l->head, 1, 10));
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(l, 1), 2, 20));
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(l, 2), 3, 30));
 
@@ -45,9 +45,9 @@ void test_errorlist_persistence(void) {
   TEST_ASSERT_EQUAL_size_t(1, semantic_errorlist_length(one));
 
   SemanticErrorList *two = semantic_errorlist_prepend(a, one, err(2, 20));
-  TEST_ASSERT_EQUAL_PTR(one, two->next); // shares spine
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(one), 1, 10));
-  TEST_ASSERT_NULL(one->next);
+  TEST_ASSERT_EQUAL_PTR(one, two->tail); // shares spine
+  TEST_ASSERT_TRUE(err_equals(one->head, 1, 10));
+  TEST_ASSERT_NULL(one->tail);
 
   SemanticErrorList *three = semantic_errorlist_append(a, two, err(3, 30)); // [2,1,3]
   TEST_ASSERT_EQUAL_size_t(3, semantic_errorlist_length(three));
@@ -56,9 +56,9 @@ void test_errorlist_persistence(void) {
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(three, 2), 3, 30));
 
   // Sources remain valid and unchanged after append.
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(two), 2, 20));
+  TEST_ASSERT_TRUE(err_equals(two->head, 2, 20));
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(two, 1), 1, 10));
-  TEST_ASSERT_NULL(two->next->next);
+  TEST_ASSERT_NULL(two->tail->tail);
 
   arena_destroy(a);
 }
@@ -74,7 +74,7 @@ void test_errorlist_reverse(void) {
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(r, 2), 1, 10));
 
   // Source untouched.
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(l), 1, 10));
+  TEST_ASSERT_TRUE(err_equals(l->head, 1, 10));
 
   arena_destroy(a);
 }
@@ -87,13 +87,13 @@ void test_errorlist_concat(void) {
 
   SemanticErrorList *joined = semantic_errorlist_concat(a, lhs, rhs);
   TEST_ASSERT_EQUAL_size_t(3, semantic_errorlist_length(joined));
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(joined), 1, 10));
+  TEST_ASSERT_TRUE(err_equals(joined->head, 1, 10));
   TEST_ASSERT_TRUE(err_equals(semantic_errorlist_at(joined, 2), 3, 30));
-  TEST_ASSERT_EQUAL_PTR(rhs, joined->next->next); // shares b wholesale
+  TEST_ASSERT_EQUAL_PTR(rhs, joined->tail->tail); // shares b wholesale
 
   // Left operand unchanged.
-  TEST_ASSERT_TRUE(err_equals(semantic_errorlist_head(lhs), 1, 10));
-  TEST_ASSERT_NULL(lhs->next->next);
+  TEST_ASSERT_TRUE(err_equals(lhs->head, 1, 10));
+  TEST_ASSERT_NULL(lhs->tail->tail);
 
   TEST_ASSERT_EQUAL_PTR(rhs, semantic_errorlist_concat(a, NULL, rhs));
 

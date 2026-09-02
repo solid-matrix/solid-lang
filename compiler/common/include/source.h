@@ -2,7 +2,6 @@
  * @file source.h
  * @brief Owned source text with a per-line offset index, and span accessors.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #pragma once

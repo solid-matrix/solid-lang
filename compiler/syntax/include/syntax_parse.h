@@ -2,7 +2,6 @@
  * @file syntax_parse.h
  * @brief The public parse entry point and its outcome.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #pragma once

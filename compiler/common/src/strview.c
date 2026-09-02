@@ -2,7 +2,6 @@
  * @file strview.c
  * @brief Implementation of Strview operations.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>

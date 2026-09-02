@@ -1,4 +1,4 @@
-#include "error.h"
+#include "semantic_error.h"
 #include "test_support.h"
 
 void test_error_carries_code_and_span(void) {

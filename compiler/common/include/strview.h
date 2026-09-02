@@ -2,7 +2,6 @@
  * @file strview.h
  * @brief Non-owning, length-bounded views over character buffers.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #pragma once

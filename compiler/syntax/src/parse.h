@@ -3,7 +3,6 @@
  * @brief Internal parser surface: context, outcome types, helpers and
  *        per-construct entry points.
  * @author solid-matrix
- * @version 0.0.5
  *
  * Everything here is private to the syntax module; the only public entry
  * is syntax_parse() in syntax_parse.h.

@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
@@ -28,7 +27,7 @@ static const SyntaxCompileTime *as_ct_node(const SyntaxNode *n) {
 
 static size_t top_level_count(const SyntaxProgram *p) {
   size_t n = 0;
-  for (const SyntaxNodeList *i = p->top_levels; i != NULL; i = i->next)
+  for (const SyntaxNodeList *i = p->top_levels; i != NULL; i = i->tail)
     n++;
   return n;
 }
@@ -88,7 +87,7 @@ void test_ct_with_args(void) {
   if (!ct)
     return;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(ct->args));
-  as_int(ct->args->node, "16");
+  as_int(ct->args->head, "16");
 }
 
 void test_ct_multi_string_args_in_source_order(void) {
@@ -102,9 +101,9 @@ void test_ct_multi_string_args_in_source_order(void) {
     return;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(ct->args));
   // Source order: the first literal leads the chain.
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->node->kind);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->node)->value, "LLVM-C");
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->next->node)->value, "LLVMContextCreate");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRING_LIT_EXPR, ct->args->head->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->head)->value, "LLVM-C");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStringLitExpr *)ct->args->tail->head)->value, "LLVMContextCreate");
 }
 
 void test_ct_missing_name_frame(void) {
@@ -119,7 +118,7 @@ void test_ct_missing_name_frame(void) {
   TEST_ASSERT_NULL(ct->id);
   TEST_ASSERT_EQUAL_size_t(0, syntax_nodelist_length(ct->args));
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
 }
 
 void test_ct_unclosed_args_frame(void) {
@@ -132,7 +131,7 @@ void test_ct_unclosed_args_frame(void) {
   const SyntaxCompileTime *ct = (const SyntaxCompileTime *)r.node;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(ct->args));
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->head.code);
 }
 
 /* ---- parse_annotations ------------------------------------------------ */
@@ -151,8 +150,8 @@ void test_annotations_single_and_multi(void) {
   SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(l.list));
-  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->node)->id->value, "a");
-  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->next->node)->id->value, "b");
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->head)->id->value, "a");
+  TEST_ASSERT_STRVIEW_EQ(as_ct_node(l.list->tail->head)->id->value, "b");
   TEST_ASSERT_NULL(l.errors);
   // Trivia before the next non-annotation stays with the enclosing sequence.
   TEST_ASSERT_EQUAL_size_t(strlen("@a @b(1)"), l.rem.start);
@@ -164,9 +163,9 @@ void test_annotations_error_frame(void) {
   SyntaxListResult l = parse_annotations(fx_parser, source_get_span(fx_source));
 
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(l.list));
-  TEST_ASSERT_NULL(as_ct_node(l.list->node)->id);
+  TEST_ASSERT_NULL(as_ct_node(l.list->head)->id);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(l.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(1, l.rem.start);
 }
 
@@ -220,8 +219,8 @@ void test_call_param_requires_colon_and_type(void) {
   TEST_ASSERT_STRVIEW_EQ(p->id->value, "x");
   TEST_ASSERT_NULL(p->type);
   TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->tail->head.code);
 }
 
 void test_call_param_annotated(void) {
@@ -249,8 +248,8 @@ void test_program_accumulates_decls_in_source_order(void) {
   TEST_ASSERT_EQUAL_size_t(2, top_level_count(p));
 
   // Source order: the namespace decl was parsed first.
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->tail->head->kind);
 }
 
 void test_program_junk_tail_reports_expected_eof(void) {
@@ -261,7 +260,7 @@ void test_program_junk_tail_reports_expected_eof(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, top_level_count(p));
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EOF, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EOF, r.errors->head.code);
 }
 
 void test_program_empty_and_trivia_only(void) {
@@ -293,9 +292,9 @@ void test_program_func_sample_end_to_end(void) {
 
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(p->top_levels));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->next->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->next->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_DECL, p->top_levels->tail->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FUNC_DECL, p->top_levels->tail->tail->head->kind);
 }
 
 void test_program_misplaced_namespace_reports_and_drops(void) {
@@ -305,11 +304,11 @@ void test_program_misplaced_namespace_reports_and_drops(void) {
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, top_level_count(p));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->head->kind);
   TEST_ASSERT_EQUAL_size_t(2, error_count(&r));
   // Newest first inside parse_program: the later-in-source using heads the chain.
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->error.code);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->head.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->tail->head.code);
   // Everything consumed: no junk-tail EXPECTED_EOF.
   TEST_ASSERT_EQUAL_size_t(strlen("let x:i32;\nnamespace b;\nusing c;\n"), r.rem.start);
 }
@@ -321,9 +320,9 @@ void test_program_misplaced_using_reports_and_drops(void) {
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, top_level_count(p));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->head->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_USING, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("let x:i32;\nusing b;\n"), r.rem.start);
 }
 
@@ -334,10 +333,10 @@ void test_program_double_namespace_reports_second(void) {
   const SyntaxProgram *p = (const SyntaxProgram *)r.node;
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(2, top_level_count(p));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMESPACE_DECL, p->top_levels->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_DECL, p->top_levels->tail->head->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_MISPLACED_NAMESPACE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("namespace a;\nnamespace b;\nlet x:i32;\n"), r.rem.start);
 }
 

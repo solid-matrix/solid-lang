@@ -166,8 +166,8 @@ void test_identifier_list_trailing_separator_reports_identifier(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("a::"), l.rem.start);
   TEST_ASSERT_NOT_NULL(l.errors);
   if (l.errors) {
-    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->error.code);
-    TEST_ASSERT_NULL(l.errors->next);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, l.errors->head.code);
+    TEST_ASSERT_NULL(l.errors->tail);
   }
 }
 

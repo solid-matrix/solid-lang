@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_node.h"
@@ -49,8 +48,8 @@ static void expect_decl_bad(DeclFn fn, SyntaxKind kind, const char *text, const 
     TEST_ASSERT_NOT_NULL(e);
     if (!e)
       return;
-    TEST_ASSERT_EQUAL_HEX32(codes[i], e->error.code);
-    e = e->next;
+    TEST_ASSERT_EQUAL_HEX32(codes[i], e->head.code);
+    e = e->tail;
   }
   TEST_ASSERT_NULL(e);
 
@@ -191,7 +190,7 @@ void test_let_decl_malforms(void) {
   TEST_ASSERT_NULL(d->type);
   TEST_ASSERT_NULL(d->value);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("let x;"), r.rem.start);
 
   // Missing ";".
@@ -200,7 +199,7 @@ void test_let_decl_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(((const SyntaxLetDecl *)r.node)->value);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("let x = 1"), r.rem.start);
 
   // Missing identifier still binds the value.
@@ -211,7 +210,7 @@ void test_let_decl_malforms(void) {
   TEST_ASSERT_NULL(d->id);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, d->value->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
 
   // Dangling ":" reports the missing type and still closes.
   fx_begin("let x : ;");
@@ -221,7 +220,7 @@ void test_let_decl_malforms(void) {
   TEST_ASSERT_NULL(d->type);
   TEST_ASSERT_NULL(d->value);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("let x : ;"), r.rem.start);
 }
 
@@ -255,9 +254,9 @@ void test_struct_decl_fields_and_trailing_comma(void) {
   const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
   // Source order: x leads.
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->node)->id->value, "x");
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->next->node)->id->value, "y");
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->node)->type->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->head)->id->value, "x");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructField *)d->fields->tail->head)->id->value, "y");
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->head)->type->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("struct Vector2F { x: f32, y: f32 }"), r.rem.start);
 
@@ -277,9 +276,9 @@ void test_struct_decl_generics(void) {
   const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->annotations));
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->node)->id->value, "T");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->head)->id->value, "T");
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->node)->type->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxStructField *)d->fields->head)->type->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("@pack(4) struct Vector2<T> { x: T, y: T }"), r.rem.start);
 }
@@ -291,7 +290,7 @@ void test_struct_decl_generics_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_TRUE(syntax_nodelist_is_empty(((const SyntaxStructDecl *)r.node)->generic_params));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
 
   // Missing ">": the clause frame survives and the body still parses.
   fx_begin("struct V<T { x: i32 }");
@@ -299,7 +298,7 @@ void test_struct_decl_generics_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructDecl *)r.node)->generic_params));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->head.code);
 }
 
 void test_struct_field_frames(void) {
@@ -307,21 +306,21 @@ void test_struct_field_frames(void) {
   fx_begin("struct V { x i32 }");
   SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
   const SyntaxStructDecl *d = (const SyntaxStructDecl *)r.node;
-  const SyntaxStructField *f = (const SyntaxStructField *)d->fields->node;
+  const SyntaxStructField *f = (const SyntaxStructField *)d->fields->head;
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, f->type->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_COLON, r.errors->head.code);
 
   // Missing type: the frame survives with a NULL type.
   fx_begin("struct V { x: }");
   r = parse_struct_decl(fx_parser, source_get_span(fx_source));
   d = (const SyntaxStructDecl *)r.node;
-  f = (const SyntaxStructField *)d->fields->node;
+  f = (const SyntaxStructField *)d->fields->head;
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
   TEST_ASSERT_NULL(f->type);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
 }
 
 void test_struct_decl_body_malforms(void) {
@@ -330,7 +329,7 @@ void test_struct_decl_body_malforms(void) {
   SyntaxNodeResult r = parse_struct_decl(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DECL_BODY, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DECL_BODY, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("struct Foo"), r.rem.start);
 
   // Missing "}": the fields frame survives.
@@ -339,7 +338,7 @@ void test_struct_decl_body_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxStructDecl *)r.node)->fields));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("struct V { x: f32"), r.rem.start);
 }
 
@@ -358,8 +357,8 @@ void test_union_decl_forms(void) {
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
   // The reference-typed field keeps REF_TYPE with a NAMED inner type.
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxUnionField *)d->fields->node)->id->value, "value"); // source order
-  const SyntaxUnionField *ptr = (const SyntaxUnionField *)d->fields->next->node;
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxUnionField *)d->fields->head)->id->value, "value"); // source order
+  const SyntaxUnionField *ptr = (const SyntaxUnionField *)d->fields->tail->head;
   TEST_ASSERT_STRVIEW_EQ(ptr->id->value, "ptr");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_REF_TYPE, ptr->type->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxRefType *)ptr->type)->inner_type->kind);
@@ -386,8 +385,8 @@ void test_enum_decl_forms(void) {
   TEST_ASSERT_TRUE(r.matched);
   d = (const SyntaxEnumDecl *)r.node;
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxEnumField *)d->fields->node)->id->value, "Red"); // source order
-  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->node)->value);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxEnumField *)d->fields->head)->id->value, "Red"); // source order
+  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->head)->value);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("enum Color { Red, Green, Blue }"), r.rem.start);
 
@@ -397,7 +396,7 @@ void test_enum_decl_forms(void) {
   d = (const SyntaxEnumDecl *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->behind_type->kind);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
-  const SyntaxEnumField *f = (const SyntaxEnumField *)d->fields->node;
+  const SyntaxEnumField *f = (const SyntaxEnumField *)d->fields->head;
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "A");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, f->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -419,9 +418,9 @@ void test_enum_decl_field_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxEnumDecl *d = (const SyntaxEnumDecl *)r.node;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->node)->value);
+  TEST_ASSERT_NULL(((const SyntaxEnumField *)d->fields->head)->value);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("enum C { A = }"), r.rem.start);
 }
 
@@ -439,9 +438,9 @@ void test_variant_decl_forms(void) {
   TEST_ASSERT_STRVIEW_EQ(d->id->value, "Option");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxVariantField *)d->fields->node)->id->value, "None"); // source order
-  TEST_ASSERT_NULL(((const SyntaxVariantField *)d->fields->node)->type);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxVariantField *)d->fields->next->node)->type->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxVariantField *)d->fields->head)->id->value, "None"); // source order
+  TEST_ASSERT_NULL(((const SyntaxVariantField *)d->fields->head)->type);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxVariantField *)d->fields->tail->head)->type->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("variant Option<T> { None, Value: T }"), r.rem.start);
 
@@ -466,8 +465,8 @@ void test_contract_decl_forms(void) {
   TEST_ASSERT_STRVIEW_EQ(d->id->value, "Addable");
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(d->generic_params));
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->call_params));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxCallParam *)d->call_params->node)->id->value, "left"); // source order
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxCallParam *)d->call_params->node)->type->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxCallParam *)d->call_params->head)->id->value, "left"); // source order
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxCallParam *)d->call_params->head)->type->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;"),
@@ -488,8 +487,8 @@ void test_contract_decl_malforms(void) {
   SyntaxNodeResult r = parse_contract_decl(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->tail->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo"), r.rem.start);
 
   fx_begin("contract Foo(x: T");
@@ -497,22 +496,22 @@ void test_contract_decl_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxContractDecl *)r.node)->call_params));
   TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->tail->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(x: T"), r.rem.start);
 
   fx_begin("contract Foo()");
   r = parse_contract_decl(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
 
   fx_begin("contract Foo(): ;");
   r = parse_contract_decl(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(((const SyntaxContractDecl *)r.node)->return_type);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(): ;"), r.rem.start);
 }
 
@@ -526,7 +525,7 @@ void test_func_decl_full_ladder(void) {
   TEST_ASSERT_STRVIEW_EQ(d->id->value, "add");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->annotations));
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->generic_params));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->node)->id->value, "T"); // source order
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxGenericParam *)d->generic_params->head)->id->value, "T"); // source order
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->call_params));
   TEST_ASSERT_STRVIEW_EQ(d->callconv->value, "cdecl");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
@@ -557,7 +556,7 @@ void test_func_decl_body_forms(void) {
   const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->return_type->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, d->body->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_RETURN_STMT, ((const SyntaxBodyStmt *)d->body)->stmts->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_RETURN_STMT, ((const SyntaxBodyStmt *)d->body)->stmts->head->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("func main():i32{ return 0; }"), r.rem.start);
 }
@@ -594,7 +593,7 @@ void test_generic_fulfills(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxFuncDecl *d = (const SyntaxFuncDecl *)r.node;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->fulfills));
-  const SyntaxNamed *n = as_named(d->fulfills->node);
+  const SyntaxNamed *n = as_named(d->fulfills->head);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(n->generic_args));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, d->body->kind);
   TEST_ASSERT_NULL(r.errors);

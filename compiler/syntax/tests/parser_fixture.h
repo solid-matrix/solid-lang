@@ -3,7 +3,6 @@
  * @brief Source/Parser lifecycle fixture and shared expectations for
  *        the parser's unit tests.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #pragma once
@@ -55,7 +54,7 @@ static void fx_begin(const char *text) {
  */
 static inline size_t error_count(const SyntaxNodeResult *r) {
   size_t n = 0;
-  for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->next)
+  for (const SyntaxErrorList *e = r->errors; e != NULL; e = e->tail)
     n++;
   return n;
 }
@@ -67,7 +66,7 @@ static inline size_t error_count(const SyntaxNodeResult *r) {
  */
 static inline size_t error_chain_length(const SyntaxErrorList *e) {
   size_t n = 0;
-  for (; e != NULL; e = e->next)
+  for (; e != NULL; e = e->tail)
     n++;
   return n;
 }
@@ -92,10 +91,10 @@ static inline void check_path(const SyntaxNodeList *chain, const char *const *ex
       return;
 
     const char *want = expected[i];
-    const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->node;
+    const SyntaxIdentifier *id = (const SyntaxIdentifier *)n->head;
     TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IDENTIFIER, id->header.kind);
     TEST_ASSERT_STRVIEW_EQ(id->value, want);
-    n = n->next;
+    n = n->tail;
   }
   TEST_ASSERT_NULL(n); // exactly @p count segments
 }

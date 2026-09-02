@@ -2,7 +2,6 @@
  * @file xmem.h
  * @brief Fatal-failure allocation wrappers.
  * @author solid-matrix
- * @version 0.0.5
  *
  * Wrappers around the standard allocation functions that treat running
  * out of memory as a fatal, unrecoverable error: each x* function

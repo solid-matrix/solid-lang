@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
@@ -128,15 +127,15 @@ void test_ref_type_missing_inner_reports_type(void) {
   SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
-  TEST_ASSERT_NULL(r.errors->next);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
+  TEST_ASSERT_NULL(r.errors->tail);
   TEST_ASSERT_NULL(((const SyntaxRefType *)r.node)->inner_type);
   TEST_ASSERT_EQUAL_size_t(1, r.rem.start);
 
   fx_begin("& +");
   r = parse_ref_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(1, r.rem.start);
 }
 
@@ -193,21 +192,21 @@ void test_array_type_malform(void) {
   TEST_ASSERT_NULL(t->len);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, t->inner_type->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("[]i32"), r.rem.start);
 
   fx_begin("[5 i32");
   r = parse_array_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->head.code);
 
   fx_begin("[5]");
   r = parse_array_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(((const SyntaxArrayType *)r.node)->inner_type);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
 }
 
 void test_func_type_forms(void) {
@@ -256,7 +255,7 @@ void test_func_type_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxFuncType *)r.node)->call_params));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("&func(i32"), r.rem.start);
 }
 
@@ -270,10 +269,10 @@ void test_named_type_generic_forms(void) {
   static const char *const PATH[] = {"Array"};
   check_path(t->path, PATH, 1);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(t->generic_args));
-  const SyntaxGenericArg *ty = (const SyntaxGenericArg *)t->generic_args->node; // source order
+  const SyntaxGenericArg *ty = (const SyntaxGenericArg *)t->generic_args->head; // source order
   TEST_ASSERT_NULL(ty->id);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ty->value->kind);
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->tail->head;
   TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -283,7 +282,7 @@ void test_named_type_generic_forms(void) {
   r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   t = as_named(r.node);
-  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)t->generic_args->node;
+  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)t->generic_args->head;
   TEST_ASSERT_NULL(arg->id);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_TYPE, arg->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -295,7 +294,7 @@ void test_named_type_generic_paren_escape(void) {
   SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->tail->head;
   TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BINARY_EXPR, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -308,7 +307,7 @@ void test_named_type_generic_nested(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *outer = as_named(r.node);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(outer->generic_args));
-  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)outer->generic_args->node;
+  const SyntaxGenericArg *arg = (const SyntaxGenericArg *)outer->generic_args->head;
   TEST_ASSERT_NULL(arg->id);
   const SyntaxNamed *inner = as_named(arg->value);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(inner->generic_args));
@@ -322,7 +321,7 @@ void test_named_type_generic_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_TRUE(syntax_nodelist_is_empty(as_named(r.node)->generic_args));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("a<>"), r.rem.start);
 
   fx_begin("a<b");
@@ -330,7 +329,7 @@ void test_named_type_generic_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(as_named(r.node)->generic_args));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_GT, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("a<b"), r.rem.start);
 }
 
@@ -339,7 +338,7 @@ void test_generic_arg_compile_time_value(void) {
   SyntaxNodeResult r = parse_named_type(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
-  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->next->node;
+  const SyntaxGenericArg *named = (const SyntaxGenericArg *)t->generic_args->tail->head;
   TEST_ASSERT_STRVIEW_EQ(named->id->value, "N");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_COMPILE_TIME, named->value->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -352,7 +351,7 @@ void test_generic_arg_named_generic_value(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxNamed *t = as_named(r.node);
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(t->generic_args));
-  const SyntaxGenericArg *f = (const SyntaxGenericArg *)t->generic_args->next->next->node; // source order
+  const SyntaxGenericArg *f = (const SyntaxGenericArg *)t->generic_args->tail->tail->head; // source order
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "F");
   const SyntaxNamed *v = as_named(f->value);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(v->generic_args));

@@ -1,4 +1,3 @@
-#include "node.h"
 #include "syntax_node.h"
 #include "test_support.h"
 

@@ -2,20 +2,18 @@
  * @file parse_aux.c
  * @brief Internal helper implementations.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
 #include "parse.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 bool is_letter_or_underscore(uint8_t c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 

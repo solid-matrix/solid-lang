@@ -179,16 +179,6 @@ CallConv = identifier .
 
 The CallConv position reads an ordinary identifier; whether it names a supported calling convention is decided by the semantic analyzer.
 
-### Program
-
-Syntax:
-
-```
-Program = [ NamespaceDecl ] { UsingDecl } { Decl } .
-```
-
-A namespace declaration, when present, must be first; using declarations may only precede all other declarations. A declaration out of order is reported as a diagnostic, anchored at the declaration itself, and dropped from the translation unit.
-
 ## Types
 
 Syntax:
@@ -250,10 +240,12 @@ Example:
 
 ## Declarations
 
+### Program
+
 Syntax:
 
 ```
-Decl   = NamespaceDecl | UsingDecl | LetDecl | StructDecl | EnumDecl | UnionDecl | VariantDecl | ContractDecl | FuncDecl .
+Program = [ NamespaceDecl ] { UsingDecl } { LetDecl | StructDecl | EnumDecl | UnionDecl | VariantDecl | ContractDecl | FuncDecl } .
 ```
 
 ### Namespace Declarations

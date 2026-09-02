@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_node.h"
@@ -72,7 +71,7 @@ static void expect_error_frame(const char *text, SyntaxKind kind, SyntaxErrorCod
   TEST_ASSERT_NOT_NULL(r.node);
   TEST_ASSERT_EQUAL_HEX32(kind, r.node->kind);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(code, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(code, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(rem, r.rem.start);
 }
 
@@ -97,7 +96,7 @@ static void expect_malformed(ParseFn fn, const char *text, SyntaxErrorCode code)
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
   TEST_ASSERT_NOT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_HEX32(code, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(code, r.errors->head.code);
 }
 
 // Asserts a clean not-match: nothing consumed, nothing recorded.
@@ -146,7 +145,7 @@ void test_malformed_base_prefixes(void) {
     TEST_ASSERT_NOT_NULL(r.node);
     TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, r.node->kind);
     TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DIGIT, r.errors->error.code);
+    TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_DIGIT, r.errors->head.code);
   }
 }
 
@@ -322,10 +321,10 @@ void test_rune_malformed(void) {
     if (r.errors != NULL) {
       if (CASES[i].count == 2) {
         // A failed closing quote is always the newest diagnostic.
-        TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SINGLE_QUOTE, r.errors->error.code);
-        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->next->error.code);
+        TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SINGLE_QUOTE, r.errors->head.code);
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->tail->head.code);
       } else {
-        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->error.code);
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].code, r.errors->head.code);
       }
     }
   }
@@ -417,9 +416,9 @@ void test_string_malformed(void) {
     TEST_ASSERT_EQUAL_size_t(CASES[i].count, error_count(&r));
     TEST_ASSERT_NOT_NULL(r.errors);
     if (r.errors != NULL) {
-      TEST_ASSERT_EQUAL_HEX32(CASES[i].head, r.errors->error.code);
+      TEST_ASSERT_EQUAL_HEX32(CASES[i].head, r.errors->head.code);
       if (CASES[i].next != SYNTAX_OK)
-        TEST_ASSERT_EQUAL_HEX32(CASES[i].next, r.errors->next->error.code);
+        TEST_ASSERT_EQUAL_HEX32(CASES[i].next, r.errors->tail->head.code);
     }
   }
 }
@@ -447,8 +446,8 @@ void test_struct_lit_forms(void) {
   const SyntaxStructLitExpr *s = (const SyntaxStructLitExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, s->type->header.kind);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(s->fields));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->node)->id->value, "x"); // source order
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxStructLitField *)s->fields->head)->id->value, "x"); // source order
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_FLOAT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->head)->value->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = 0_f32, y = 1_f32 }"), r.rem.start);
 
@@ -463,7 +462,7 @@ void test_struct_lit_forms(void) {
   TEST_ASSERT_TRUE(r.matched);
   s = (const SyntaxStructLitExpr *)r.node;
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(s->fields));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->node)->value->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_STRUCT_LIT_EXPR, ((const SyntaxStructLitField *)s->fields->head)->value->kind);
   TEST_ASSERT_NULL(r.errors);
 }
 
@@ -479,11 +478,11 @@ void test_struct_lit_field_frame(void) {
   fx_begin("Vector2{ x = }");
   SyntaxNodeResult r = parse_struct_lit_expr(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
-  const SyntaxStructLitField *f = (const SyntaxStructLitField *)((const SyntaxStructLitExpr *)r.node)->fields->node;
+  const SyntaxStructLitField *f = (const SyntaxStructLitField *)((const SyntaxStructLitExpr *)r.node)->fields->head;
   TEST_ASSERT_STRVIEW_EQ(f->id->value, "x");
   TEST_ASSERT_NULL(f->value);
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("Vector2{ x = }"), r.rem.start);
 }
 
@@ -500,7 +499,7 @@ void test_array_lit_forms(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxArrayLitExpr *a = (const SyntaxArrayLitExpr *)r.node;
   TEST_ASSERT_EQUAL_size_t(5, syntax_nodelist_length(a->elements));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INT_LIT_EXPR, a->elements->head->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1, 2, 3, 4, 5 }"), r.rem.start);
 
@@ -515,7 +514,7 @@ void test_array_lit_forms(void) {
   TEST_ASSERT_TRUE(r.matched);
   a = (const SyntaxArrayLitExpr *)r.node;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(a->elements));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, a->elements->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_ARRAY_LIT_EXPR, a->elements->head->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }"), r.rem.start);
 }
@@ -526,7 +525,7 @@ void test_array_lit_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(((const SyntaxArrayLitExpr *)r.node)->elements));
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("[5]i32{ 1"), r.rem.start);
 }
 

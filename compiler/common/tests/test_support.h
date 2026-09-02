@@ -2,7 +2,6 @@
  * @file test_support.h
  * @brief Unity glue shared by every module's unit tests.
  * @author solid-matrix
- * @version 0.0.6
  */
 
 #pragma once

@@ -2,20 +2,18 @@
  * @file parse_lit.c
  * @brief Literal parsers and their scanners.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
 #include "parse.h"
 #include "source.h"
 #include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 SyntaxMatchResult match_escape(const SyntaxParser *parser, Span span) {
   if (span_is_empty(span) || source_byte_at(parser->source, span.start) != '\\')

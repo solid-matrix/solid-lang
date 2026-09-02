@@ -49,3 +49,4 @@ set(SOURCE_CASES lines_lf lines_crlf lines_lone_cr lines_mixed
 foreach(case_name IN LISTS SOURCE_CASES)
   add_test(NAME common.source.${case_name} COMMAND test_source ${case_name})
 endforeach()
+

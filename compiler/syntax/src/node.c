@@ -1,20 +1,21 @@
 /**
  * @file node.c
- * @brief Node header construction and kind-group tests.
+ * @brief Node header construction, kind-group tests & Node chain operations.
  * @author solid-matrix
- * @version 0.0.5
  */
+
+#include <assert.h>
 
 #include "syntax_node.h"
 
 SyntaxNode syntax_node_create(SyntaxKind kind, Span span) { return (SyntaxNode){.kind = kind, .span = span}; }
 
-bool syntax_node_is_type(SyntaxNode *node) {
+bool syntax_node_is_type(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_NAMED || node->kind == SYNTAX_KIND_REF_TYPE ||
          node->kind == SYNTAX_KIND_ARRAY_TYPE || node->kind == SYNTAX_KIND_FUNC_TYPE;
 }
 
-bool syntax_node_is_decl(SyntaxNode *node) {
+bool syntax_node_is_decl(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_NAMESPACE_DECL || node->kind == SYNTAX_KIND_USING_DECL ||
          node->kind == SYNTAX_KIND_LET_DECL || node->kind == SYNTAX_KIND_STRUCT_DECL ||
          node->kind == SYNTAX_KIND_ENUM_DECL || node->kind == SYNTAX_KIND_UNION_DECL ||
@@ -22,7 +23,7 @@ bool syntax_node_is_decl(SyntaxNode *node) {
          node->kind == SYNTAX_KIND_FUNC_DECL;
 }
 
-bool syntax_node_is_stmt(SyntaxNode *node) {
+bool syntax_node_is_stmt(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_EMPTY_STMT || node->kind == SYNTAX_KIND_BODY_STMT ||
          node->kind == SYNTAX_KIND_LET_STMT || node->kind == SYNTAX_KIND_SET_STMT ||
          node->kind == SYNTAX_KIND_EXPR_STMT || node->kind == SYNTAX_KIND_IF_STMT ||
@@ -31,7 +32,7 @@ bool syntax_node_is_stmt(SyntaxNode *node) {
          node->kind == SYNTAX_KIND_WHILE_STMT;
 }
 
-bool syntax_node_is_expr(SyntaxNode *node) {
+bool syntax_node_is_expr(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_NAMED || node->kind == SYNTAX_KIND_BINARY_EXPR ||
          node->kind == SYNTAX_KIND_UNARY_EXPR || node->kind == SYNTAX_KIND_DOT_EXPR ||
          node->kind == SYNTAX_KIND_INDEX_EXPR || node->kind == SYNTAX_KIND_CALL_EXPR ||
@@ -39,3 +40,5 @@ bool syntax_node_is_expr(SyntaxNode *node) {
          node->kind == SYNTAX_KIND_RUNE_LIT_EXPR || node->kind == SYNTAX_KIND_STRING_LIT_EXPR ||
          node->kind == SYNTAX_KIND_STRUCT_LIT_EXPR || node->kind == SYNTAX_KIND_ARRAY_LIT_EXPR;
 }
+
+LIST_DEFINE(SyntaxNodeList, syntax_nodelist, SyntaxNode *)

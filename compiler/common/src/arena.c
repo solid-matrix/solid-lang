@@ -2,7 +2,6 @@
  * @file arena.c
  * @brief Implementation of the region allocator over mimalloc heaps.
  * @author solid-matrix
- * @version 0.0.5
  *
  * The public API and its documentation live in arena.h. mimalloc is a
  * build-internal dependency: it never leaks past this file and the

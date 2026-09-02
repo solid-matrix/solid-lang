@@ -2,18 +2,16 @@
  * @file parse_type.c
  * @brief Type parsers.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
 #include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 SyntaxNodeResult parse_type(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {

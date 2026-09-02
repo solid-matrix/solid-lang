@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
@@ -43,9 +42,9 @@ void test_body_stmt_empty_and_stmts(void) {
   r = parse_body_stmt(fx_parser, source_get_span(fx_source));
   const SyntaxBodyStmt *b = as_body(r.node);
   TEST_ASSERT_EQUAL_size_t(3, syntax_nodelist_length(b->stmts));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, b->stmts->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_STMT, b->stmts->next->node->kind);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, b->stmts->next->next->node->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, b->stmts->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_STMT, b->stmts->tail->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_EMPTY_STMT, b->stmts->tail->tail->head->kind);
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("{ ; let a = 1; ; }"), r.rem.start);
 }
@@ -55,7 +54,7 @@ void test_body_stmt_nested(void) {
   SyntaxNodeResult r = parse_body_stmt(fx_parser, source_get_span(fx_source));
   const SyntaxBodyStmt *outer = as_body(r.node);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(outer->stmts));
-  const SyntaxBodyStmt *inner = as_body(outer->stmts->node);
+  const SyntaxBodyStmt *inner = as_body(outer->stmts->head);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(inner->stmts));
   TEST_ASSERT_NULL(r.errors);
 }
@@ -75,7 +74,7 @@ void test_body_stmt_missing_rbrace_frame(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(as_body(r.node)->stmts));
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
 }
 
@@ -111,14 +110,14 @@ void test_let_stmt_malforms(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(((const SyntaxLetStmt *)r.node)->id);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->head.code);
 
   // Missing ";": the frame survives holding the value.
   fx_begin("let a = 1");
   r = parse_let_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(9, r.rem.start);
 
   // Missing identifier recovers at the "=" and still binds the value.
@@ -128,7 +127,7 @@ void test_let_stmt_malforms(void) {
   TEST_ASSERT_NULL(((const SyntaxLetStmt *)r.node)->id);
   TEST_ASSERT_NOT_NULL(((const SyntaxLetStmt *)r.node)->value);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
 }
 
 void test_set_stmt_basic(void) {
@@ -151,7 +150,7 @@ void test_set_stmt_malforms(void) {
   TEST_ASSERT_NULL(((const SyntaxSetStmt *)r.node)->left);
   TEST_ASSERT_NOT_NULL(((const SyntaxSetStmt *)r.node)->right);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
 
   // Missing "=": both sides survive.
   fx_begin("set a 1;");
@@ -160,7 +159,7 @@ void test_set_stmt_malforms(void) {
   TEST_ASSERT_NOT_NULL(((const SyntaxSetStmt *)r.node)->left);
   TEST_ASSERT_NOT_NULL(((const SyntaxSetStmt *)r.node)->right);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EQUALS, r.errors->head.code);
 }
 
 /* ---- expression statements --------------------------------------------- */
@@ -181,7 +180,7 @@ void test_expr_stmt_missing_semicolon_frame(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NOT_NULL(((const SyntaxExprStmt *)r.node)->expr);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start);
 }
 
@@ -206,7 +205,7 @@ void test_break_continue_stmts(void) {
   r = parse_break_stmt(fx_parser, source_get_span(fx_source));
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(5, r.rem.start);
 }
 
@@ -233,7 +232,7 @@ void test_return_malform(void) {
   TEST_ASSERT_TRUE(r.matched);
   TEST_ASSERT_NULL(((const SyntaxReturnStmt *)r.node)->expr);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_SEMICOLON, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(6, r.rem.start);
 }
 
@@ -251,7 +250,7 @@ void test_if_else_if_chain(void) {
   const SyntaxIfStmt *inner = (const SyntaxIfStmt *)outer->else_stmt;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_IF_STMT, inner->header.kind);
   const SyntaxNamed *cond = (const SyntaxNamed *)inner->condition;
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)cond->path->node)->value, "b");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)cond->path->head)->value, "b");
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, inner->then_stmt->kind);
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_BODY_STMT, inner->else_stmt->kind);
   TEST_ASSERT_NULL(r.errors);
@@ -286,7 +285,7 @@ void test_if_missing_body_reports_body(void) {
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->then_stmt);
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->else_stmt);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(6, r.rem.start);
 }
 
@@ -311,8 +310,8 @@ void test_if_missing_lparen(void) {
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->condition);
   TEST_ASSERT_NULL(((const SyntaxIfStmt *)r.node)->then_stmt);
   TEST_ASSERT_EQUAL_size_t(2, error_chain_length(r.errors));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->error.code);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->next->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_BODY, r.errors->head.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_LPAREN, r.errors->tail->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("if"), r.rem.start);
 }
 
@@ -380,8 +379,8 @@ void test_stmt_dispatch_ladder(void) {
   };
   const SyntaxNodeList *n = b->stmts;
   for (size_t i = 0; i < sizeof(WANT) / sizeof(WANT[0]); i++) {
-    TEST_ASSERT_EQUAL_HEX32(WANT[i], n->node->kind);
-    n = n->next;
+    TEST_ASSERT_EQUAL_HEX32(WANT[i], n->head->kind);
+    n = n->tail;
   }
   TEST_ASSERT_NULL(n);
   TEST_ASSERT_NULL(r.errors);

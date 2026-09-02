@@ -2,27 +2,18 @@
  * @file collect.c
  * @brief Collect pass: gathers every module's top-level declarations into the world table.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stdbool.h>
 
 #include "arena.h"
-#include "collect.h"
-#include "error.h"
+#include "internal.h"
 #include "namepath.h"
+#include "namepath_table.h"
 #include "semantic_error.h"
-#include "symboltable.h"
+#include "symbol_table.h"
 #include "syntax_node.h"
-
-// A SemanticNamePath from a source-order chain of SyntaxIdentifier nodes.
-static SemanticNamePath *path_from_identifiers(Arena *arena, const SyntaxNodeList *ids) {
-  if (ids == NULL)
-    return semantic_namepath_empty();
-  return semantic_namepath_prepend(arena, path_from_identifiers(arena, ids->next),
-                                   ((SyntaxIdentifier *)ids->node)->value);
-}
 
 // The declared name of a top-level declaration.
 static Strview decl_name(SyntaxNode *decl) {
@@ -57,12 +48,12 @@ static bool decl_enabled(const SyntaxNode *decl) {
 // Namespace declarations are relative to the module root: the prologue
 // namespace is materialized into the table and extends the current context,
 // declarations land under it. Using declarations belong to resolve; collect
-// skips them.
-static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *symbols, const SemanticModule *module,
-                                             SyntaxProgram *program) {
+// skips them. Every live symbol also lands in the reverse path table.
+static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *symbols, SemanticNamePathTable *paths,
+                                             const SemanticModule *module, SyntaxProgram *program) {
 
   if (program->top_levels == NULL)
-    return (SemanticCollectResult){.errors = NULL, .symbols = symbols};
+    return (SemanticCollectResult){.errors = NULL, .symbol_table = symbols, .namepath_table = paths};
 
   SemanticErrorList *errors = semantic_errorlist_empty();
 
@@ -70,13 +61,13 @@ static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *
   SemanticNamePath *prefix = module->path;
 
   // process the optional topmost namespace declaration
-  if (decls->node->kind == SYNTAX_KIND_NAMESPACE_DECL) {
-    SyntaxNamespaceDecl *decl = (SyntaxNamespaceDecl *)decls->node;
+  if (decls->head->kind == SYNTAX_KIND_NAMESPACE_DECL) {
+    SyntaxNamespaceDecl *decl = (SyntaxNamespaceDecl *)decls->head;
 
-    SemanticNamePath *ns = path_from_identifiers(arena, decl->path);
+    SemanticNamePath *ns = semantic_namepath_from_identifiers(arena, decl->path);
     prefix = semantic_namepath_concat(arena, prefix, ns);
 
-    SemanticSymbolTable *defined = semantic_symboltable_define(symbols, prefix, NULL);
+    SemanticSymbolTable *defined = semantic_symbol_table_insert(arena, symbols, prefix, NULL);
     if (defined == NULL) {
       errors = semantic_errorlist_prepend(arena, errors,
                                           semantic_error_create(SEMANTIC_SYMBOL_NAMESPACE_CLASH, decl->header.span));
@@ -84,15 +75,15 @@ static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *
       symbols = defined;
     }
 
-    decls = decls->next;
+    decls = decls->tail;
   }
 
   // skip the following consecutive using declarations
-  while (decls != NULL && decls->node->kind == SYNTAX_KIND_USING_DECL)
-    decls = decls->next;
+  while (decls != NULL && decls->head->kind == SYNTAX_KIND_USING_DECL)
+    decls = decls->tail;
 
-  for (SyntaxNodeList *it = decls; it != NULL; it = it->next) {
-    SyntaxNode *decl = it->node;
+  for (SyntaxNodeList *it = decls; it != NULL; it = it->tail) {
+    SyntaxNode *decl = it->head;
 
     if (!decl_enabled(decl))
       continue;
@@ -101,13 +92,13 @@ static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *
     SemanticNamePath *path = semantic_namepath_concat(arena, prefix, tail);
 
     SemanticError error;
-    if (semantic_symboltable_lookup(symbols, path) != NULL) {
+    if (semantic_symbol_table_lookup(symbols, path) != NULL) {
       error = semantic_error_create(SEMANTIC_SYMBOL_REDEFINED, decl->span);
       errors = semantic_errorlist_prepend(arena, errors, error);
       continue;
     }
 
-    SemanticSymbolTable *defined = semantic_symboltable_define(symbols, path, decl);
+    SemanticSymbolTable *defined = semantic_symbol_table_insert(arena, symbols, path, decl);
     if (defined == NULL) {
       error = semantic_error_create(SEMANTIC_SYMBOL_NAMESPACE_CLASH, decl->span);
       errors = semantic_errorlist_prepend(arena, errors, error);
@@ -115,25 +106,25 @@ static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *
     }
 
     symbols = defined;
+    paths = semantic_namepath_table_insert(arena, paths, decl, path);
   }
 
-  return (SemanticCollectResult){.errors = errors, .symbols = symbols};
+  return (SemanticCollectResult){.errors = errors, .symbol_table = symbols, .namepath_table = paths};
 }
 
-SemanticCollectResult semantic_collect(Arena *arena, const SemanticModuleList *modules,
-                                       const SemanticParamList *params) {
-  (void)params; // consumed by the @when gate once it lands
-
-  SemanticSymbolTable *symbols = semantic_symboltable_create(arena);
+SemanticCollectResult semantic_collect(const SemanticAnalyzer *analyzer) {
+  SemanticSymbolTable *symbols = semantic_symbol_table_empty();
+  SemanticNamePathTable *paths = semantic_namepath_table_empty();
   SemanticErrorList *errors = semantic_errorlist_empty();
 
-  for (const SemanticModuleList *it = modules; it != NULL; it = it->next)
+  for (const SemanticModuleList *it = analyzer->modules; it != NULL; it = it->next)
     for (SemanticProgramList *unit = it->module->programs; unit != NULL; unit = unit->next) {
-      SemanticCollectResult res = collect_program(arena, symbols, it->module, unit->program);
+      SemanticCollectResult res = collect_program(analyzer->arena, symbols, paths, it->module, unit->program);
 
-      symbols = res.symbols;
-      errors = semantic_errorlist_concat(arena, res.errors, errors);
+      symbols = res.symbol_table;
+      paths = res.namepath_table;
+      errors = semantic_errorlist_concat(analyzer->arena, res.errors, errors);
     }
 
-  return (SemanticCollectResult){.symbols = symbols, .errors = errors};
+  return (SemanticCollectResult){.symbol_table = symbols, .namepath_table = paths, .errors = errors};
 }

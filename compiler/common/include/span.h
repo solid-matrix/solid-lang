@@ -2,7 +2,6 @@
  * @file span.h
  * @brief A half-open [start, end) offset range, independent of Source.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #pragma once

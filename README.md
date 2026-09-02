@@ -56,6 +56,15 @@ Dependency chain: `common <- syntax <- semantic <- irgen <- cli`; CMake targets 
 - LLVM with the C API available; the `LLVM_DIR` environment variable must point at the install location
 - Windows: Clang; Linux: Clang
 
+### Code Conventions
+
+- Target standard: C17;
+- Encoding: UTF‑8 without BOM;
+- Comments: Doxygen‑style JavaDoc; file headers must include `@file`, `@brief`, `@author`;
+- Redundancy over macro magic: Prefer inline functions and explicit code, avoid clever complex macros;
+- Prefer pure functions: Minimize side‑effects and implicit global‑state dependencies;
+- Prefer immutable data structures: Mutation only when forced by performance or hard constraints.
+
 ### Building and Testing
 
 ```bash
@@ -77,12 +86,6 @@ ctest --test-dir .build\windows-x64-debug\ --output-on-failure
 ```
 
 Executables go to `<build>/bin/`; on Windows the runtime `LLVM-C.dll` is copied next to the executable. Static libraries stay in their own subdirectories.
-
-### Code Conventions
-
-- C17;
-- Encoding: UTF-8 without BOM;
-- Comments: Doxygen JavaDoc; file headers carry `@file`, `@brief`, `@author`, `@version`; all in English
 
 ## Core Library
 

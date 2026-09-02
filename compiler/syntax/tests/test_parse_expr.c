@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "node.h"
 #include "parse.h"
 #include "parser_fixture.h"
 #include "syntax_error.h"
@@ -120,7 +119,7 @@ void test_expr_postfix_chain_on_literal(void) {
   as_int(index->receiver, "1");
   as_int(index->index, "2");
 
-  as_int(call->args->node, "3");
+  as_int(call->args->head, "3");
 }
 
 void test_expr_call_empty_args(void) {
@@ -159,7 +158,7 @@ void test_expr_malformed_missing_right_hand_side(void) {
   }
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(2, r.rem.start); // past the "+"
 }
 
@@ -174,7 +173,7 @@ void test_expr_malformed_missing_rhs_logical_or(void) {
   }
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(3, r.rem.start); // past the "||"
 }
 
@@ -188,10 +187,10 @@ void test_expr_malformed_dangling_call_comma(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   as_int(call->receiver, "1");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(call->args));
-  as_int(call->args->node, "2");
+  as_int(call->args->head, "2");
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("(1)(2,)"), r.rem.start); // past it all
 }
 
@@ -200,7 +199,7 @@ void test_expr_malformed_unclosed_paren(void) {
   TEST_ASSERT_TRUE(r.matched);
   as_int(r.node, "1"); // transparent parens keep the inner node
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(2, r.rem.start);
 }
 
@@ -209,7 +208,7 @@ void test_expr_malformed_empty_parens(void) {
   TEST_ASSERT_TRUE(r.matched); // recovery run
   TEST_ASSERT_NULL(r.node);
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
 }
 
 void test_expr_malformed_dangling_unary(void) {
@@ -222,7 +221,7 @@ void test_expr_malformed_dangling_unary(void) {
     TEST_ASSERT_NULL(u->operand);
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
 }
 
 void test_expr_relational_two_byte_forms(void) {
@@ -253,8 +252,8 @@ void test_expr_call_args_in_source_order(void) {
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(call->args));
-  as_int(call->args->node, "2");
-  as_int(call->args->next->node, "3");
+  as_int(call->args->head, "2");
+  as_int(call->args->tail->head, "3");
 }
 
 void test_expr_dot_missing_identifier_frame(void) {
@@ -268,7 +267,7 @@ void test_expr_dot_missing_identifier_frame(void) {
   as_int(dot->receiver, "1");
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("(1)."), r.rem.start); // at the fault
 }
 
@@ -282,7 +281,7 @@ void test_expr_index_frames(void) {
   as_int(ix->receiver, "1");
   as_int(ix->index, "2");
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RBRACKET, r.errors->head.code);
 
   // Missing index expression: NULL-index frame, single EXPR diagnostic.
   r = run_expr("(1)[");
@@ -291,7 +290,7 @@ void test_expr_index_frames(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_INDEX_EXPR, r.node->kind);
   TEST_ASSERT_NULL(ix->index);
   TEST_ASSERT_EQUAL_size_t(2, error_count(&r));
-  // TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->error.code);
+  // TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
 }
 
 void test_expr_call_missing_rparen_frame(void) {
@@ -302,10 +301,10 @@ void test_expr_call_missing_rparen_frame(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   as_int(call->receiver, "1");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(call->args));
-  as_int(call->args->node, "2");
+  as_int(call->args->head, "2");
 
   TEST_ASSERT_EQUAL_size_t(1, error_count(&r));
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->error.code);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_RPAREN, r.errors->head.code);
 }
 
 /* ---- full ladder ----------------------------------------------------------- */
@@ -357,7 +356,7 @@ void test_expr_ct_operand_position(void) {
   const SyntaxCompileTime *op = (const SyntaxCompileTime *)add->right;
   TEST_ASSERT_STRVIEW_EQ(op->id->value, "when");
   TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(op->args));
-  as_int(op->args->node, "0");
+  as_int(op->args->head, "0");
 }
 
 /* ---- named expressions with generics ---------------------------------------- */
@@ -382,11 +381,11 @@ void test_named_expr_relational_fallback(void) {
   const SyntaxBinaryExpr *gt = as_bin(r.node, SYNTAX_OPERATOR_GT);
   const SyntaxBinaryExpr *lt = as_bin(gt->left, SYNTAX_OPERATOR_LT);
   const SyntaxNamed *a = as_named(lt->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->head)->value, "a");
   const SyntaxNamed *b = as_named(lt->right);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->node)->value, "b");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->head)->value, "b");
   const SyntaxNamed *c = as_named(gt->right);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->head)->value, "c");
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("a<b>c"), r.rem.start);
 }
@@ -397,12 +396,12 @@ void test_named_expr_shift_fallback(void) {
   TEST_ASSERT_TRUE(r.matched);
   const SyntaxBinaryExpr *lt = as_bin(r.node, SYNTAX_OPERATOR_LT);
   const SyntaxNamed *a = as_named(lt->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->head)->value, "a");
   const SyntaxBinaryExpr *shr = as_bin(lt->right, SYNTAX_OPERATOR_SHR);
   const SyntaxNamed *b = as_named(shr->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->node)->value, "b");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)b->path->head)->value, "b");
   const SyntaxNamed *c = as_named(shr->right);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->head)->value, "c");
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("a<b>>c"), r.rem.start);
 }
@@ -414,12 +413,12 @@ void test_named_expr_two_comparisons(void) {
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CALL_EXPR, r.node->kind);
   const SyntaxCallExpr *call = (const SyntaxCallExpr *)r.node;
   TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(call->args));
-  const SyntaxBinaryExpr *lt = as_bin(call->args->node, SYNTAX_OPERATOR_LT);
+  const SyntaxBinaryExpr *lt = as_bin(call->args->head, SYNTAX_OPERATOR_LT);
   const SyntaxNamed *a = as_named(lt->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->node)->value, "a");
-  const SyntaxBinaryExpr *gt = as_bin(call->args->next->node, SYNTAX_OPERATOR_GT);
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)a->path->head)->value, "a");
+  const SyntaxBinaryExpr *gt = as_bin(call->args->tail->head, SYNTAX_OPERATOR_GT);
   const SyntaxNamed *c = as_named(gt->left);
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->node)->value, "c");
+  TEST_ASSERT_STRVIEW_EQ(((const SyntaxIdentifier *)c->path->head)->value, "c");
   TEST_ASSERT_NULL(r.errors);
   TEST_ASSERT_EQUAL_size_t(strlen("f(a<b, c>d)"), r.rem.start);
 }

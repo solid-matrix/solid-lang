@@ -2,7 +2,6 @@
  * @file main.c
  * @brief CLI entry point, orchestrates the compilation pipeline.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <stdio.h>
@@ -23,11 +22,11 @@ int main(void) {
 
   SyntaxParseResult result = syntax_parse(source, arena);
 
-  for (const SyntaxErrorList *n = result.errors; n != NULL; n = n->next)
-    fprintf(stderr, "error code: 0x%x\n", n->error.code);
+  for (const SyntaxErrorList *n = result.errors; n != NULL; n = n->tail)
+    fprintf(stderr, "error code: 0x%x\n", n->head.code);
 
   size_t count = 0;
-  for (const SyntaxNodeList *n = result.program->top_levels; n != NULL; n = n->next)
+  for (const SyntaxNodeList *n = result.program->top_levels; n != NULL; n = n->tail)
     count++;
   printf("top level declaration count = %zu\n", count);
 

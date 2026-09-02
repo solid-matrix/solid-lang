@@ -2,7 +2,6 @@
  * @file arena.h
  * @brief Region allocation over a private mimalloc heap.
  * @author solid-matrix
- * @version 0.0.5
  *
  * An Arena hands out allocations that are never released individually;
  * arena_destroy() reclaims everything at once. It serves lifetimes

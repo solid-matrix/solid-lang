@@ -5,7 +5,6 @@
 #include "arena.h"
 #include "semantic_common.h"
 #include "semantic_error.h"
-#include "semantic_module.h"
 
 typedef struct {
   // TODO

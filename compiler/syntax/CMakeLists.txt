@@ -1,8 +1,6 @@
 add_library(solid-lang-syntax STATIC
   src/error.c
-  src/errorlist.c
   src/node.c
-  src/nodelist.c
   src/parse.c
   src/parse_aux.c
   src/parse_common.c

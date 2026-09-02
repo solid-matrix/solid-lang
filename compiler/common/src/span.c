@@ -2,7 +2,6 @@
  * @file span.c
  * @brief Implementation of Span operations.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>

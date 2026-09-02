@@ -2,7 +2,6 @@
  * @file source.c
  * @brief Implementation of the Source line index and Span accessors.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>

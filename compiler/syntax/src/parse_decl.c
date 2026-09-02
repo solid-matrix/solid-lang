@@ -2,18 +2,17 @@
  * @file parse_decl.c
  * @brief Declaration parsers.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
+#include "arena.h"
 #include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeResult results[] = {
@@ -22,6 +21,61 @@ SyntaxNodeResult parse_decl(const SyntaxParser *parser, Span span) {
       parse_variant_decl(parser, span),   parse_contract_decl(parser, span), parse_func_decl(parser, span),
   };
   return complete_longest_match(results, COUNT_OF(results));
+}
+
+SyntaxNodeResult parse_program(const SyntaxParser *parser, Span span) {
+  span = skip_trivia(parser->source, span);
+
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxNodeList *decls = syntax_nodelist_empty();
+  Span rem = span;
+
+  SyntaxNodeResult res = parse_namespace_decl(parser, skip_trivia(parser->source, rem));
+  if (res.matched) {
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+    decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
+  }
+
+  while (true) {
+    SyntaxNodeResult res = parse_using_decl(parser, skip_trivia(parser->source, rem));
+    if (!res.matched)
+      break;
+
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+    decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
+  }
+
+  while (true) {
+    res = parse_decl(parser, skip_trivia(parser->source, rem));
+    if (!res.matched)
+      break;
+
+    errors = syntax_errorlist_concat(parser->arena, res.errors, errors);
+    rem = res.rem;
+
+    if (res.node->kind == SYNTAX_KIND_NAMESPACE_DECL) {
+      SyntaxErrorCode code = SYNTAX_MISPLACED_NAMESPACE;
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(code, res.node->span));
+    } else if (res.node->kind == SYNTAX_KIND_USING_DECL) {
+      SyntaxErrorCode code = SYNTAX_MISPLACED_USING;
+      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(code, res.node->span));
+    } else {
+      decls = syntax_nodelist_prepend(parser->arena, decls, res.node);
+    }
+  }
+
+  SyntaxProgram *program = arena_alloc(parser->arena, sizeof(SyntaxProgram));
+  program->header = syntax_node_create(SYNTAX_KIND_PROGRAM, span_consumed(span, rem));
+  program->top_levels = syntax_nodelist_reverse(parser->arena, decls);
+
+  rem = skip_trivia(parser->source, rem);
+
+  if (!span_is_empty(rem))
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_EOF, rem));
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)program, errors);
 }
 
 SyntaxNodeResult parse_namespace_decl(const SyntaxParser *parser, Span span) {

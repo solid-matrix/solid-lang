@@ -2,19 +2,17 @@
  * @file parse_expr.c
  * @brief Expression parsers.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
 #include "parse.h"
 #include "span.h"
 #include "strview.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 SyntaxNodeResult parse_expr(const SyntaxParser *parser, Span span) {
   if (span_is_empty(span))

@@ -2,12 +2,10 @@
  * @file parser.c
  * @brief The module's single public entry point.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 
-#include "error.h"
 #include "parse.h"
 #include "syntax_parse.h"
 

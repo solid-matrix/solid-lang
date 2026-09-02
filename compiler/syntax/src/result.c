@@ -2,11 +2,9 @@
  * @file result.c
  * @brief Outcome constructors and the ok-test.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include "result.h"
-#include "error.h"
 
 SyntaxNodeResult syntax_node_result_not_match(Span span) {
   return (SyntaxNodeResult){

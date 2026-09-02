@@ -2,7 +2,6 @@
  * @file xmem.c
  * @brief Implementation of the fatal-failure allocation wrappers.
  * @author solid-matrix
- * @version 0.0.5
  *
  * The public API and its documentation live in xmem.h.
  */

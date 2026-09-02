@@ -3,16 +3,23 @@
 #include "strview.h"
 #include "syntax_node.h"
 
-typedef struct SemanticNamePath SemanticNamePath;
-struct SemanticNamePath {
-  Strview name;
-  SemanticNamePath *next;
-};
+typedef struct SemanticNamePath SemanticNamePath; /* complete in namepath.h */
 
 typedef struct SemanticProgramList SemanticProgramList;
 struct SemanticProgramList {
   SyntaxProgram *program;
   SemanticProgramList *next;
+};
+
+typedef struct {
+  SemanticNamePath *path;
+  SemanticProgramList *programs;
+} SemanticModule;
+
+typedef struct SemanticModuleList SemanticModuleList;
+struct SemanticModuleList {
+  SemanticModule *module;
+  SemanticModuleList *next;
 };
 
 typedef struct {

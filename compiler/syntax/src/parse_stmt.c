@@ -2,18 +2,16 @@
  * @file parse_stmt.c
  * @brief Statement parsers.
  * @author solid-matrix
- * @version 0.0.5
  */
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
-#include "node.h"
 #include "parse.h"
 #include "span.h"
 #include "syntax_error.h"
+#include "syntax_node.h"
 
 SyntaxNodeResult parse_stmt(const SyntaxParser *parser, Span span) {
   // Keyword-led statements come before expr_stmt: a bare keyword whose
