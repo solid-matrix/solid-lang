@@ -359,12 +359,32 @@ void test_generic_arg_named_generic_value(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("add<i32, i32, F = Addable<i32, i32>>"), r.rem.start);
 }
 
+void test_ref_type_noaccess(void) {
+  fx_begin("&noaccess Node");
+  SyntaxNodeResult r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxRefType *ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_NOACCESS, ref->ref_kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ref->inner_type->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("&noaccess Node"), r.rem.start);
+
+  // word boundary: "noaccessibility" is an identifier, not the keyword
+  fx_begin("&noaccessibility u8");
+  r = parse_ref_type(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  ref = (const SyntaxRefType *)r.node;
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_REF_KIND_READWRITE, ref->ref_kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"named_type_single_and_path", test_named_type_single_and_path},
     {"named_type_trivia_between_segments", test_named_type_trivia_between_segments},
     {"named_type_not_match_on_non_identifier", test_named_type_not_match_on_non_identifier},
     {"ref_type_readwrite_named_inner", test_ref_type_readwrite_named_inner},
     {"ref_type_readonly_and_writeonly", test_ref_type_readonly_and_writeonly},
+    {"ref_type_noaccess", test_ref_type_noaccess},
     {"ref_type_keyword_word_boundary", test_ref_type_keyword_word_boundary},
     {"ref_type_nested_and_trivia", test_ref_type_nested_and_trivia},
     {"ref_type_missing_inner_reports_type", test_ref_type_missing_inner_reports_type},

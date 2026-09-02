@@ -77,7 +77,7 @@ Comments serve as program documentation, start with the character sequence `"//"
 namespace   using       func        contract    fulfills    struct      
 enum        union       variant     let         if          else        
 loop        while       break       continue    return      readonly
-writeonly   set
+writeonly   noaccess    set
 ```
 
 ### Operators and Punctuation
@@ -114,8 +114,8 @@ Annotations  = CompileTime { CompileTime } .
 Example:
 
 ```
-@private
-@align(16)
+@intrinsic
+@flag
 @when(OS_LINUX)
 @import("LLVM-C","LLVMContextCreate")
 @sizeof(i32)
@@ -154,7 +154,7 @@ Syntax:
 
 ```
 Named      = NamePath [ "<" GenericArg { "," GenericArg } ">" ] .
-GenericArg = Type | identifier "=" PrimaryExpr .
+GenericArg = Type | identifier "=" Primary .
 ```
 
 Example:
@@ -162,12 +162,15 @@ Example:
 ```
 i32
 std::math::Vector2<f32>
-Box<[5]i32>
+Box<[5u]i32>
 Box<&readonly T>
-Array<i32, N = 5>
+Box<Box<i32>>
+Array<i32, N = 5u>
 Array<i32, N = (LEN + 1)>
 add<i32, i32, F = Addable<i32, i32>>
 ```
+
+The generic closing `>` is matched one token at a time; `>>` forms a shift token only in expression position, so nested generics like `Box<Box<i32>>` close naturally.
 
 ### CallConv
 
@@ -192,7 +195,7 @@ Type = Named | RefType | ArrayType | FuncType .
 Syntax:
 
 ```
-RefType =  "&" [ "readonly" | "writeonly" ] Type .
+RefType =  "&" [ "readonly" | "writeonly" | "noaccess" ] Type .
 ```
 
 Example:
@@ -203,6 +206,8 @@ Example:
 &readonly i32
 
 &writeonly Vector2<f32>
+
+&noaccess Node
 ```
 
 ### Array Type
@@ -216,9 +221,11 @@ ArrayType = "[" Expr "]" Type .
 Example:
 
 ```
-[5]i32
-[5+10]i32
+[5u]i32
+[5u+10u]i32
 ```
+
+The length is a `usize` slot: an integer literal in this position carries a matching suffix (`u` is the `usize` shorthand).
 
 ### Func Type
 
@@ -291,7 +298,6 @@ Example:
 ```
 let PI = 3.1415926;
 let PI: f64 = 3.1415926;
-let TMP: i32;
 @import("COUNT") let COUNT: usize;
 ```
 
@@ -319,10 +325,7 @@ struct Vector2F {
 
 struct Vector2<T> { x: T, y: T }
 
-@explicit @pack(4) struct Foo{
-	@offset(0) as_i32: i32,
-	@offset(0) as_f32: f32,
-}
+struct Opaque {}
 ```
 
 ### Enum Declarations
@@ -340,8 +343,6 @@ EnumDeclField  = [ Annotations ] identifier [ "=" Expr ] .
 Example:
 
 ```
-@annotation enum Enum;
-
 enum Color {
 	Red,
 	Green,
@@ -408,13 +409,17 @@ Syntax:
 
 ```
 ContractDecl = [ Annotations ] "contract" identifier [ "<" GenericParams ">" ]
-               "(" [ CallParams ] ")" [ ":" Type ] ";" .
+               "(" [ CallParams ] ")" [ ":" ( Type | "*" identifier ) ] ";" .
 ```
+
+The `*` form in the return position names the contract's wildcard output; `*` is legal only there.
 
 Example:
 
 ```
 contract Addable<TLeft, TRight, TResult>(left: TLeft, right: TRight): TResult;
+
+contract AddOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
 ```
 
 ### Func Declarations
@@ -439,8 +444,8 @@ func foo(a: i32, b: i32, c: i32): i32{
 
 @intrinsic func add_f32(left: f32, right: f32): f32 fulfills Addable<f32,f32,f32>;
 
-func add<TLeft, TRight, TResult, IAdd: Addable<TLeft, TRight, TResult>>(left: TLeft, right: TRight, iadd: IAdd): TResult{
-	return iadd(left, right);
+func add<TLeft, TRight, TResult, IAdd: Addable<TLeft, TRight, TResult>>(left: TLeft, right: TRight): TResult{
+	return IAdd(left, right);
 }
 
 @import("LLVM-C","LLVMContextCreate")
@@ -452,7 +457,7 @@ func context_create()cdecl : LLVMContextRef;
 Syntax:
 
 ```
-Stmt = EmptyStmt | BodyStmt | LetStmt | SetStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
+Stmt = EmptyStmt | BodyStmt | LetStmt | SetStmt | UsingStmt | ExprStmt | IfStmt | LoopStmt | BreakStmt | ContinueStmt | ReturnStmt | WhileStmt .
 ```
 
 ### Empty Statements
@@ -485,6 +490,23 @@ Example:
 {
 	let a = 10;
 	let b = 10;
+}
+```
+
+### Using Statements
+
+Syntax:
+
+```
+UsingStmt = "using" NamePath ";" .
+```
+
+Example:
+
+```
+{
+	using text;
+	let p = Parser::new();
 }
 ```
 
@@ -665,8 +687,8 @@ binary_digits    = binary_digit { { "_" } binary_digit } .
 octal_digits     = octal_digit { { "_" } octal_digit } .
 hex_digits       = hex_digit { { "_" } hex_digit } .
 
-int_lit_suffix   = "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "i"
-                 | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "u" .
+int_lit_suffix   = "i8" | "i16" | "i32" | "i64" | "isize" | "i"
+                 | "u8" | "u16" | "u32" | "u64" | "usize" | "u" .
 
 float_lit        = ( decimal_lit [ "." decimal_digits ] float_exponent [ { "_" } float_lit_suffix ] )
                  | ( decimal_lit "." [ decimal_digits ] [ { "_" } float_lit_suffix ] )
@@ -683,7 +705,7 @@ Example:
 ```
 // integer - decimal
 0 0i32 0_i32 1 1i32 1_i32 12 12i32 12_i32 1_2 1_2i32 1_2_i32
-1_234_567 0isize 1u128 1__2
+1_234_567 0isize 1__2
 
 // integer - binary
 0b0 0b01 0b1 0b_0 0b_0000_1111 0B_0000_1111_u8
@@ -696,8 +718,8 @@ Example:
 0x0 0xFF 0x_FFFF 0X_FFFF 0xDeAd_beEf 0xF_u32 0xFFu64
 
 // integer - suffix
-0_i8 0_i16 0_i32 0_i64 0_i128 0_isize 0_i
-0_u8 0_u16 0_u32 0_u64 0_u128 0_usize 0_u
+0_i8 0_i16 0_i32 0_i64 0_isize 0_i
+0_u8 0_u16 0_u32 0_u64 0_usize 0_u
 0u8 12i32 1_2u
 
 // float - exponent
@@ -875,15 +897,15 @@ ArrayLit     = ArrayType "{" [ Expr { "," Expr } [ "," ] ] "}" .
 Example:
 
 ```
-[5]i32{}
-[5]i32{ 1, 2, 3, 4, 5 }
+[5u]i32{}
+[5u]i32{ 1, 2, 3, 4, 5 }
 
 // nested
-[2][2]i32{ [2]i32{ 1, 2 }, [2]i32{ 3, 4 } }
+[2u][2u]i32{ [2u]i32{ 1, 2 }, [2u]i32{ 3, 4 } }
 
 // invalid
-[5]i32{ 1 2 }         // missing ","
-[5]i32[1, 2, 3, 4, 5] // "[" is not "{"
+[5u]i32{ 1 2 }         // missing ","
+[5u]i32[1, 2, 3, 4, 5] // "[" is not "{"
 []i32{}               // length expression is required
-[5]i32{ 1, 2          // missing closing brace
+[5u]i32{ 1, 2          // missing closing brace
 ```

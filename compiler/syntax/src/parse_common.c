@@ -32,9 +32,15 @@ SyntaxNodeResult parse_identifier(const SyntaxParser *parser, Span span) {
     rem = span_advance(rem, 1);
   }
 
+  Strview value = source_strview_at(parser->source, span_consumed(span, rem));
+  for (size_t i = 0; i < COUNT_OF(KEYWORDS); i++) {
+    if (strview_equals(value, KEYWORDS[i]))
+      return syntax_node_result_not_match(span); // §3: keywords are not identifiers
+  }
+
   SyntaxIdentifier *id = arena_alloc(parser->arena, sizeof(SyntaxIdentifier));
   id->header = syntax_node_create(SYNTAX_KIND_IDENTIFIER, span_consumed(span, rem));
-  id->value = source_strview_at(parser->source, span_consumed(span, rem));
+  id->value = value;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)id, NULL);
 }

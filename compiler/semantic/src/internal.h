@@ -66,3 +66,11 @@ typedef struct {
  * @return The binding map and the diagnostics, newest-first.
  */
 SemanticResolveResult semantic_resolve(const SemanticAnalyzer *analyzer, const SemanticSymbolTable *global_symbols);
+
+typedef struct {
+  SemanticErrorList *errors;
+} SemanticCheckResult;
+
+SemanticCheckResult semantic_check(const SemanticAnalyzer *analyzer, const SemanticSymbolTable *symbol_table,
+                                   const SemanticNamePathTable *namepath_table,
+                                   const SemanticBindingTable *binding_table);

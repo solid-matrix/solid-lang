@@ -386,6 +386,24 @@ void test_stmt_dispatch_ladder(void) {
   TEST_ASSERT_NULL(r.errors);
 }
 
+void test_using_stmt_in_block(void) {
+  fx_begin("using text;");
+  SyntaxNodeResult r = parse_stmt(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_STMT, r.node->kind);
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("using text;"), r.rem.start);
+
+  fx_begin("{ using text; let a = 1; }");
+  r = parse_body_stmt(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  const SyntaxBodyStmt *b = as_body(r.node);
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(b->stmts));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_USING_STMT, b->stmts->head->kind);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_LET_STMT, b->stmts->tail->head->kind);
+  TEST_ASSERT_NULL(r.errors);
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"empty_stmt_bare", test_empty_stmt_bare},
     {"body_stmt_empty_and_stmts", test_body_stmt_empty_and_stmts},
@@ -410,6 +428,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"while_stmt", test_while_stmt},
     {"stmt_keyword_boundaries", test_stmt_keyword_boundaries},
     {"stmt_dispatch_ladder", test_stmt_dispatch_ladder},
+    {"using_stmt_in_block", test_using_stmt_in_block},
 };
 
 TEST_DISPATCH_MAIN(ENTRIES)

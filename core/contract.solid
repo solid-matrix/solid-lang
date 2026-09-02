@@ -1,0 +1,46 @@
+// Unary arithmetic.
+contract PlusOp<T>(item: T): *TResult;
+contract NegateOp<T>(item: T): *TResult;
+
+// Binary arithmetic.
+contract AddOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract SubOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract MulOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract DivOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract ModOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+
+// Shifts.
+contract ShiftLeftOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract ShiftRightOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+
+// Bitwise.
+contract BitNotOp<T>(item: T): *TResult;
+contract BitAndOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract BitXorOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+contract BitOrOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;
+
+// Comparisons (return bool).
+contract EqualOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+contract NotEqualOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+contract LessThanOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+contract GreaterThanOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+contract LessEqualOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+contract GreaterEqualOp<TLeft, TRight>(left: TLeft, right: TRight): bool;
+
+// Special Values
+contract One<T>(): T;
+contract Zero<T>(): T;
+contract Allset<T>(): T;
+
+// Extreme values
+contract Max<T>(): T;
+contract Min<T>(): T;
+
+// Hash
+contract Hashcode<T>(value: T): usize;
+
+// Index
+contract Index<TContainer, TIndex>(container: TContainer, index: TIndex): *TValue;
+
+// Length
+contract Length<T>(self: T):usize;

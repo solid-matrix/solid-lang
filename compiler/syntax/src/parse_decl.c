@@ -734,6 +734,7 @@ SyntaxNodeResult parse_contract_decl(const SyntaxParser *parser, Span span) {
   SyntaxNodeList *generic_params = syntax_nodelist_empty();
   SyntaxNodeList *call_params = syntax_nodelist_empty();
   SyntaxNode *return_type = NULL;
+  SyntaxIdentifier *wildcard_return = NULL;
 
   SyntaxNodeResult id_res = parse_identifier(parser, skip_trivia(parser->source, rem));
   if (!id_res.matched) {
@@ -788,13 +789,29 @@ SyntaxNodeResult parse_contract_decl(const SyntaxParser *parser, Span span) {
   if (mres.matched) {
     rem = mres.rem;
 
-    SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
-    if (!type_res.matched) {
-      errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+    // The return position is a Type or the wildcard form `* id` — the
+    // only place the language accepts `*` in front of a name.
+    SyntaxMatchResult star = match(parser, skip_trivia(parser->source, rem), PUNCTUATION_STAR);
+    if (star.matched) {
+      rem = star.rem;
+
+      SyntaxNodeResult name_res = parse_identifier(parser, skip_trivia(parser->source, rem));
+      if (!name_res.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem));
+      } else {
+        rem = name_res.rem;
+        wildcard_return = (SyntaxIdentifier *)name_res.node;
+        errors = syntax_errorlist_concat(parser->arena, name_res.errors, errors);
+      }
     } else {
-      rem = type_res.rem;
-      return_type = type_res.node;
-      errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+      SyntaxNodeResult type_res = parse_type(parser, skip_trivia(parser->source, rem));
+      if (!type_res.matched) {
+        errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_TYPE, rem));
+      } else {
+        rem = type_res.rem;
+        return_type = type_res.node;
+        errors = syntax_errorlist_concat(parser->arena, type_res.errors, errors);
+      }
     }
   }
 
@@ -812,6 +829,7 @@ SyntaxNodeResult parse_contract_decl(const SyntaxParser *parser, Span span) {
   decl->generic_params = generic_params;
   decl->call_params = call_params;
   decl->return_type = return_type;
+  decl->wildcard_return = wildcard_return;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)decl, errors);
 }

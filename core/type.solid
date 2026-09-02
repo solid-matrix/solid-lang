@@ -1,0 +1,36 @@
+@intrinsic struct i8;
+@intrinsic struct i16;
+@intrinsic struct i32;
+@intrinsic struct i64;
+@intrinsic struct isize;
+
+@intrinsic struct u8;
+@intrinsic struct u16;
+@intrinsic struct u32;
+@intrinsic struct u64;
+@intrinsic struct usize;
+
+@intrinsic struct f32;
+@intrinsic struct f64;
+
+@intrinsic struct bool;
+
+struct Slice<T>{ len: usize, ptr: &T }
+struct Rune { value: u32 }
+struct String8  { len: usize, ptr: &readonly u8 }
+struct String16 { len: usize, ptr: &readonly u16 }
+struct String32 { len: usize, ptr: &readonly u32 }
+
+struct MutableString8  { len: usize, ptr: &u8 }
+struct MutableString16 { len: usize, ptr: &u16 }
+struct MutableString32 { len: usize, ptr: &u32 }
+
+struct CString8 { ptr: &readonly u8 }
+struct CString16 { ptr: &readonly u16 }
+struct CString32 { ptr: &readonly u32 }
+
+struct MutableCString8 { ptr: &u8 }
+struct MutableCString16 { ptr: &u16 }
+struct MutableCString32 { ptr: &u32 }
+
+struct Opaque {}

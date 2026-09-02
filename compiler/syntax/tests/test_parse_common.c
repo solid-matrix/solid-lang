@@ -340,10 +340,29 @@ void test_program_double_namespace_reports_second(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("namespace a;\nnamespace b;\nlet x:i32;\n"), r.rem.start);
 }
 
+void test_identifier_rejects_keywords(void) {
+  fx_begin("if");
+  SyntaxNodeResult r = parse_identifier(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_FALSE(r.matched);
+
+  fx_begin("noaccess");
+  r = parse_identifier(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_FALSE(r.matched);
+
+  fx_begin("alloc");
+  r = parse_identifier(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched); // not a keyword — memory API names stay legal
+
+  fx_begin("noaccessibility");
+  r = parse_identifier(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched); // keyword prefix ≠ keyword
+}
+
 static const TestDispatchEntry ENTRIES[] = {
     {"identifier_basic", test_identifier_basic},
     {"identifier_stops_at_non_word", test_identifier_stops_at_non_word},
     {"identifier_rejects_digit_start", test_identifier_rejects_digit_start},
+    {"identifier_rejects_keywords", test_identifier_rejects_keywords},
     {"ct_bare", test_ct_bare},
     {"ct_with_args", test_ct_with_args},
     {"ct_multi_string_args_in_source_order", test_ct_multi_string_args_in_source_order},

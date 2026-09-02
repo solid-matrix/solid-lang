@@ -1,6 +1,6 @@
 # The SOLID Programming Language
 
-> The SOLID Programming Language, hereinafter referred to as SOLID, is a purely static, strongly explicit systems programming language.
+> The SOLID Programming Language, hereinafter referred to as SOLID, is a purely static, strongly explicit, highly orthogonal systems programming language.
 
 This project covers SOLID's language design, compiler development, and core library development.
 

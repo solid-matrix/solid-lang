@@ -1,0 +1,30 @@
+@intrinsic let true: bool;
+@intrinsic let false: bool;
+
+@intrinsic let TARGET_OS: String8;
+@intrinsic let TARGET_ARCH: String8;
+@intrinsic let BUILD_MODE: String8;
+
+let OS_LINUX   = "linux";
+let OS_WINDOWS = "windows";
+let OS_MACOS   = "macos";
+let OS_OSLESS  = "osless";
+
+let IS_OS_LINUX   = TARGET_OS == OS_LINUX;
+let IS_OS_WINDOWS = TARGET_OS == OS_WINDOWS;
+let IS_OS_MACOS   = TARGET_OS == OS_MACOS;
+let IS_OS_OSLESS  = TARGET_OS == OS_OSLESS;
+
+let ARCH_X86   = "x86";
+let ARCH_X64   = "x64";
+let ARCH_ARM64 = "arm64";
+
+let IS_ARCH_X86   = TARGET_ARCH == ARCH_X86;
+let IS_ARCH_X64   = TARGET_ARCH == ARCH_X64;
+let IS_ARCH_ARM64 = TARGET_ARCH == ARCH_ARM64;
+
+let BUILD_MODE_DEBUG   = "debug";
+let BUILD_MODE_RELEASE = "release";
+
+let IS_DEBUG   = BUILD_MODE == BUILD_MODE_DEBUG;
+let IS_RELEASE = BUILD_MODE == BUILD_MODE_RELEASE;

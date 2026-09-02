@@ -25,11 +25,11 @@ bool syntax_node_is_decl(const SyntaxNode *node) {
 
 bool syntax_node_is_stmt(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_EMPTY_STMT || node->kind == SYNTAX_KIND_BODY_STMT ||
-         node->kind == SYNTAX_KIND_LET_STMT || node->kind == SYNTAX_KIND_SET_STMT ||
-         node->kind == SYNTAX_KIND_EXPR_STMT || node->kind == SYNTAX_KIND_IF_STMT ||
-         node->kind == SYNTAX_KIND_LOOP_STMT || node->kind == SYNTAX_KIND_BREAK_STMT ||
-         node->kind == SYNTAX_KIND_CONTINUE_STMT || node->kind == SYNTAX_KIND_RETURN_STMT ||
-         node->kind == SYNTAX_KIND_WHILE_STMT;
+         node->kind == SYNTAX_KIND_LET_STMT || node->kind == SYNTAX_KIND_USING_STMT ||
+         node->kind == SYNTAX_KIND_SET_STMT || node->kind == SYNTAX_KIND_EXPR_STMT ||
+         node->kind == SYNTAX_KIND_IF_STMT || node->kind == SYNTAX_KIND_LOOP_STMT ||
+         node->kind == SYNTAX_KIND_BREAK_STMT || node->kind == SYNTAX_KIND_CONTINUE_STMT ||
+         node->kind == SYNTAX_KIND_RETURN_STMT || node->kind == SYNTAX_KIND_WHILE_STMT;
 }
 
 bool syntax_node_is_expr(const SyntaxNode *node) {

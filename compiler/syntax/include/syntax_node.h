@@ -52,6 +52,7 @@ typedef enum {
   SYNTAX_KIND_EMPTY_STMT,
   SYNTAX_KIND_BODY_STMT,
   SYNTAX_KIND_LET_STMT,
+  SYNTAX_KIND_USING_STMT,
   SYNTAX_KIND_SET_STMT,
   SYNTAX_KIND_EXPR_STMT,
   SYNTAX_KIND_IF_STMT,
@@ -121,6 +122,7 @@ typedef enum {
   SYNTAX_REF_KIND_READWRITE = 0,
   SYNTAX_REF_KIND_READONLY,
   SYNTAX_REF_KIND_WRITEONLY,
+  SYNTAX_REF_KIND_NOACCESS,
 } SyntaxRefKind;
 
 /**
@@ -202,7 +204,7 @@ typedef struct {
 } SyntaxGenericArg;
 
 /**
- * @brief Reference type `&[readonly | writeonly] type`.
+ * @brief Reference type `&[readonly | writeonly | noaccess] type`.
  */
 typedef struct {
   SyntaxNode header;
@@ -343,14 +345,18 @@ typedef struct {
 
 /**
  * @brief Contract declaration `contract Name[<params>](call params)[: return];`.
+ * @details The return position is a type or the wildcard form `* id` (the
+ *          only place the language accepts `*` before a name); exactly one
+ *          of @p return_type and @p wildcard_return is set.
  */
 typedef struct {
   SyntaxNode header;
   SyntaxNodeList *annotations; // SyntaxCompileTime nodes
   SyntaxIdentifier *id;
-  SyntaxNodeList *generic_params; // SyntaxGenericParam nodes
-  SyntaxNodeList *call_params;    // SyntaxCallParameter nodes
-  SyntaxNode *return_type;        // type node
+  SyntaxNodeList *generic_params;    // SyntaxGenericParam nodes
+  SyntaxNodeList *call_params;       // SyntaxCallParameter nodes
+  SyntaxNode *return_type;           // type node; NULL for the wildcard form
+  SyntaxIdentifier *wildcard_return; // `* name` form; NULL for the type form
 } SyntaxContractDecl;
 
 /**
@@ -392,6 +398,15 @@ typedef struct {
   SyntaxNode *type;  // type node
   SyntaxNode *value; // expr node
 } SyntaxLetStmt;
+
+/**
+ * @brief Block-level import `using path;` in statement position; the
+ *        file-level form is SyntaxUsingDecl.
+ */
+typedef struct {
+  SyntaxNode header;
+  SyntaxNodeList *path; // SyntaxIdentifier nodes
+} SyntaxUsingStmt;
 
 /**
  * @brief Assignment `set left = right;`.

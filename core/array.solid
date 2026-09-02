@@ -1,0 +1,9 @@
+@intrinsic struct Array<T, N: usize>;
+
+@intrinsic func _array_index<T,N:usize>(array: Array<T,N=N>, i: usize): T fulfills Index<Array<T,N=N>, usize>;
+
+@intrinsic func _array_rw_index<T,N:usize>(arr: &Array<T,N=N>, i: usize): &T fulfills Index<&Array<T,N=N>, usize>;
+
+@intrinsic func _array_ro_index<T,N:usize>(arr: &readonly Array<T,N=N>, i: usize): &readonly T fulfills Index<&readonly Array<T,N=N>, usize>;
+
+@intrinsic func _array_wo_index<T,N:usize>(arr: &writeonly Array<T,N=N>, i: usize): &writeonly T fulfills Index<&writeonly Array<T,N=N>, usize>;

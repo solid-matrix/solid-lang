@@ -33,15 +33,21 @@ SyntaxNodeResult parse_ref_type(const SyntaxParser *parser, Span span) {
   SyntaxRefKind ref_kind = SYNTAX_REF_KIND_READWRITE;
 
   Span adv = skip_trivia(parser->source, rem);
-  SyntaxMatchResult kw = match_keyword(parser, adv, KEYWORD_READONLY);
-  if (kw.matched) {
-    ref_kind = SYNTAX_REF_KIND_READONLY;
-    rem = kw.rem;
-  } else {
-    kw = match_keyword(parser, adv, KEYWORD_WRITEONLY);
+  static const struct {
+    Strview keyword;
+    SyntaxRefKind kind;
+  } REF_KINDS[] = {
+      {KEYWORD_READONLY, SYNTAX_REF_KIND_READONLY},
+      {KEYWORD_WRITEONLY, SYNTAX_REF_KIND_WRITEONLY},
+      {KEYWORD_NOACCESS, SYNTAX_REF_KIND_NOACCESS},
+  };
+
+  for (size_t i = 0; i < COUNT_OF(REF_KINDS); i++) {
+    SyntaxMatchResult kw = match_keyword(parser, adv, REF_KINDS[i].keyword);
     if (kw.matched) {
-      ref_kind = SYNTAX_REF_KIND_WRITEONLY;
+      ref_kind = REF_KINDS[i].kind;
       rem = kw.rem;
+      break;
     }
   }
 

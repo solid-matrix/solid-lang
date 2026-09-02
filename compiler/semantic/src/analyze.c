@@ -10,15 +10,19 @@ SemanticAnalyzeResult semantic_analyze(Arena *arena, const SemanticModuleList *m
   SemanticErrorList *errors = semantic_errorlist_empty();
 
   // pass 1: collect
-  SemanticCollectResult cres = semantic_collect(&analyzer);
-  errors = semantic_errorlist_concat(arena, cres.errors, errors);
-  SemanticSymbolTable *symbol_table = cres.symbol_table;
-  SemanticNamePathTable *namepath_table = cres.namepath_table;
+  SemanticCollectResult collect = semantic_collect(&analyzer);
+  errors = semantic_errorlist_concat(arena, collect.errors, errors);
+  SemanticSymbolTable *symbol_table = collect.symbol_table;
+  SemanticNamePathTable *namepath_table = collect.namepath_table;
 
   // pass 2: resolve
-  SemanticResolveResult rres = semantic_resolve(&analyzer, symbol_table);
-  errors = semantic_errorlist_concat(arena, rres.errors, errors);
-  SemanticBindingTable *binding_table = rres.binding_table;
+  SemanticResolveResult resolve = semantic_resolve(&analyzer, symbol_table);
+  errors = semantic_errorlist_concat(arena, resolve.errors, errors);
+  SemanticBindingTable *binding_table = resolve.binding_table;
+
+  // pass 3: check
+  SemanticCheckResult check = semantic_check(&analyzer, symbol_table, namepath_table, binding_table);
+  errors = semantic_errorlist_concat(arena, check.errors, errors);
 
   return (SemanticAnalyzeResult){
       .errors = semantic_errorlist_reverse(arena, errors),

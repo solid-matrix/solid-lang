@@ -22,7 +22,7 @@ SyntaxNodeResult parse_stmt(const SyntaxParser *parser, Span span) {
       parse_empty_stmt(parser, span), parse_body_stmt(parser, span),     parse_let_stmt(parser, span),
       parse_set_stmt(parser, span),   parse_if_stmt(parser, span),       parse_loop_stmt(parser, span),
       parse_break_stmt(parser, span), parse_continue_stmt(parser, span), parse_return_stmt(parser, span),
-      parse_while_stmt(parser, span), parse_expr_stmt(parser, span),
+      parse_while_stmt(parser, span), parse_using_stmt(parser, span),    parse_expr_stmt(parser, span),
   };
   return complete_longest_match(results, COUNT_OF(results));
 }
@@ -139,6 +139,38 @@ SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span) {
   stmt->id = id;
   stmt->type = type;
   stmt->value = value;
+
+  return syntax_node_result_matched(rem, (SyntaxNode *)stmt, errors);
+}
+
+SyntaxNodeResult parse_using_stmt(const SyntaxParser *parser, Span span) {
+  SyntaxMatchResult mres = match_keyword(parser, span, KEYWORD_USING);
+  if (!mres.matched)
+    return syntax_node_result_not_match(span);
+
+  Span rem = mres.rem;
+  SyntaxErrorList *errors = syntax_errorlist_empty();
+  SyntaxNodeList *segs = syntax_nodelist_empty();
+
+  SyntaxListResult lres = parse_identifier_list(parser, skip_trivia(parser->source, rem), PUNCTUATION_SCOPE);
+  if (syntax_nodelist_is_empty(lres.list)) {
+    SyntaxError error = syntax_error_create(SYNTAX_EXPECTED_IDENTIFIER, rem);
+    errors = syntax_errorlist_prepend(parser->arena, errors, error);
+  }
+  errors = syntax_errorlist_concat(parser->arena, lres.errors, errors);
+  segs = lres.list;
+  rem = lres.rem;
+
+  mres = match(parser, skip_trivia(parser->source, rem), PUNCTUATION_SEMICOLON);
+  if (!mres.matched) {
+    errors = syntax_errorlist_prepend(parser->arena, errors, syntax_error_create(SYNTAX_EXPECTED_SEMICOLON, rem));
+  } else {
+    rem = mres.rem;
+  }
+
+  SyntaxUsingStmt *stmt = arena_alloc(parser->arena, sizeof(SyntaxUsingStmt));
+  stmt->header = syntax_node_create(SYNTAX_KIND_USING_STMT, span_consumed(span, rem));
+  stmt->path = segs;
 
   return syntax_node_result_matched(rem, (SyntaxNode *)stmt, errors);
 }

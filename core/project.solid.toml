@@ -1,0 +1,6 @@
+[package]
+name = "core"
+version = "0.0.5"
+
+[build]
+kind = "lib"

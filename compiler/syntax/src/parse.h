@@ -28,6 +28,7 @@ static const Strview KEYWORD_NAMESPACE = STRVIEW("namespace");
 static const Strview KEYWORD_USING = STRVIEW("using");
 static const Strview KEYWORD_READONLY = STRVIEW("readonly");
 static const Strview KEYWORD_WRITEONLY = STRVIEW("writeonly");
+static const Strview KEYWORD_NOACCESS = STRVIEW("noaccess");
 static const Strview KEYWORD_LET = STRVIEW("let");
 static const Strview KEYWORD_SET = STRVIEW("set");
 static const Strview KEYWORD_IF = STRVIEW("if");
@@ -44,6 +45,14 @@ static const Strview KEYWORD_VARIANT = STRVIEW("variant");
 static const Strview KEYWORD_CONTRACT = STRVIEW("contract");
 static const Strview KEYWORD_FUNC = STRVIEW("func");
 static const Strview KEYWORD_FULFILLS = STRVIEW("fulfills");
+
+// §3: keywords are not identifiers; parse_identifier excludes these.
+static const Strview KEYWORDS[] = {
+    KEYWORD_NAMESPACE, KEYWORD_USING,    KEYWORD_FUNC,    KEYWORD_CONTRACT, KEYWORD_FULFILLS, KEYWORD_STRUCT,
+    KEYWORD_ENUM,      KEYWORD_UNION,    KEYWORD_VARIANT, KEYWORD_LET,      KEYWORD_IF,       KEYWORD_ELSE,
+    KEYWORD_LOOP,      KEYWORD_WHILE,    KEYWORD_BREAK,   KEYWORD_CONTINUE, KEYWORD_RETURN,   KEYWORD_READONLY,
+    KEYWORD_WRITEONLY, KEYWORD_NOACCESS, KEYWORD_SET,
+};
 
 static const Strview OPERATOR_LOR = STRVIEW("||");
 static const Strview OPERATOR_LXOR = STRVIEW("^^");
@@ -93,11 +102,11 @@ static const Strview PUNCTUATION_GT = STRVIEW(">");
 static const Strview PUNCTUATION_SCOPE = STRVIEW("::");
 static const Strview PUNCTUATION_SEMICOLON = STRVIEW(";");
 static const Strview PUNCTUATION_AMP = STRVIEW("&");
+static const Strview PUNCTUATION_STAR = STRVIEW("*");
 
 static const Strview INT_SUFFIXES[] = {
-    STRVIEW("isize"), STRVIEW("usize"), STRVIEW("i128"), STRVIEW("u128"), STRVIEW("i64"),
-    STRVIEW("u64"),   STRVIEW("i32"),   STRVIEW("u32"),  STRVIEW("i16"),  STRVIEW("u16"),
-    STRVIEW("i8"),    STRVIEW("u8"),    STRVIEW("i"),    STRVIEW("u"),
+    STRVIEW("isize"), STRVIEW("usize"), STRVIEW("i64"), STRVIEW("u64"), STRVIEW("i32"), STRVIEW("u32"),
+    STRVIEW("i16"),   STRVIEW("u16"),   STRVIEW("i8"),  STRVIEW("u8"),  STRVIEW("i"),   STRVIEW("u"),
 };
 
 static const Strview FLOAT_SUFFIXES[] = {STRVIEW("f32"), STRVIEW("f64"), STRVIEW("f"), STRVIEW("d")};
@@ -540,6 +549,15 @@ SyntaxNodeResult parse_body_stmt(const SyntaxParser *parser, Span span);
  * @return Parse outcome; see SyntaxNodeResult.
  */
 SyntaxNodeResult parse_let_stmt(const SyntaxParser *parser, Span span);
+
+/**
+ * @brief Parses `using path;` in statement position as SyntaxUsingStmt;
+ *        the file-level form is parse_using_decl.
+ * @param parser Parsing context.
+ * @param span Where the construct starts.
+ * @return Parse outcome; see SyntaxNodeResult.
+ */
+SyntaxNodeResult parse_using_stmt(const SyntaxParser *parser, Span span);
 
 /**
  * @brief Parses `set left = right;`.

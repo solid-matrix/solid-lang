@@ -115,8 +115,8 @@ static void expect_not_match(ParseFn fn, const char *text) {
 
 void test_int_decimal(void) {
   static const char *const CASES[] = {
-      "0",      "0i32", "0_i32",  "1",       "1i32",      "1_i32",  "12",    "12i32",
-      "12_i32", "1_2",  "1_2i32", "1_2_i32", "1_234_567", "0isize", "1u128", "1234567_u",
+      "0",      "0i32", "0_i32",  "1",       "1i32",      "1_i32",  "12",   "12i32",
+      "12_i32", "1_2",  "1_2i32", "1_2_i32", "1_234_567", "0isize", "1234567_u",
   };
   for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++)
     expect_whole(parse_number, CASES[i], SYNTAX_KIND_INT_LIT_EXPR);
@@ -189,7 +189,7 @@ void test_splits_int(void) {
   expect_error_frame("1e+", SYNTAX_KIND_FLOAT_LIT_EXPR, SYNTAX_EXPECTED_DIGIT, 3);
   // Suffix greediness stops at the first non-suffix character.
   expect_split(parse_number, "0i8x", SYNTAX_KIND_INT_LIT_EXPR, 3);
-  expect_split(parse_number, "1u128x", SYNTAX_KIND_INT_LIT_EXPR, 5);
+  expect_split(parse_number, "1usizex", SYNTAX_KIND_INT_LIT_EXPR, 6);
 }
 
 void test_splits_float(void) {

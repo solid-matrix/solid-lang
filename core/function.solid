@@ -1,0 +1,246 @@
+func _plus<T, F: PlusOp<T>>(item: T): F::TResult {
+  return F(item);
+}
+@intrinsic func _plus_i8(item: i8): i8 fulfills PlusOp<i8>;
+@intrinsic func _plus_i16(item: i16): i16 fulfills PlusOp<i16>;
+@intrinsic func _plus_i32(item: i32): i32 fulfills PlusOp<i32>;
+@intrinsic func _plus_i64(item: i64): i64 fulfills PlusOp<i64>;
+@intrinsic func _plus_isize(item: isize): isize fulfills PlusOp<isize>;
+@intrinsic func _plus_u8(item: u8): u8 fulfills PlusOp<u8>;
+@intrinsic func _plus_u16(item: u16): u16 fulfills PlusOp<u16>;
+@intrinsic func _plus_u32(item: u32): u32 fulfills PlusOp<u32>;
+@intrinsic func _plus_u64(item: u64): u64 fulfills PlusOp<u64>;
+@intrinsic func _plus_usize(item: usize): usize fulfills PlusOp<usize>;
+
+func _negate<T, F: NegateOp<T>>(item: T): F::TResult {
+  return F(item);
+}
+@intrinsic func _negate_i8(item: i8): i8 fulfills NegateOp<i8>;
+@intrinsic func _negate_i16(item: i16): i16 fulfills NegateOp<i16>;
+@intrinsic func _negate_i32(item: i32): i32 fulfills NegateOp<i32>;
+@intrinsic func _negate_i64(item: i64): i64 fulfills NegateOp<i64>;
+@intrinsic func _negate_isize(item: isize): isize fulfills NegateOp<isize>;
+@intrinsic func _negate_u8(item: u8): u8 fulfills NegateOp<u8>;
+@intrinsic func _negate_u16(item: u16): u16 fulfills NegateOp<u16>;
+@intrinsic func _negate_u32(item: u32): u32 fulfills NegateOp<u32>;
+@intrinsic func _negate_u64(item: u64): u64 fulfills NegateOp<u64>;
+@intrinsic func _negate_usize(item: usize): usize fulfills NegateOp<usize>;
+
+func _add<TLeft, TRight, F: AddOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+@intrinsic func _add_i8_i8(left: i8, right: i8): i8 fulfills AddOp<i8,i8>;
+@intrinsic func _add_i16_i16(left: i16, right: i16): i16 fulfills AddOp<i16,i16>;
+@intrinsic func _add_i32_i32(left: i32, right: i32): i32 fulfills AddOp<i32,i32>;
+@intrinsic func _add_i64_i64(left: i64, right: i64): i64 fulfills AddOp<i64,i64>;
+@intrinsic func _add_isize_isize(left: isize, right: isize): isize fulfills AddOp<isize,isize>;
+@intrinsic func _add_u8_u8(left: u8, right: u8): u8 fulfills AddOp<u8,u8>;
+@intrinsic func _add_u16_u16(left: u16, right: u16): u16 fulfills AddOp<u16,u16>;
+@intrinsic func _add_u32_u32(left: u32, right: u32): u32 fulfills AddOp<u32,u32>;
+@intrinsic func _add_u64_u64(left: u64, right: u64): u64 fulfills AddOp<u64,u64>;
+@intrinsic func _add_usize_usize(left: usize, right: usize): usize fulfills AddOp<usize,usize>;
+
+func _sub<TLeft, TRight, F: SubOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+@intrinsic func _sub_i8_i8(left: i8, right: i8): i8 fulfills SubOp<i8,i8>;
+@intrinsic func _sub_i16_i16(left: i16, right: i16): i16 fulfills SubOp<i16,i16>;
+@intrinsic func _sub_i32_i32(left: i32, right: i32): i32 fulfills SubOp<i32,i32>;
+@intrinsic func _sub_i64_i64(left: i64, right: i64): i64 fulfills SubOp<i64,i64>;
+@intrinsic func _sub_isize_isize(left: isize, right: isize): isize fulfills SubOp<isize,isize>;
+@intrinsic func _sub_u8_u8(left: u8, right: u8): u8 fulfills SubOp<u8,u8>;
+@intrinsic func _sub_u16_u16(left: u16, right: u16): u16 fulfills SubOp<u16,u16>;
+@intrinsic func _sub_u32_u32(left: u32, right: u32): u32 fulfills SubOp<u32,u32>;
+@intrinsic func _sub_u64_u64(left: u64, right: u64): u64 fulfills SubOp<u64,u64>;
+@intrinsic func _sub_usize_usize(left: usize, right: usize): usize fulfills SubOp<usize,usize>;
+
+func _mul<TLeft, TRight, F: MulOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+@intrinsic func _mul_i8_i8(left: i8, right: i8): i8 fulfills MulOp<i8,i8>;
+@intrinsic func _mul_i16_i16(left: i16, right: i16): i16 fulfills MulOp<i16,i16>;
+@intrinsic func _mul_i32_i32(left: i32, right: i32): i32 fulfills MulOp<i32,i32>;
+@intrinsic func _mul_i64_i64(left: i64, right: i64): i64 fulfills MulOp<i64,i64>;
+@intrinsic func _mul_isize_isize(left: isize, right: isize): isize fulfills MulOp<isize,isize>;
+@intrinsic func _mul_u8_u8(left: u8, right: u8): u8 fulfills MulOp<u8,u8>;
+@intrinsic func _mul_u16_u16(left: u16, right: u16): u16 fulfills MulOp<u16,u16>;
+@intrinsic func _mul_u32_u32(left: u32, right: u32): u32 fulfills MulOp<u32,u32>;
+@intrinsic func _mul_u64_u64(left: u64, right: u64): u64 fulfills MulOp<u64,u64>;
+@intrinsic func _mul_usize_usize(left: usize, right: usize): usize fulfills MulOp<usize,usize>;
+
+func _div<TLeft, TRight, F: DivOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+@intrinsic func _div_i8_i8(left: i8, right: i8): i8 fulfills DivOp<i8,i8>;
+@intrinsic func _div_i16_i16(left: i16, right: i16): i16 fulfills DivOp<i16,i16>;
+@intrinsic func _div_i32_i32(left: i32, right: i32): i32 fulfills DivOp<i32,i32>;
+@intrinsic func _div_i64_i64(left: i64, right: i64): i64 fulfills DivOp<i64,i64>;
+@intrinsic func _div_isize_isize(left: isize, right: isize): isize fulfills DivOp<isize,isize>;
+@intrinsic func _div_u8_u8(left: u8, right: u8): u8 fulfills DivOp<u8,u8>;
+@intrinsic func _div_u16_u16(left: u16, right: u16): u16 fulfills DivOp<u16,u16>;
+@intrinsic func _div_u32_u32(left: u32, right: u32): u32 fulfills DivOp<u32,u32>;
+@intrinsic func _div_u64_u64(left: u64, right: u64): u64 fulfills DivOp<u64,u64>;
+@intrinsic func _div_usize_usize(left: usize, right: usize): usize fulfills DivOp<usize,usize>;
+
+func _mod<TLeft, TRight, F: ModOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+@intrinsic func _mod_i8_i8(left: i8, right: i8): i8 fulfills ModOp<i8,i8>;
+@intrinsic func _mod_i16_i16(left: i16, right: i16): i16 fulfills ModOp<i16,i16>;
+@intrinsic func _mod_i32_i32(left: i32, right: i32): i32 fulfills ModOp<i32,i32>;
+@intrinsic func _mod_i64_i64(left: i64, right: i64): i64 fulfills ModOp<i64,i64>;
+@intrinsic func _mod_isize_isize(left: isize, right: isize): isize fulfills ModOp<isize,isize>;
+@intrinsic func _mod_u8_u8(left: u8, right: u8): u8 fulfills ModOp<u8,u8>;
+@intrinsic func _mod_u16_u16(left: u16, right: u16): u16 fulfills ModOp<u16,u16>;
+@intrinsic func _mod_u32_u32(left: u32, right: u32): u32 fulfills ModOp<u32,u32>;
+@intrinsic func _mod_u64_u64(left: u64, right: u64): u64 fulfills ModOp<u64,u64>;
+@intrinsic func _mod_usize_usize(left: usize, right: usize): usize fulfills ModOp<usize,usize>;
+
+func _equal<TLeft, TRight, F: EqualOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _equal_i8_i8  (left: i8,  right: i8 ): bool fulfills EqualOp<i8, i8>;
+@intrinsic func _equal_i16_i16(left: i16, right: i16): bool fulfills EqualOp<i16, i16>;
+@intrinsic func _equal_i32_i32(left: i32, right: i32): bool fulfills EqualOp<i32, i32>;
+@intrinsic func _equal_i64_i64(left: i64, right: i64): bool fulfills EqualOp<i64, i64>;
+@intrinsic func _equal_isize_isize(left: isize, right: isize): bool fulfills EqualOp<isize, isize>;
+@intrinsic func _equal_usize_usize(left: usize, right: usize): bool fulfills EqualOp<usize, usize>;
+@intrinsic func _equal_u8_u8  (left: u8,  right: u8 ): bool fulfills EqualOp<u8, u8>;
+@intrinsic func _equal_u16_u16(left: u16, right: u16): bool fulfills EqualOp<u16, u16>;
+@intrinsic func _equal_u32_u32(left: u32, right: u32): bool fulfills EqualOp<u32, u32>;
+@intrinsic func _equal_u64_u64(left: u64, right: u64): bool fulfills EqualOp<u64, u64>;
+@intrinsic func _equal_f32_f32(left: f32, right: f32): bool fulfills EqualOp<f32, f32>;
+@intrinsic func _equal_f64_f64(left: f64, right: f64): bool fulfills EqualOp<f64, f64>;
+@intrinsic func _equal_bool_bool(left: bool, right: bool): bool fulfills EqualOp<bool, bool>;
+
+func _not_equal<TLeft, TRight, F: NotEqualOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _not_equal_i8_i8  (left: i8,  right: i8 ): bool fulfills NotEqualOp<i8, i8>;
+@intrinsic func _not_equal_i16_i16(left: i16, right: i16): bool fulfills NotEqualOp<i16, i16>;
+@intrinsic func _not_equal_i32_i32(left: i32, right: i32): bool fulfills NotEqualOp<i32, i32>;
+@intrinsic func _not_equal_i64_i64(left: i64, right: i64): bool fulfills NotEqualOp<i64, i64>;
+@intrinsic func _not_equal_isize_isize(left: isize, right: isize): bool fulfills NotEqualOp<isize, isize>;
+@intrinsic func _not_equal_usize_usize(left: usize, right: usize): bool fulfills NotEqualOp<usize, usize>;
+@intrinsic func _not_equal_u8_u8  (left: u8,  right: u8 ): bool fulfills NotEqualOp<u8, u8>;
+@intrinsic func _not_equal_u16_u16(left: u16, right: u16): bool fulfills NotEqualOp<u16, u16>;
+@intrinsic func _not_equal_u32_u32(left: u32, right: u32): bool fulfills NotEqualOp<u32, u32>;
+@intrinsic func _not_equal_u64_u64(left: u64, right: u64): bool fulfills NotEqualOp<u64, u64>;
+@intrinsic func _not_equal_f32_f32(left: f32, right: f32): bool fulfills NotEqualOp<f32, f32>;
+@intrinsic func _not_equal_f64_f64(left: f64, right: f64): bool fulfills NotEqualOp<f64, f64>;
+@intrinsic func _not_equal_bool_bool(left: bool, right: bool): bool fulfills NotEqualOp<bool, bool>;
+
+func _less_than<TLeft, TRight, F: LessThanOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _less_than_i8_i8  (left: i8,  right: i8 ): bool fulfills LessThanOp<i8, i8>;
+@intrinsic func _less_than_i16_i16(left: i16, right: i16): bool fulfills LessThanOp<i16, i16>;
+@intrinsic func _less_than_i32_i32(left: i32, right: i32): bool fulfills LessThanOp<i32, i32>;
+@intrinsic func _less_than_i64_i64(left: i64, right: i64): bool fulfills LessThanOp<i64, i64>;
+@intrinsic func _less_than_isize_isize(left: isize, right: isize): bool fulfills LessThanOp<isize, isize>;
+@intrinsic func _less_than_usize_usize(left: usize, right: usize): bool fulfills LessThanOp<usize, usize>;
+@intrinsic func _less_than_u8_u8  (left: u8,  right: u8 ): bool fulfills LessThanOp<u8, u8>;
+@intrinsic func _less_than_u16_u16(left: u16, right: u16): bool fulfills LessThanOp<u16, u16>;
+@intrinsic func _less_than_u32_u32(left: u32, right: u32): bool fulfills LessThanOp<u32, u32>;
+@intrinsic func _less_than_u64_u64(left: u64, right: u64): bool fulfills LessThanOp<u64, u64>;
+@intrinsic func _less_than_f32_f32(left: f32, right: f32): bool fulfills LessThanOp<f32, f32>;
+@intrinsic func _less_than_f64_f64(left: f64, right: f64): bool fulfills LessThanOp<f64, f64>;
+
+func _greater_than<TLeft, TRight, F: GreaterThanOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _greater_than_i8_i8  (left: i8,  right: i8 ): bool fulfills GreaterThanOp<i8, i8>;
+@intrinsic func _greater_than_i16_i16(left: i16, right: i16): bool fulfills GreaterThanOp<i16, i16>;
+@intrinsic func _greater_than_i32_i32(left: i32, right: i32): bool fulfills GreaterThanOp<i32, i32>;
+@intrinsic func _greater_than_i64_i64(left: i64, right: i64): bool fulfills GreaterThanOp<i64, i64>;
+@intrinsic func _greater_than_isize_isize(left: isize, right: isize): bool fulfills GreaterThanOp<isize, isize>;
+@intrinsic func _greater_than_usize_usize(left: usize, right: usize): bool fulfills GreaterThanOp<usize, usize>;
+@intrinsic func _greater_than_u8_u8  (left: u8,  right: u8 ): bool fulfills GreaterThanOp<u8, u8>;
+@intrinsic func _greater_than_u16_u16(left: u16, right: u16): bool fulfills GreaterThanOp<u16, u16>;
+@intrinsic func _greater_than_u32_u32(left: u32, right: u32): bool fulfills GreaterThanOp<u32, u32>;
+@intrinsic func _greater_than_u64_u64(left: u64, right: u64): bool fulfills GreaterThanOp<u64, u64>;
+@intrinsic func _greater_than_f32_f32(left: f32, right: f32): bool fulfills GreaterThanOp<f32, f32>;
+@intrinsic func _greater_than_f64_f64(left: f64, right: f64): bool fulfills GreaterThanOp<f64, f64>;
+
+func _less_equal<TLeft, TRight, F: LessEqualOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _less_equal_i8_i8  (left: i8,  right: i8 ): bool fulfills LessEqualOp<i8, i8>;
+@intrinsic func _less_equal_i16_i16(left: i16, right: i16): bool fulfills LessEqualOp<i16, i16>;
+@intrinsic func _less_equal_i32_i32(left: i32, right: i32): bool fulfills LessEqualOp<i32, i32>;
+@intrinsic func _less_equal_i64_i64(left: i64, right: i64): bool fulfills LessEqualOp<i64, i64>;
+@intrinsic func _less_equal_isize_isize(left: isize, right: isize): bool fulfills LessEqualOp<isize, isize>;
+@intrinsic func _less_equal_usize_usize(left: usize, right: usize): bool fulfills LessEqualOp<usize, usize>;
+@intrinsic func _less_equal_u8_u8  (left: u8,  right: u8 ): bool fulfills LessEqualOp<u8, u8>;
+@intrinsic func _less_equal_u16_u16(left: u16, right: u16): bool fulfills LessEqualOp<u16, u16>;
+@intrinsic func _less_equal_u32_u32(left: u32, right: u32): bool fulfills LessEqualOp<u32, u32>;
+@intrinsic func _less_equal_u64_u64(left: u64, right: u64): bool fulfills LessEqualOp<u64, u64>;
+@intrinsic func _less_equal_f32_f32(left: f32, right: f32): bool fulfills LessEqualOp<f32, f32>;
+@intrinsic func _less_equal_f64_f64(left: f64, right: f64): bool fulfills LessEqualOp<f64, f64>;
+
+func _greater_equal<TLeft, TRight, F: GreaterEqualOp<TLeft, TRight>>(left: TLeft, right: TRight): bool {
+  return F(left, right);
+}
+@intrinsic func _greater_equal_i8_i8  (left: i8,  right: i8 ): bool fulfills GreaterEqualOp<i8, i8>;
+@intrinsic func _greater_equal_i16_i16(left: i16, right: i16): bool fulfills GreaterEqualOp<i16, i16>;
+@intrinsic func _greater_equal_i32_i32(left: i32, right: i32): bool fulfills GreaterEqualOp<i32, i32>;
+@intrinsic func _greater_equal_i64_i64(left: i64, right: i64): bool fulfills GreaterEqualOp<i64, i64>;
+@intrinsic func _greater_equal_isize_isize(left: isize, right: isize): bool fulfills GreaterEqualOp<isize, isize>;
+@intrinsic func _greater_equal_usize_usize(left: usize, right: usize): bool fulfills GreaterEqualOp<usize, usize>;
+@intrinsic func _greater_equal_u8_u8  (left: u8,  right: u8 ): bool fulfills GreaterEqualOp<u8, u8>;
+@intrinsic func _greater_equal_u16_u16(left: u16, right: u16): bool fulfills GreaterEqualOp<u16, u16>;
+@intrinsic func _greater_equal_u32_u32(left: u32, right: u32): bool fulfills GreaterEqualOp<u32, u32>;
+@intrinsic func _greater_equal_u64_u64(left: u64, right: u64): bool fulfills GreaterEqualOp<u64, u64>;
+@intrinsic func _greater_equal_f32_f32(left: f32, right: f32): bool fulfills GreaterEqualOp<f32, f32>;
+@intrinsic func _greater_equal_f64_f64(left: f64, right: f64): bool fulfills GreaterEqualOp<f64, f64>;
+// Shifts.
+func _shift_left<TLeft, TRight, F: ShiftLeftOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+
+func _shift_right<TLeft, TRight, F: ShiftRightOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+
+// Bitwise.
+func _bit_not<T, F: BitNotOp<T>>(item: T): F::TResult {
+  return F(item);
+}
+
+func _bit_and<TLeft, TRight, F: BitAndOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+
+func _bit_xor<TLeft, TRight, F: BitXorOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+
+func _bit_or<TLeft, TRight, F: BitOrOp<TLeft, TRight>>(left: TLeft, right: TRight): F::TResult {
+  return F(left, right);
+}
+
+@intrinsic func as_readonly<T>(item: &T): &readonly T;
+
+@intrinsic func as_writeonly<T>(item: &T): &writeonly T;
+
+// EqualOp reference family: 4x4 full matrix, all lower to pointer equality.
+
+@intrinsic func _equal_ref_rw_rw<T>(left: &T, right: &T): bool fulfills EqualOp<&T, &T>;
+@intrinsic func _equal_ref_rw_ro<T>(left: &T, right: &readonly T): bool fulfills EqualOp<&T, &readonly T>;
+@intrinsic func _equal_ref_rw_wo<T>(left: &T, right: &writeonly T): bool fulfills EqualOp<&T, &writeonly T>;
+@intrinsic func _equal_ref_rw_na<T>(left: &T, right: &noaccess T): bool fulfills EqualOp<&T, &noaccess T>;
+
+@intrinsic func _equal_ref_ro_rw<T>(left: &readonly T, right: &T): bool fulfills EqualOp<&readonly T, &T>;
+@intrinsic func _equal_ref_ro_ro<T>(left: &readonly T, right: &readonly T): bool fulfills EqualOp<&readonly T, &readonly T>;
+@intrinsic func _equal_ref_ro_wo<T>(left: &readonly T, right: &writeonly T): bool fulfills EqualOp<&readonly T, &writeonly T>;
+@intrinsic func _equal_ref_ro_na<T>(left: &readonly T, right: &noaccess T): bool fulfills EqualOp<&readonly T, &noaccess T>;
+
+@intrinsic func _equal_ref_wo_rw<T>(left: &writeonly T, right: &T): bool fulfills EqualOp<&writeonly T, &T>;
+@intrinsic func _equal_ref_wo_ro<T>(left: &writeonly T, right: &readonly T): bool fulfills EqualOp<&writeonly T, &readonly T>;
+@intrinsic func _equal_ref_wo_wo<T>(left: &writeonly T, right: &writeonly T): bool fulfills EqualOp<&writeonly T, &writeonly T>;
+@intrinsic func _equal_ref_wo_na<T>(left: &writeonly T, right: &noaccess T): bool fulfills EqualOp<&writeonly T, &noaccess T>;
+
+@intrinsic func _equal_ref_na_rw<T>(left: &noaccess T, right: &T): bool fulfills EqualOp<&noaccess T, &T>;
+@intrinsic func _equal_ref_na_ro<T>(left: &noaccess T, right: &readonly T): bool fulfills EqualOp<&noaccess T, &readonly T>;
+@intrinsic func _equal_ref_na_wo<T>(left: &noaccess T, right: &writeonly T): bool fulfills EqualOp<&noaccess T, &writeonly T>;
+@intrinsic func _equal_ref_na_na<T>(left: &noaccess T, right: &noaccess T): bool fulfills EqualOp<&noaccess T, &noaccess T>;

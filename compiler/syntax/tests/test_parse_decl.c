@@ -482,6 +482,43 @@ void test_contract_decl_forms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo();"), r.rem.start);
 }
 
+void test_contract_decl_wildcard_return(void) {
+  fx_begin("contract AddOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;");
+  SyntaxNodeResult r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_CONTRACT_DECL, r.node->kind);
+  const SyntaxContractDecl *d = (const SyntaxContractDecl *)r.node;
+  TEST_ASSERT_STRVIEW_EQ(d->id->value, "AddOp");
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->generic_params));
+  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->call_params));
+  TEST_ASSERT_NULL(d->return_type); // wildcard form excludes the type form
+  TEST_ASSERT_NOT_NULL(d->wildcard_return);
+  TEST_ASSERT_STRVIEW_EQ(d->wildcard_return->value, "TResult");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract AddOp<TLeft, TRight>(left: TLeft, right: TRight): *TResult;"),
+                           r.rem.start);
+
+  fx_begin("contract Index<TContainer, TIndex>(container: TContainer, index: TIndex): *TValue;");
+  r = parse_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxContractDecl *)r.node;
+  TEST_ASSERT_NULL(d->return_type);
+  TEST_ASSERT_STRVIEW_EQ(d->wildcard_return->value, "TValue");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Index<TContainer, TIndex>(container: TContainer, index: TIndex): *TValue;"),
+                           r.rem.start);
+
+  // Non-generic contract with a wildcard output.
+  fx_begin("contract Query(): *Answer;");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  d = (const SyntaxContractDecl *)r.node;
+  TEST_ASSERT_NULL(d->return_type);
+  TEST_ASSERT_STRVIEW_EQ(d->wildcard_return->value, "Answer");
+  TEST_ASSERT_NULL(r.errors);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Query(): *Answer;"), r.rem.start);
+}
+
 void test_contract_decl_malforms(void) {
   fx_begin("contract Foo");
   SyntaxNodeResult r = parse_contract_decl(fx_parser, source_get_span(fx_source));
@@ -513,6 +550,16 @@ void test_contract_decl_malforms(void) {
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_TYPE, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(): ;"), r.rem.start);
+
+  // A bare `*` still consumes the clause; the wildcard name is diagnosed.
+  fx_begin("contract Foo(): *;");
+  r = parse_contract_decl(fx_parser, source_get_span(fx_source));
+  TEST_ASSERT_TRUE(r.matched);
+  TEST_ASSERT_NULL(((const SyntaxContractDecl *)r.node)->return_type);
+  TEST_ASSERT_NULL(((const SyntaxContractDecl *)r.node)->wildcard_return);
+  TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
+  TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_IDENTIFIER, r.errors->head.code);
+  TEST_ASSERT_EQUAL_size_t(strlen("contract Foo(): *;"), r.rem.start);
 }
 
 /* ---- func declaration --------------------------------------------------- */
@@ -620,6 +667,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"enum_decl_field_malform", test_enum_decl_field_malform},
     {"variant_decl_forms", test_variant_decl_forms},
     {"contract_decl_forms", test_contract_decl_forms},
+    {"contract_decl_wildcard_return", test_contract_decl_wildcard_return},
     {"contract_decl_malforms", test_contract_decl_malforms},
     {"func_decl_full_ladder", test_func_decl_full_ladder},
     {"func_decl_body_forms", test_func_decl_body_forms},
