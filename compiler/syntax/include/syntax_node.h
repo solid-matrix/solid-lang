@@ -44,8 +44,6 @@ typedef enum {
   SYNTAX_KIND_ENUM_DECL,
   SYNTAX_KIND_UNION_FIELD, // auxilliary
   SYNTAX_KIND_UNION_DECL,
-  SYNTAX_KIND_VARIANT_FIELD, // auxilliary
-  SYNTAX_KIND_VARIANT_DECL,
   SYNTAX_KIND_CONTRACT_DECL,
   SYNTAX_KIND_FUNC_DECL,
 
@@ -320,28 +318,6 @@ typedef struct {
   SyntaxNodeList *generic_params; // SyntaxGenericParam nodes
   SyntaxNodeList *fields;         // SyntaxUnionField nodes
 } SyntaxUnionDecl;
-
-/**
- * @brief Variant field `[annotations] name [: type]`.
- */
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList *annotations; // SyntaxCompileTime nodes
-  SyntaxIdentifier *id;
-  SyntaxNode *type; // type node
-} SyntaxVariantField;
-
-/**
- * @brief Variant declaration `[annotations] variant Name[: behind][<params>] { fields }`.
- */
-typedef struct {
-  SyntaxNode header;
-  SyntaxNodeList *annotations; // SyntaxCompileTime nodes
-  SyntaxIdentifier *id;
-  SyntaxNode *behind_type;        // type node
-  SyntaxNodeList *generic_params; // SyntaxGenericParam nodes
-  SyntaxNodeList *fields;         // SyntaxVariantField nodes
-} SyntaxVariantDecl;
 
 /**
  * @brief Contract declaration `contract Name[<params>](call params)[: return];`.

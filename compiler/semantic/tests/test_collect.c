@@ -154,7 +154,6 @@ void test_all_decl_kinds_defined(void) {
                      "struct S;\n"
                      "enum E { A }\n"
                      "union U { m:i32 }\n"
-                     "variant V { None, Some:i32 }\n"
                      "contract C(p:i32):i32;\n"
                      "func f():i32;\n";
   SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, text));
@@ -165,7 +164,6 @@ void test_all_decl_kinds_defined(void) {
   TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "S"));
   TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "E"));
   TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "U"));
-  TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "V"));
   TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "C"));
   TEST_ASSERT_NOT_NULL(lookup_at(r.symbol_table, a, 2, "app", "f"));
 

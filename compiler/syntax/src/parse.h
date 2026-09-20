@@ -41,7 +41,6 @@ static const Strview KEYWORD_RETURN = STRVIEW("return");
 static const Strview KEYWORD_STRUCT = STRVIEW("struct");
 static const Strview KEYWORD_UNION = STRVIEW("union");
 static const Strview KEYWORD_ENUM = STRVIEW("enum");
-static const Strview KEYWORD_VARIANT = STRVIEW("variant");
 static const Strview KEYWORD_CONTRACT = STRVIEW("contract");
 static const Strview KEYWORD_FUNC = STRVIEW("func");
 static const Strview KEYWORD_FULFILLS = STRVIEW("fulfills");
@@ -49,7 +48,7 @@ static const Strview KEYWORD_FULFILLS = STRVIEW("fulfills");
 // §3: keywords are not identifiers; parse_identifier excludes these.
 static const Strview KEYWORDS[] = {
     KEYWORD_NAMESPACE, KEYWORD_USING,    KEYWORD_FUNC,    KEYWORD_CONTRACT, KEYWORD_FULFILLS, KEYWORD_STRUCT,
-    KEYWORD_ENUM,      KEYWORD_UNION,    KEYWORD_VARIANT, KEYWORD_LET,      KEYWORD_IF,       KEYWORD_ELSE,
+    KEYWORD_ENUM,      KEYWORD_UNION,    KEYWORD_LET,      KEYWORD_IF,       KEYWORD_ELSE,
     KEYWORD_LOOP,      KEYWORD_WHILE,    KEYWORD_BREAK,   KEYWORD_CONTINUE, KEYWORD_RETURN,   KEYWORD_READONLY,
     KEYWORD_WRITEONLY, KEYWORD_NOACCESS, KEYWORD_SET,
 };
@@ -489,14 +488,6 @@ SyntaxNodeResult parse_enum_decl(const SyntaxParser *parser, Span span);
  * @return Parse outcome; see SyntaxNodeResult.
  */
 SyntaxNodeResult parse_union_decl(const SyntaxParser *parser, Span span);
-
-/**
- * @brief Parses `[annotations] variant Name[: behind][<params>] { fields }`.
- * @param parser Parsing context.
- * @param span Where the construct starts.
- * @return Parse outcome; see SyntaxNodeResult.
- */
-SyntaxNodeResult parse_variant_decl(const SyntaxParser *parser, Span span);
 
 /**
  * @brief Parses `contract Name[<params>](call params)[: return];`.

@@ -58,7 +58,7 @@ typedef struct {
  *          are bound against the frozen world table @p symbols plus the
  *          per-file lexical scopes resolve builds as it walks. Qualified
  *          paths and using targets are module-relative first, world-root
- *          second; enum/variant members resolve through their declaration.
+ *          second; enum members resolve through their declaration.
  *          A resolution error never stops the walk.
  * @param arena Backs the map and every diagnostic; must outlive both.
  * @param symbols The frozen world table from collect.

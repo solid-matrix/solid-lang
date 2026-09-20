@@ -366,7 +366,7 @@ void test_union_decl_forms(void) {
   TEST_ASSERT_EQUAL_size_t(strlen("union FooUnion<T> { value: T, ptr: &T }"), r.rem.start);
 }
 
-/* ---- enum / variant declarations --------------------------------------- */
+/* ---- enum declarations --------------------------------------- */
 
 void test_enum_decl_forms(void) {
   fx_begin("enum Color;");
@@ -422,36 +422,6 @@ void test_enum_decl_field_malform(void) {
   TEST_ASSERT_EQUAL_size_t(1, error_chain_length(r.errors));
   TEST_ASSERT_EQUAL_HEX32(SYNTAX_EXPECTED_EXPR, r.errors->head.code);
   TEST_ASSERT_EQUAL_size_t(strlen("enum C { A = }"), r.rem.start);
-}
-
-void test_variant_decl_forms(void) {
-  fx_begin("variant Option;");
-  SyntaxNodeResult r = parse_decl(fx_parser, source_get_span(fx_source));
-  TEST_ASSERT_TRUE(r.matched);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_VARIANT_DECL, r.node->kind);
-  TEST_ASSERT_NULL(r.errors);
-
-  fx_begin("variant Option<T> { None, Value: T }");
-  r = parse_variant_decl(fx_parser, source_get_span(fx_source));
-  TEST_ASSERT_TRUE(r.matched);
-  const SyntaxVariantDecl *d = (const SyntaxVariantDecl *)r.node;
-  TEST_ASSERT_STRVIEW_EQ(d->id->value, "Option");
-  TEST_ASSERT_EQUAL_size_t(1, syntax_nodelist_length(d->generic_params));
-  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_STRVIEW_EQ(((const SyntaxVariantField *)d->fields->head)->id->value, "None"); // source order
-  TEST_ASSERT_NULL(((const SyntaxVariantField *)d->fields->head)->type);
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, ((const SyntaxVariantField *)d->fields->tail->head)->type->kind);
-  TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(strlen("variant Option<T> { None, Value: T }"), r.rem.start);
-
-  fx_begin("variant State: u8 { Idle, Run, }");
-  r = parse_variant_decl(fx_parser, source_get_span(fx_source));
-  TEST_ASSERT_TRUE(r.matched);
-  d = (const SyntaxVariantDecl *)r.node;
-  TEST_ASSERT_EQUAL_HEX32(SYNTAX_KIND_NAMED, d->behind_type->kind);
-  TEST_ASSERT_EQUAL_size_t(2, syntax_nodelist_length(d->fields));
-  TEST_ASSERT_NULL(r.errors);
-  TEST_ASSERT_EQUAL_size_t(strlen("variant State: u8 { Idle, Run, }"), r.rem.start);
 }
 
 /* ---- contract declaration ---------------------------------------------- */
@@ -665,7 +635,6 @@ static const TestDispatchEntry ENTRIES[] = {
     {"enum_decl_forms", test_enum_decl_forms},
     {"enum_decl_trailing_comma", test_enum_decl_trailing_comma},
     {"enum_decl_field_malform", test_enum_decl_field_malform},
-    {"variant_decl_forms", test_variant_decl_forms},
     {"contract_decl_forms", test_contract_decl_forms},
     {"contract_decl_wildcard_return", test_contract_decl_wildcard_return},
     {"contract_decl_malforms", test_contract_decl_malforms},

@@ -19,7 +19,7 @@ bool syntax_node_is_decl(const SyntaxNode *node) {
   return node->kind == SYNTAX_KIND_NAMESPACE_DECL || node->kind == SYNTAX_KIND_USING_DECL ||
          node->kind == SYNTAX_KIND_LET_DECL || node->kind == SYNTAX_KIND_STRUCT_DECL ||
          node->kind == SYNTAX_KIND_ENUM_DECL || node->kind == SYNTAX_KIND_UNION_DECL ||
-         node->kind == SYNTAX_KIND_VARIANT_DECL || node->kind == SYNTAX_KIND_CONTRACT_DECL ||
+         node->kind == SYNTAX_KIND_CONTRACT_DECL ||
          node->kind == SYNTAX_KIND_FUNC_DECL;
 }
 

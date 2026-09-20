@@ -45,7 +45,6 @@ static bool is_type_entity(const SyntaxNode *decl) {
   case SYNTAX_KIND_STRUCT_DECL:
   case SYNTAX_KIND_ENUM_DECL:
   case SYNTAX_KIND_UNION_DECL:
-  case SYNTAX_KIND_VARIANT_DECL:
   case SYNTAX_KIND_CONTRACT_DECL:
   case SYNTAX_KIND_GENERIC_PARAM:
     return true;
@@ -62,8 +61,6 @@ static size_t generic_param_count(const SyntaxNode *decl) {
     return syntax_nodelist_length(((const SyntaxStructDecl *)decl)->generic_params);
   case SYNTAX_KIND_UNION_DECL:
     return syntax_nodelist_length(((const SyntaxUnionDecl *)decl)->generic_params);
-  case SYNTAX_KIND_VARIANT_DECL:
-    return syntax_nodelist_length(((const SyntaxVariantDecl *)decl)->generic_params);
   case SYNTAX_KIND_CONTRACT_DECL:
     return syntax_nodelist_length(((const SyntaxContractDecl *)decl)->generic_params);
   case SYNTAX_KIND_FUNC_DECL:
@@ -78,8 +75,6 @@ static const SyntaxIdentifier *field_id(const SyntaxNode *field) {
   switch (field->kind) {
   case SYNTAX_KIND_ENUM_FIELD:
     return ((const SyntaxEnumField *)field)->id;
-  case SYNTAX_KIND_VARIANT_FIELD:
-    return ((const SyntaxVariantField *)field)->id;
   case SYNTAX_KIND_STRUCT_FIELD:
     return ((const SyntaxStructField *)field)->id;
   default:
@@ -190,11 +185,10 @@ static SemanticResolveResult resolve_named(Resolver r, SyntaxNamed *named, bool 
     Span member_span = ((SyntaxIdentifier *)member_seg)->header.span;
 
     SyntaxNode *field = NULL;
-    bool supported = decl->kind == SYNTAX_KIND_ENUM_DECL || decl->kind == SYNTAX_KIND_VARIANT_DECL;
+    bool supported = decl->kind == SYNTAX_KIND_ENUM_DECL;
     if (supported && match.matched + 2 >= depth) {
       Strview name = ((SyntaxIdentifier *)member_seg)->value;
-      const SyntaxNodeList *fields = decl->kind == SYNTAX_KIND_ENUM_DECL ? ((const SyntaxEnumDecl *)decl)->fields
-                                                                         : ((const SyntaxVariantDecl *)decl)->fields;
+      const SyntaxNodeList *fields = ((const SyntaxEnumDecl *)decl)->fields;
       for (const SyntaxNodeList *it = fields; it != NULL; it = it->tail) {
         if (strview_compare(field_id(it->head)->value, name) == 0) {
           field = it->head;
@@ -528,42 +522,6 @@ static SemanticResolveResult resolve_union_decl(Resolver r, SyntaxUnionDecl *dec
   return (SemanticResolveResult){.binding_table = r.binding_table, .errors = r.errors};
 }
 
-static SemanticResolveResult resolve_variant_decl(Resolver r, SyntaxVariantDecl *decl) {
-  SemanticResolveResult res = resolve_type(r, decl->behind_type);
-  r.binding_table = res.binding_table;
-  r.errors = res.errors;
-
-  SemanticSymbolTableList *level = semantic_symbol_table_list_empty();
-  level = semantic_symbol_table_list_prepend(r.arena, level, semantic_symbol_table_empty());
-  r.chain = semantic_symbol_table_chain_prepend(r.arena, r.chain, level);
-
-  res = resolve_generic_params(r, decl->generic_params);
-  r.binding_table = res.binding_table;
-  r.errors = res.errors;
-
-  for (const SyntaxNodeList *it = decl->fields; it != NULL; it = it->tail) {
-    const SyntaxVariantField *field = (const SyntaxVariantField *)it->head;
-    res = resolve_type(r, field->type);
-    r.binding_table = res.binding_table;
-    r.errors = res.errors;
-  }
-
-  for (const SyntaxNodeList *it = decl->fields; it != NULL; it = it->tail) {
-    Strview iname = ((const SyntaxVariantField *)it->head)->id->value;
-
-    for (const SyntaxNodeList *jt = it->tail; jt != NULL; jt = jt->tail) {
-      Strview jname = ((const SyntaxVariantField *)jt->head)->id->value;
-
-      if (strview_equals(iname, jname)) {
-        SemanticError error = semantic_error_create(SEMANTIC_DUPLICATE_FIELD_NAME, jt->head->span);
-        r.errors = semantic_errorlist_prepend(r.arena, r.errors, error);
-        break;
-      }
-    }
-  }
-
-  return (SemanticResolveResult){.binding_table = r.binding_table, .errors = r.errors};
-}
 
 static SemanticResolveResult resolve_enum_decl(Resolver r, SyntaxEnumDecl *decl) {
   SemanticResolveResult res = resolve_type(r, decl->behind_type);
@@ -662,8 +620,6 @@ static SemanticResolveResult resolve_decl(Resolver r, SyntaxNode *decl) {
     return resolve_struct_decl(r, (SyntaxStructDecl *)decl);
   case SYNTAX_KIND_UNION_DECL:
     return resolve_union_decl(r, (SyntaxUnionDecl *)decl);
-  case SYNTAX_KIND_VARIANT_DECL:
-    return resolve_variant_decl(r, (SyntaxVariantDecl *)decl);
   case SYNTAX_KIND_ENUM_DECL:
     return resolve_enum_decl(r, (SyntaxEnumDecl *)decl);
   case SYNTAX_KIND_CONTRACT_DECL:

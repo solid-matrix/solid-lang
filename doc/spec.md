@@ -143,7 +143,7 @@ Every expression is type-self-contained: the type of an expression is determined
 
 ### 5.3 enum
 
-An enum declaration `enum Name [: Type] { members }` is semantically equivalent to a wrapper struct holding the behind value, with each member materialized as a constant of the enum type under the enum's name: `Color::Red` is an ordinary path descent, subject to no member-specific rules.
+An enum declaration `enum Name [: Type] { members }` is semantically equivalent to a wrapper struct holding the behind value, with each member materialized as a constant of the enum type under the enum's name: `Color::Red` is an ordinary path descent, subject to no member-specific rules. The `;` form is ill-formed for enums — an empty enum is spelled `enum E {}` (§4.7); enums have no `@intrinsic` form.
 
 - A member is a constant of the enum type. Member names live in the namespace descended from the enum's name; two members with the same name are ill-formed.
 - A discriminant `name [= Expression]` with the expression omitted takes the previous value plus one (the first member defaults to zero). A discriminant shall be a constant expression (§10.1); an integer literal used as a discriminant shall carry the suffix of the behind type (§4.4). Two members with equal discriminant values are well-formed.

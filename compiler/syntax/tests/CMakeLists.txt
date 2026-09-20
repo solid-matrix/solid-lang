@@ -64,7 +64,7 @@ set(PARSE_DECL_CASES namespace_decl_valid_forms using_decl_valid_forms decl_keyw
     namespace_decl_malforms using_decl_malforms let_decl_three_forms let_decl_malforms
     struct_decl_bare_and_empty_body struct_decl_fields_and_trailing_comma struct_decl_generics
     struct_decl_generics_malforms struct_field_frames struct_decl_body_malforms union_decl_forms
-    enum_decl_forms enum_decl_trailing_comma enum_decl_field_malform variant_decl_forms contract_decl_forms
+    enum_decl_forms enum_decl_trailing_comma enum_decl_field_malform contract_decl_forms
     contract_decl_malforms func_decl_full_ladder func_decl_body_forms func_decl_callconv_and_fulfills
     generic_fulfills)
 foreach(case_name IN LISTS PARSE_DECL_CASES)

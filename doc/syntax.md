@@ -74,10 +74,10 @@ Comments serve as program documentation, start with the character sequence `"//"
 ### Keywords
 
 ```
-namespace   using       func        contract    fulfills    struct      
-enum        union       variant     let         if          else        
-loop        while       break       continue    return      readonly
-writeonly   noaccess    set
+namespace   using       func        contract    fulfills    struct
+enum        union       let         if          else        loop
+while       break       continue    return      readonly    writeonly
+noaccess    set
 ```
 
 ### Operators and Punctuation
@@ -252,7 +252,7 @@ Example:
 Syntax:
 
 ```
-Program = [ NamespaceDecl ] { UsingDecl } { LetDecl | StructDecl | EnumDecl | UnionDecl | VariantDecl | ContractDecl | FuncDecl } .
+Program = [ NamespaceDecl ] { UsingDecl } { LetDecl | StructDecl | EnumDecl | UnionDecl | ContractDecl | FuncDecl } .
 ```
 
 ### Namespace Declarations
@@ -380,27 +380,6 @@ union SomeUnion {
 }
 
 union FooUnion<T> { value: T, ptr: &T }
-```
-
-### Variant Declarations
-
-Syntax:
-
-```
-VariantDecl       = [ Annotations ] "variant" identifier [ "<" GenericParams ">" ] [ ":" Type ]
-                    ( ";" | "{" [ VariantDeclFields ] "}" ) .
-
-VariantDeclFields = VariantDeclField { "," VariantDeclField } [ "," ] .
-VariantDeclField  = [ Annotations ] identifier [ ":" Type ] .
-```
-
-Example:
-
-```
-variant Option<T>{
-	None,
-	Value: T,
-}
 ```
 
 ### Contract Declarations

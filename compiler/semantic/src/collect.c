@@ -26,8 +26,6 @@ static Strview decl_name(SyntaxNode *decl) {
     return ((SyntaxEnumDecl *)decl)->id->value;
   case SYNTAX_KIND_UNION_DECL:
     return ((SyntaxUnionDecl *)decl)->id->value;
-  case SYNTAX_KIND_VARIANT_DECL:
-    return ((SyntaxVariantDecl *)decl)->id->value;
   case SYNTAX_KIND_CONTRACT_DECL:
     return ((SyntaxContractDecl *)decl)->id->value;
   case SYNTAX_KIND_FUNC_DECL:
