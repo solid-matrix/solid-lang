@@ -130,7 +130,24 @@ Every expression is type-self-contained: the type of an expression is determined
   2. `@feature let` — package configuration knobs (§12.3);
   3. `@import` — import of an external global symbol (§5.6).
 - A top-level let binds an immutable name with value semantics: binding copies aggregates whole. Global mutable state does not use `let`; it uses a `@static` reference with `set` (§11).
-- Every top-level initializer shall be a constant expression (§10.1). There is no run-time global initialization; state that requires run-time computation is given a constant initial value via `@static` and initialized explicitly at the start of `main`.
+- A top-level initializer shall be one of the following; anything else is ill-formed:
+  - a **constant expression** (§10.1) that is neither floating-point arithmetic nor layout-dependent — a *foldable constant*: evaluated at P1, joins the constant world (§10.3), may feed `@when` guards;
+  - an **unfoldable initializer** — a constant-form initializer (§10.1) containing floating-point arithmetic or layout-dependent queries: the value is resolved after checking (layout, P6) or at the IR-generation stage (floating-point, exact IEEE semantics); it does not fold at P1 and never feeds `@when` guards. May reference foldable and other unfoldable constants;
+  - `@const(e)` / `@static(e)` — an **address binding**: the binding holds the static object's symbol; it does not fold and never feeds `@when` guards. `e` shall itself be a constant expression (§10.1), floating-point arithmetic included — its well-formedness is verified during checking (P6), and the object's contents are materialized at the IR-generation stage;
+  - a **symbolic initializer** — a function name, an address binding, or a composite literal whose elements are symbolic — the binding lowers as a static initializer with relocations; it does not fold and never feeds `@when` guards.
+- A foldable initializer that references an unfoldable, address-binding, or symbolic binding is ill-formed (the constant world is closed). Arithmetic or comparison over symbolic values is a type error (checked in P6).
+- There is no run-time global initialization; state that requires run-time computation is given a constant initial value via `@static` and initialized explicitly at the start of `main`.
+
+```solid
+func read(n: u32): u32 { return n; }
+func write(n: u32): u32 { return n; }
+
+let T = [2u]&func(u32):u32{read, write};            // symbolic: value form
+let S = @static([2u]&func(u32):u32{read, write});   // symbolic: storage with relocations
+
+let PI: f64 = 3.14159265358979_d;                   // foldable: literal
+let DEG2RAD: f64 = PI / 180.0_d;                    // unfoldable: resolved at IR generation
+```
 - Top-level initialization is evaluated in dependency (topological) order; a dependency cycle is ill-formed. Initializer-less lets do not participate.
 
 ### 5.2 struct and union
@@ -175,6 +192,7 @@ An enum declaration `enum Name [: Type] { members }` is semantically equivalent 
 - An ordinary (non-FFI) function with an explicit callconv is the C-callback form: the function is called from C but need not export a symbol.
 - `@import(LIBRARY, SYMBOL) func f(...)...;` imports an external function (`@import(SYMBOL)` names the symbol only; the library is decided at link time). `@import` on a let imports an external global (§5.1).
 - `@export` exports the function under a C symbol for external callers. The symbol name is unmangled and defaults to the declared name; `@export("alias")` renames it. Parameter and return types are unrestricted; cross-boundary type correctness is the programmer's responsibility. `@export` concerns only the binary symbol level.
+- `@export` also applies to **address-binding lets** (§5.1): `@export let NAME [: &T] = @const(e) | @static(e);` exports the static object's symbol under `NAME` (or the alias form); the C-side type is the pointee type, read-only for `@const`. A foldable constant has no storage and cannot be exported. `@import` and `@export` on one declaration together are ill-formed.
 - Callback type safety: since `&func` equality includes the callconv (§4.5), a function value with the internal convention cannot flow into a `&func(...)[cdecl]` parameter; the ABI of a callback is enforced by the type system.
 
 ## 6. Names, paths, and scopes
@@ -289,7 +307,7 @@ Expressions have no lvalue/rvalue distinction. Direction is determined by the op
 
 - Literal typing follows §4.8.
 - A struct literal's type is explicit; omitted fields are zero-filled; `{}` is all-zero; unknown or duplicated fields are ill-formed.
-- An array literal `[N]T{ e1, ... }` with an element count other than `N`, or with inconsistent element types, is ill-formed.
+- An array literal `[N]T{ e1, ... }` with more elements than `N`, or with inconsistent element types, is ill-formed. Fewer elements than `N` are zero-filled; `{}` is the all-zero value.
 - `@` built-ins are primary expressions (§11.2).
 - Nested literals infer nothing (§4.8).
 
@@ -347,15 +365,27 @@ Expressions have no lvalue/rvalue distinction. Direction is determined by the op
 
 ### 10.1 Constant expressions
 
-A constant expression is evaluated at compile time by an evaluator whose scope is:
+A *constant expression* is the closed expression sub-language evaluated at compile time. Its forms:
 
-- constant folding of the built-in arithmetic and comparison operators over literals, including `String8` equality (core's derived platform flags fold through it);
-- the type queries `@sizeof(T)`, `@alignof(T)`, `@offsetof(T, field)`, `@nameof(T)`;
-- suffixed literals;
-- constant generic parameters;
+- suffixed integer, floating-point, rune, and string literals;
+- struct and array literals whose elements are constant expressions;
+- references to foldable constants, to constant generic parameters, and to core's `true` / `false`;
+- the operators of the foldable set below;
+- the type queries `@sizeof(T)`, `@alignof(T)`, `@offsetof(T, field)`, `@nameof(T)` — a constant expression referencing them is *layout-dependent* and is evaluated during checking (P6);
 - no function calls, and no other language constructs.
 
-Floating-point arithmetic is not evaluated at compile time. An operation whose run-time counterpart would panic (§14.2) is ill-formed in a constant context — there is no undefined behavior at compile time.
+**Foldable operator set** (strictly same-type operands — no promotion; mixing types is ill-formed):
+
+| Operand type | Operators | Constant semantics |
+|---|---|---|
+| integers | unary `- + ~`; `+ - * / %`; `<< >>`; `& ^ \|`; comparisons `== != < > <= >=` | overflow wraps; division/remainder by zero, `INT_MIN / -1`, and a shift count ≥ bit width are ill-formed in constant context; shifts fold logical (unsigned) / arithmetic (signed) |
+| `bool` | `! && \|\| == !=` | `&&` / `||` fold with short-circuit: a right operand that would panic at run time is not diagnosed when the left operand short-circuits it |
+| `String8` | `== !=` | content equality (core's derived platform flags fold through it) |
+| `Rune` | `== !=` | value equality |
+
+Floating-point operators are not part of the constant-expression language: an initializer containing a floating-point operator — arithmetic or comparison, including between two literals — is an *unfoldable* initializer (§5.1), resolved at the IR-generation stage with exact IEEE semantics for `f32` / `f64`; floating-point division by zero is defined (`±inf`, IEEE) and requires no diagnostic. Floating-point literals themselves, and composites over them, are constant expressions. The foldable set is defined by what the compile-time configuration vocabulary consumes (integers, `bool`, string facts) — not by which floating-point operations happen to be exact; exact or not, floating-point-derived values stay in the unfoldable class.
+
+An operation whose run-time counterpart would panic (§13.2) is ill-formed in a constant context — there is no undefined behavior at compile time.
 
 Consumers of constant expressions: `@when` guards and the constant world (§10.3), array lengths, enum discriminants, annotation arguments, constant generic arguments, and the initializers of `@const` / `@static`.
 
@@ -375,7 +405,8 @@ Built-ins are exempt from the ordinary function rules: one built-in may expose s
 | `@intrinsic` | built-in declaration (struct/func/let); lowered by the implementation |
 | `@flag` | enables bit-operator synthesis on an enum (§5.3) |
 | `@import` | external symbol import (func and let; §5.6) |
-| `@export` | C symbol export (§5.6) |
+| `@export` | C symbol export — functions and address-binding lets (§5.6) |
+| `@assert` | compile-time assertion: the annotation argument shall be a constant `bool` expression excluding floating-point arithmetic (§10.1); `false` is ill-formed, verified at P6 |
 | `@feature` | declares a package configuration knob (§3.4, §10.3) |
 | `@when` | conditional-compilation guard (§10.4) |
 | `@panic_handler` | marks a panic handler (§14.3) |
@@ -409,15 +440,18 @@ Compile-time constants form a single layer — the *constant world* — with thr
 - Value precedence is two-level: a root override wins over the package's own `[features]` default. A library's own `[features]` values serve both as its standalone values and as the defaults for its dependents.
 - Knob types are `bool`, any integer type, or `String8`. A `String8` knob is consumable only in code; the guard grammar (§10.4) contains no strings.
 - Constant names are ordinary names: core flags and `true`/`false` may be shadowed inside a package, and guards observe the shadowing values.
+- Only foldable constants join the constant world; symbolic bindings and external imports (§5.1) do not, and guards cannot reference them.
+- A name bound twice within one namespace is a redeclaration (diagnosed at collection); for guard evaluation the constant world uses the first declaration's value, which only stabilizes diagnostics — the program is ill-formed either way.
 
 ### 10.4 Conditional compilation
 
 `@when(condition)` gates a top-level declaration: the declaration exists in the compilation if and only if the condition holds.
 
 - **Position**: guards apply only to the six top-level declaration kinds, at most one guard per declaration. Namespaces, fields, statements, and `@feature let` declarations cannot be guarded — a knob is an input to gating, not a subject of it.
-- **Condition grammar** (closed): names from the constant world (bare or package-internal paths, including core's `true`/`false` and flags), suffixed integer literals (§4.4), the operators `! && || == != < > <= >= + - * /`, and parentheses; the value shall be `bool`. Division by zero in a constant context is ill-formed. Strings do not appear in conditions.
-- **Visibility**: a guard sees core (the prelude: flags and `true`/`false`) and the current package's top-level declarations — nothing else. Configuration is local to a package; only the platform is universal. A bare name resolving to several package-level constants is ill-formed.
-- **Dependency closure**: a guard's condition shall not — transitively through other constants — depend on the declaration it guards (self-reference is ill-formed), and shall not depend on the type-dependent intrinsics `@sizeof` / `@alignof` / `@offsetof` / `@nameof` (layout exists only after checking). Cycles among constant lets are ill-formed.
+- **Condition grammar** (closed): names from the constant worlds of the dependency closure (bare names: the current package and the core prelude; namespace-qualified paths within the current package; package-prefixed paths: any closure package), suffixed integer literals (§4.4), the operators `! && || == != < > <= >= + - * /`, and parentheses; the value shall be `bool`. Division by zero in a constant context is ill-formed. Strings do not appear in conditions.
+- **Visibility**: a guard sees the constant worlds of every package in the dependency closure — core included — plus the current package, written as package-prefixed paths (`net::HAS_TLS`); bare names resolve only in the current package and the core prelude. A bare name resolving to several package-level constants is ill-formed. Guards do not participate in `using`; cross-package configuration is written through knobs (§12.3), and read here.
+- **Dependency closure**: a guard's condition shall not depend on the type-dependent intrinsics `@sizeof` / `@alignof` / `@offsetof` / `@nameof` (layout exists only after checking), and shall not reference symbolic bindings — function names, address bindings, or `@import` lets; guards consume foldable constants only (§5.1). Cycles among constant lets are ill-formed.
+- **Gating acyclicity**: the *gating graph* — its nodes are guarded declarations; each guarded declaration has an edge to every constant its guard names, transitively through constant initializers — shall be acyclic. Direct self-reference and mutual gating (`@when(B) let A` alongside `@when(A) let B`, in any polarity) are the minimal ill-formed forms; such structures are rejected for readability regardless of their determinacy under total evaluation.
 - **Evaluation semantics**: guards observe the *unpruned* constant world — every constant is evaluated first, then guards are decided; evaluation is total and involves no fixpoint. External flags enter the world through declarations only; a guard never writes back into the flag namespace.
 - **Effect**: after pruning, the surviving declarations constitute the program. Two same-name declarations are a redeclaration diagnostic only if both survive pruning; guards with disjoint conditions make intentional same-name alternatives well-formed. Pruned declarations are not collected, resolved, or checked.
 
@@ -438,8 +472,9 @@ Translation is defined by the following conceptual phases; a phase consumes only
 
 ```
 P0  parse; read manifests; validate feature/manifest correspondence; fix the knob value table
-P1  build the constant world: core intrinsics + the package's features + the package's
-    top-level lets; evaluate in topological order (cycles and the guard bans of §10.4 are ill-formed here)
+P1  build and evaluate the constant worlds in dependency (package-graph) order — core
+    first, then every package's features and foldable top-level lets (cycles and the
+    guard bans of §10.4 are ill-formed here)
 P2  decide every @when guard against the constant world; prune; surviving declarations are the program
 P3  collect: register the surviving declarations (forward references supported)
 P4  resolve names
@@ -448,7 +483,7 @@ P6  check types; evaluate the remaining constant expressions (type-dependent int
 P7  generate code
 ```
 
-The ordering `P2` before `P4` is normative: a pruned declaration is never resolved or checked (a pruned declaration may reference imports that do not exist for the target). `P1` is independent per package.
+The ordering `P2` before `P4` is normative: a pruned declaration is never resolved or checked (a pruned declaration may reference imports that do not exist for the target). `P1` follows the package dependency order, which is acyclic (§3.4); packages unrelated by that order remain unordered.
 
 ## 11. Memory and references
 
@@ -567,7 +602,7 @@ The two build profiles `IS_DEBUG` and `IS_RELEASE` may differ in diagnostic stre
 
 ### 13.4 Checks are ordinary code
 
-A run-time check is an ordinary comparison and branch to a panic block; it composes with user-written checks, and an implementation may eliminate a check proven redundant. An implementation shall not eliminate a check by assuming the checked condition cannot occur, shall not derive non-nullness from dereference (§11.3), and shall not fold floating-point arithmetic at compile time.
+A run-time check is an ordinary comparison and branch to a panic block; it composes with user-written checks, and an implementation may eliminate a check proven redundant. An implementation shall not eliminate a check by assuming the checked condition cannot occur, shall not derive non-nullness from dereference (§11.3), and shall not speculatively fold floating-point arithmetic in run-time code — floating-point values of unfoldable top-level initializers are resolved definitionally at the IR-generation stage (§5.1), which is not speculative folding.
 
 ## 14. Termination: panic, panic_handler, and abort
 

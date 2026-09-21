@@ -6,6 +6,8 @@ add_library(solid-lang-semantic STATIC
   src/error.c
   src/binding_table.c
   src/namepath_table.c
+  src/semantic_literal.c
+  src/semantic_cvalue.c
   src/collect.c
   src/resolve.c
   src/analyze.c)

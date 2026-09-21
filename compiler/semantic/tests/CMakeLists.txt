@@ -128,3 +128,27 @@ endforeach()
 # foreach(case_name IN LISTS RESOLVE_CASES)
 #   add_test(NAME semantic.resolve.${case_name} COMMAND test_resolve ${case_name})
 # endforeach()
+
+add_executable(test_literal test_literal.c)
+target_link_libraries(test_literal PRIVATE solid-lang-semantic
+                                           solid-lang-semantic-tests-support)
+
+set(LITERAL_CASES literal_int_type_matrix literal_int_bases_and_separators
+    literal_int_unsuffixed_default literal_int_range_signed literal_int_range_unsigned
+    literal_int_negate_forms literal_string_content_escapes literal_rune_scalars)
+foreach(case_name IN LISTS LITERAL_CASES)
+  add_test(NAME semantic.literal.${case_name} COMMAND test_literal ${case_name})
+endforeach()
+
+add_executable(test_const_eval test_const_eval.c)
+target_link_libraries(test_const_eval PRIVATE solid-lang-semantic
+                                              solid-lang-semantic-tests-support)
+
+set(CONST_EVAL_CASES
+    eval_int_arithmetic_wraps eval_int_div_semantics eval_div_zero_diag
+    eval_div_overflow_diag eval_shift_semantics eval_bitwise_and_comparisons
+    eval_bool_logic eval_string_and_rune_eq eval_type_mismatches_diag
+    eval_unary_int_forms)
+foreach(case_name IN LISTS CONST_EVAL_CASES)
+  add_test(NAME semantic.const_eval.${case_name} COMMAND test_const_eval ${case_name})
+endforeach()
