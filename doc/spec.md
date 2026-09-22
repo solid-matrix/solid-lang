@@ -409,7 +409,6 @@ Built-ins are exempt from the ordinary function rules: one built-in may expose s
 | `@assert` | compile-time assertion: the annotation argument shall be a constant `bool` expression excluding floating-point arithmetic (§10.1); `false` is ill-formed, verified at P6 |
 | `@feature` | declares a package configuration knob (§3.4, §10.3) |
 | `@when` | conditional-compilation guard (§10.4) |
-| `@panic_handler` | marks a panic handler (§14.3) |
 | any other name | a custom annotation: no semantics, preserved verbatim; shall not collide with a built-in name |
 
 | Expression | Form | Meaning |
@@ -421,8 +420,8 @@ Built-ins are exempt from the ordinary function rules: one built-in may expose s
 | `@alloc(init)` | → `&T` | stack allocation, function bodies only (§11) |
 | `@const(init)` | → `&readonly T` | `.rodata` allocation; `init` a constant expression (§11) |
 | `@static(init)` | → `&T` | `.data`/`.bss` allocation; `init` a constant expression (§11) |
-| `@panic(msg)` / `@panic(msg, code)` | terminating | program-declared panic (§14.3) |
-| `@abort()` | terminating | unconditional termination (§14.3) |
+| `@panic(msg)` / `@panic(msg, code)` | terminating | program-declared panic (§14.1) |
+| `@abort()` | terminating | unconditional termination (§14.2) |
 | `@source_file` / `@source_line` / `@source_col` | `String8` / `u32` / `u32` | source position as literals |
 
 ### 10.3 The constant world
@@ -509,9 +508,9 @@ Dynamic storage is a program-owned object, not an implicit global heap:
 
 - core provides `heap_create() -> &Heap`, `heap_destroy(h)` (arena-style reclamation of everything from the heap), `alloc<T>(h, count) -> Slice<T>` (uninitialized), `alloc_zero<T>(h, count)`, and `free<T>(h, s)`.
 - A function that needs the heap takes it as an explicit parameter; there is no default heap.
-- Heap memory is obtained from the platform layer (§13.2). Exhaustion routes to the panic handler (§14.3).
+- Heap memory is obtained from the platform layer (§13.2). Exhaustion terminates through the panic mechanism (§14).
 - A reference surviving `heap_destroy` is dangling; accessing it is an explicitly exempt behavior (§13.1). Arena semantics preclude double-free and per-object use-after-free by construction.
-- In the `IS_DEBUG` build profile the implementation may poison destroyed arenas and report leaks; both profiles define behavior (§14.1).
+- In the `IS_DEBUG` build profile the implementation may poison destroyed arenas and report leaks; both profiles define behavior (§13.1).
 - v1 execution is single-threaded; no construct creates threads, and no thread-local storage exists.
 - Recursive structures need no boxing: `alloc<Node>(h, 1)` suffices.
 
@@ -523,7 +522,7 @@ Dynamic storage is a program-owned object, not an implicit global heap:
 - Reference equality compares addresses: core provides the `EqualOp` reference family over all sixteen ref-kind combinations, and `is_zero` is derivable as equality with `zero<&T>()`.
 - A function whose parameters are all deeply-readonly value types (all reference fields in their transitive closure are `&readonly` or `&noaccess`) or `&readonly`/`&noaccess` references cannot modify caller-reachable storage through its parameters; the implementation may rely on this (§14.4).
 - Value semantics: binding, `set`, argument passing, and return copy bitwise; `&` is the only aliasing mechanism.
-- Lifetime and ownership are not tracked; a dangling reference after `heap_destroy` is the language's only exemption of its kind (§14.1).
+- Lifetime and ownership are not tracked; a dangling reference after `heap_destroy` is the language's only exemption of its kind (§13.1).
 
 ## 12. The core library and the platform layer
 
@@ -573,7 +572,7 @@ Exactly two behaviors are exempt and defined as garbage-valued:
 1. access through a reference whose pointee was reclaimed by `heap_destroy` (the `IS_DEBUG` profile may poison and trap; otherwise the values are deterministic garbage);
 2. reading memory allocated uninitialized from the heap (`alloc<T>`); stack and static allocations always have initializers.
 
-The two build profiles `IS_DEBUG` and `IS_RELEASE` may differ in diagnostic strength only; both profiles define behavior. No build mode removes a run-time check (§8.2, §14.2).
+The two build profiles `IS_DEBUG` and `IS_RELEASE` may differ in diagnostic strength only; both profiles define behavior. No build mode removes a run-time check (§8.2, §13.4).
 
 ### 13.2 Deterministic error table
 
@@ -586,15 +585,15 @@ The two build profiles `IS_DEBUG` and `IS_RELEASE` may differ in diagnostic stre
 | arithmetic `+ - *` overflow | wraps | — |
 | float→integer conversion out of range | check → panic (`FPTOSI_RANGE`) | the conversion functions |
 | dereferencing a zero reference | target-defined (§11.3); no check inserted | — |
-| OOM | routes to the panic handler | platform layer |
-| stack overflow | guard-page fault → abort (the handler needs a working stack) | platform layer |
+| OOM | terminates through the panic mechanism | platform layer |
+| stack overflow | guard-page fault → abort (a panic needs a working stack) | platform layer |
 
 ### 13.3 The three tiers
 
 | | abort | panic | Result |
 |---|---|---|---|
 | owner | runtime floor + explicit `@abort()` | language checks + program declarations | the caller |
-| carries | hard stop + payload, runs no code | `panic_handler(msg, code, file, line, col)` | a Result value |
+| carries | hard stop + payload, runs no code | a message, a reason code, and a source position (`msg`, `code`, `file`, `line`, `col`) | a Result value |
 | catchable | no | no — no unwinding exists | by ordinary control flow |
 
 - A library shall not terminate on data-dependent conditions; termination belongs to language checks and explicit `@panic`. Expected failures return results.
@@ -604,22 +603,15 @@ The two build profiles `IS_DEBUG` and `IS_RELEASE` may differ in diagnostic stre
 
 A run-time check is an ordinary comparison and branch to a panic block; it composes with user-written checks, and an implementation may eliminate a check proven redundant. An implementation shall not eliminate a check by assuming the checked condition cannot occur, shall not derive non-nullness from dereference (§11.3), and shall not speculatively fold floating-point arithmetic in run-time code — floating-point values of unfoldable top-level initializers are resolved definitionally at the IR-generation stage (§5.1), which is not speculative folding.
 
-## 14. Termination: panic, panic_handler, and abort
+## 14. Termination: panic and abort
 
-### 14.1 The panic handler
+### 14.1 Panic
 
-- Exactly one panic handler is effective per compilation. A handler is a function annotated `@panic_handler(value)` where `value` is a compile-time integer constant. The effective handler is the surviving declaration with the largest value. By convention `-2` is the runtime's abort-wrapper tier, `-1` the runtime's per-platform tier, and `0` the user tier; the numbers are conventions, not reservations.
-- After conditional-compilation pruning (§10.4), the compilation shall contain exactly one surviving `@panic_handler` declaration; otherwise the program is ill-formed. Two surviving declarations with the same value are ill-formed.
-- The implementation injects no implicit handler: a compilation whose closure contains none is ill-formed.
-- The handler signature is `func(msg: String8, code: u32, file: String8, line: u32, col: u32)`; it shall not allocate and shall not panic, and it never returns. Hosted implementations print and exit with code `100 + (code & 0xFF)`; the text carries a `[CODE]` prefix.
+`@panic(msg)` / `@panic(msg, code)` is a program-declared termination. The implementation synthesizes the remaining payload fields from `@source_file` / `@source_line` / `@source_col`. The call is a control-flow endpoint. Every panic — program-declared or emitted by a language check — is followed by unreachable control flow.
 
-### 14.2 Panic
+### 14.2 Abort
 
-`@panic(msg)` / `@panic(msg, code)` is a program-declared termination. The implementation synthesizes the remaining handler arguments from `@source_file` / `@source_line` / `@source_col`. The call is a control-flow endpoint. Every panic — program-declared or emitted by a language check — calls the effective handler and is followed by unreachable control flow.
-
-### 14.3 Abort
-
-`@abort()` terminates unconditionally without calling any code. Abort is also the defined outcome of: a panic raised while a panic handler is executing (re-entrancy), a stack-overflow fault, and fault events in contexts (such as interrupt handlers) where the handler cannot run.
+`@abort()` terminates unconditionally without running any further code. Abort is also the defined outcome of: a panic raised while a panic is being processed (re-entrancy), a stack-overflow fault, and fault events in contexts (such as interrupt handlers) where a panic cannot run.
 
 ## 15. Program entry
 
