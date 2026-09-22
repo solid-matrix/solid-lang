@@ -30,6 +30,7 @@ typedef enum {
   SEMANTIC_CV_STRING,   ///< @p text holds the decoded bytes
   SEMANTIC_CV_RUNE,     ///< @p bits carries the scalar value
   SEMANTIC_CV_DEFERRED, ///< layout-dependent; resolved at P6
+  SEMANTIC_CV_SYMBOLIC, ///< reference placeholder (function name / address binding)
 } SemanticCValueKind;
 
 /**

@@ -1,13 +1,22 @@
 #include "internal.h"
 #include "semantic_analyze.h"
 #include "semantic_error.h"
+#include "semantic_prune.h"
 
-// TODO
+// P1–P2 prune: build and evaluate the constant world, decide every `@when`
+// guard, and reduce the closure to its surviving declarations. P3–P6 then run
+// over that reduced closure alone: a pruned declaration is never collected,
+// resolved, or checked.
 SemanticAnalyzeResult semantic_analyze(Arena *arena, const SemanticModuleList *modules,
                                        const SemanticParamList *params) {
 
-  SemanticAnalyzer analyzer = {.arena = arena, .modules = modules, .params = params};
   SemanticErrorList *errors = semantic_errorlist_empty();
+
+  SemanticPruneResult prune = semantic_prune(arena, modules, params);
+  errors = semantic_errorlist_concat(arena, prune.errors, errors);
+  SemanticModuleList *survivors = semantic_prune_survivors(arena, &prune.registry, modules);
+
+  SemanticAnalyzer analyzer = {.arena = arena, .modules = survivors, .params = params};
 
   // pass 1: collect
   SemanticCollectResult collect = semantic_collect(&analyzer);

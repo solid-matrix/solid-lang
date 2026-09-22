@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "arena.h"
@@ -52,6 +53,7 @@ typedef struct {
   SemanticLiteralStatus status;
   SemanticIntType type;
   uint64_t bits;
+  bool suffixed; ///< the token carried an explicit type suffix (§4.4)
 } SemanticIntLiteral;
 
 /**

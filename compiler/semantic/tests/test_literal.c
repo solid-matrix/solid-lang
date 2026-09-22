@@ -89,26 +89,39 @@ void literal_int_negate_forms(void) {
   TEST_ASSERT_EQUAL_UINT64(0xFFFFFFFF, n.bits); // wrap
 }
 
+void literal_int_suffix_flag(void) {
+  // The flag distinguishes an explicit suffix from the unsuffixed default,
+  // which behaves identically but is rejected in typed slots (§4.4).
+  TEST_ASSERT_FALSE(semantic_int_literal(STRVIEW("1")).suffixed);
+  TEST_ASSERT_FALSE(semantic_int_literal(STRVIEW("0")).suffixed);
+  TEST_ASSERT_FALSE(semantic_int_literal(STRVIEW("1_000")).suffixed);
+  TEST_ASSERT_FALSE(semantic_int_literal(STRVIEW("0xFF")).suffixed);
+
+  TEST_ASSERT_TRUE(semantic_int_literal(STRVIEW("1i32")).suffixed);
+  TEST_ASSERT_TRUE(semantic_int_literal(STRVIEW("1_000u32")).suffixed);
+  TEST_ASSERT_TRUE(semantic_int_literal(STRVIEW("0xFFu8")).suffixed);
+}
+
 void literal_string_content_escapes(void) {
   Arena *a = arena_create();
 
-  Strview s = semantic_string_content(STRVIEW("\"hi\""), a);
+  Strview s = semantic_string_content(STRVIEW("hi"), a);
   TEST_ASSERT_EQUAL_size_t(2, s.len);
   TEST_ASSERT_EQUAL_MEMORY("hi", s.data, 2);
 
-  s = semantic_string_content(STRVIEW("\"a\\nb\\tc\""), a);
+  s = semantic_string_content(STRVIEW("a\\nb\\tc"), a);
   TEST_ASSERT_EQUAL_size_t(5, s.len);
   TEST_ASSERT_EQUAL_MEMORY("a\nb\tc", s.data, 5);
 
-  s = semantic_string_content(STRVIEW("\"q\\\"q\\\\z\""), a);
+  s = semantic_string_content(STRVIEW("q\\\"q\\\\z"), a);
   TEST_ASSERT_EQUAL_size_t(5, s.len);
   TEST_ASSERT_EQUAL_MEMORY("q\"q\\z", s.data, 5);
 
-  s = semantic_string_content(STRVIEW("\"\\x41\\0\""), a);
+  s = semantic_string_content(STRVIEW("\x41\0"), a);
   TEST_ASSERT_EQUAL_size_t(2, s.len);
   TEST_ASSERT_EQUAL_MEMORY("A\0", s.data, 2);
 
-  s = semantic_string_content(STRVIEW("\"\\u{1F600}\""), a);
+  s = semantic_string_content(STRVIEW("\u{1F600}"), a);
   TEST_ASSERT_EQUAL_size_t(4, s.len);
   TEST_ASSERT_EQUAL_MEMORY("\xF0\x9F\x98\x80", s.data, 4);
 
@@ -116,13 +129,13 @@ void literal_string_content_escapes(void) {
 }
 
 void literal_rune_scalars(void) {
-  TEST_ASSERT_EQUAL_UINT32(0x61, semantic_rune_scalar(STRVIEW("'a'")));
-  TEST_ASSERT_EQUAL_UINT32(0x0A, semantic_rune_scalar(STRVIEW("'\\n'")));
-  TEST_ASSERT_EQUAL_UINT32(0x27, semantic_rune_scalar(STRVIEW("'\\''")));
-  TEST_ASSERT_EQUAL_UINT32(0x41, semantic_rune_scalar(STRVIEW("'\\x41'")));
-  TEST_ASSERT_EQUAL_UINT32(0x0, semantic_rune_scalar(STRVIEW("'\\0'")));
-  TEST_ASSERT_EQUAL_UINT32(0x10FFFF, semantic_rune_scalar(STRVIEW("'\\u{10FFFF}'")));
-  TEST_ASSERT_EQUAL_UINT32(0x20AC, semantic_rune_scalar(STRVIEW("'€'"))); // raw UTF-8
+  TEST_ASSERT_EQUAL_UINT32(0x61, semantic_rune_scalar(STRVIEW("a")));
+  TEST_ASSERT_EQUAL_UINT32(0x0A, semantic_rune_scalar(STRVIEW("\\n")));
+  TEST_ASSERT_EQUAL_UINT32(0x27, semantic_rune_scalar(STRVIEW("'")));
+  TEST_ASSERT_EQUAL_UINT32(0x41, semantic_rune_scalar(STRVIEW("\\x41")));
+  TEST_ASSERT_EQUAL_UINT32(0x0, semantic_rune_scalar(STRVIEW("\\0")));
+  TEST_ASSERT_EQUAL_UINT32(0x10FFFF, semantic_rune_scalar(STRVIEW("\\u{10FFFF}")));
+  TEST_ASSERT_EQUAL_UINT32(0x20AC, semantic_rune_scalar(STRVIEW("\xe2\x82\xac"))); // raw UTF-8
 }
 
 static const TestDispatchEntry ENTRIES[] = {
@@ -132,6 +145,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"literal_int_range_signed", literal_int_range_signed},
     {"literal_int_range_unsigned", literal_int_range_unsigned},
     {"literal_int_negate_forms", literal_int_negate_forms},
+    {"literal_int_suffix_flag", literal_int_suffix_flag},
     {"literal_string_content_escapes", literal_string_content_escapes},
     {"literal_rune_scalars", literal_rune_scalars},
 };

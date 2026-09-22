@@ -7,9 +7,14 @@ add_library(solid-lang-semantic STATIC
   src/binding_table.c
   src/namepath_table.c
   src/semantic_literal.c
+  src/semantic_registry.c
+  src/semantic_const_fold.c
+  src/semantic_gate.c
+  src/prune.c
   src/semantic_cvalue.c
   src/collect.c
   src/resolve.c
+  src/check.c
   src/analyze.c)
 
 target_include_directories(solid-lang-semantic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

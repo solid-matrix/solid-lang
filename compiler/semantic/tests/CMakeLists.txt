@@ -129,15 +129,65 @@ endforeach()
 #   add_test(NAME semantic.resolve.${case_name} COMMAND test_resolve ${case_name})
 # endforeach()
 
+add_executable(test_registry test_registry.c)
+target_link_libraries(test_registry PRIVATE solid-lang-semantic
+                                            solid-lang-semantic-tests-support)
+
+set(REGISTRY_CASES registry_names_root_and_namespaced registry_two_files_merge_namespace
+    registry_distinct_packages_prefix registry_core_prelude_bare registry_duplicate_keeps_first
+    registry_kinds_classification registry_lookup_ambiguous registry_lookup_miss
+    registry_guards_collected registry_knob_values)
+foreach(case_name IN LISTS REGISTRY_CASES)
+  add_test(NAME semantic.registry.${case_name} COMMAND test_registry ${case_name})
+endforeach()
+
 add_executable(test_literal test_literal.c)
 target_link_libraries(test_literal PRIVATE solid-lang-semantic
                                            solid-lang-semantic-tests-support)
 
 set(LITERAL_CASES literal_int_type_matrix literal_int_bases_and_separators
     literal_int_unsuffixed_default literal_int_range_signed literal_int_range_unsigned
-    literal_int_negate_forms literal_string_content_escapes literal_rune_scalars)
+    literal_int_negate_forms literal_int_suffix_flag literal_string_content_escapes
+    literal_rune_scalars)
 foreach(case_name IN LISTS LITERAL_CASES)
   add_test(NAME semantic.literal.${case_name} COMMAND test_literal ${case_name})
+endforeach()
+
+add_executable(test_const_fold test_const_fold.c)
+target_link_libraries(test_const_fold PRIVATE solid-lang-semantic
+                                              solid-lang-semantic-tests-support)
+
+set(CONST_FOLD_CASES fold_chain_int fold_cycle_diagnostic fold_fp_unfoldable
+    fold_layout_deferred fold_symbolic_and_address_alias fold_string_flags
+    fold_div_zero_diag fold_unknown_name_deferred fold_knob_value)
+foreach(case_name IN LISTS CONST_FOLD_CASES)
+  add_test(NAME semantic.const_fold.${case_name} COMMAND test_const_fold ${case_name})
+endforeach()
+
+add_executable(test_gate test_gate.c)
+target_link_libraries(test_gate PRIVATE solid-lang-semantic
+                                        solid-lang-semantic-tests-support)
+
+set(GATE_CASES gate_flag_selects_declaration gate_guard_on_all_kinds
+    gate_condition_must_be_bool gate_unknown_name_diag gate_symbolic_and_layout_banned
+    gate_self_reference_cycle gate_mutual_gating_cycle gate_transitive_cycle
+    gate_disjoint_alternatives_legal gate_feature_let_forbidden
+    gate_grammar_rejects_unsuffixed_literal gate_grammar_rejects_operators_outside_the_set
+    gate_grammar_rejects_non_integer_literals gate_grammar_accepts_the_closed_set
+    gate_guard_without_condition_diag
+    gate_nested_positions_forbidden gate_nested_custom_annotations_allowed)
+foreach(case_name IN LISTS GATE_CASES)
+  add_test(NAME semantic.gate.${case_name} COMMAND test_gate ${case_name})
+endforeach()
+
+add_executable(test_prune test_prune.c)
+target_link_libraries(test_prune PRIVATE solid-lang-semantic
+                                         solid-lang-semantic-tests-support)
+
+set(PRUNE_CASES prune_drops_pruned_declaration prune_pruned_decl_never_resolved
+    prune_surviving_alternative_is_collected prune_both_surviving_alternatives_collide)
+foreach(case_name IN LISTS PRUNE_CASES)
+  add_test(NAME semantic.prune.${case_name} COMMAND test_prune ${case_name})
 endforeach()
 
 add_executable(test_const_eval test_const_eval.c)

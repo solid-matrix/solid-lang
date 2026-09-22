@@ -36,13 +36,6 @@ static Strview decl_name(SyntaxNode *decl) {
   }
 }
 
-// TODO(when): gate declarations on their @when annotations; every
-// declaration is live until the gate lands.
-static bool decl_enabled(const SyntaxNode *decl) {
-  (void)decl;
-  return true;
-}
-
 // Namespace declarations are relative to the module root: the prologue
 // namespace is materialized into the table and extends the current context,
 // declarations land under it. Using declarations belong to resolve; collect
@@ -82,9 +75,6 @@ static SemanticCollectResult collect_program(Arena *arena, SemanticSymbolTable *
 
   for (SyntaxNodeList *it = decls; it != NULL; it = it->tail) {
     SyntaxNode *decl = it->head;
-
-    if (!decl_enabled(decl))
-      continue;
 
     SemanticNamePath *tail = semantic_namepath_prepend(arena, semantic_namepath_empty(), decl_name(decl));
     SemanticNamePath *path = semantic_namepath_concat(arena, prefix, tail);
