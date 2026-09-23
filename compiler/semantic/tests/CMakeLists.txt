@@ -135,7 +135,8 @@ target_link_libraries(test_registry PRIVATE solid-lang-semantic
 
 set(REGISTRY_CASES registry_names_root_and_namespaced registry_two_files_merge_namespace
     registry_distinct_packages_prefix registry_core_prelude_bare registry_duplicate_keeps_first
-    registry_kinds_classification registry_lookup_ambiguous registry_lookup_miss
+    registry_kinds_classification registry_intrinsic_outside_core_diag
+    registry_lookup_ambiguous registry_lookup_miss
     registry_guards_collected registry_knob_values)
 foreach(case_name IN LISTS REGISTRY_CASES)
   add_test(NAME semantic.registry.${case_name} COMMAND test_registry ${case_name})
@@ -159,7 +160,8 @@ target_link_libraries(test_const_fold PRIVATE solid-lang-semantic
 
 set(CONST_FOLD_CASES fold_chain_int fold_cycle_diagnostic fold_fp_unfoldable
     fold_layout_deferred fold_symbolic_and_address_alias fold_string_flags
-    fold_div_zero_diag fold_unknown_name_deferred fold_knob_value)
+    fold_div_zero_diag fold_unknown_name_deferred fold_knob_value
+    fold_core_builtins fold_core_builtin_shadowing)
 foreach(case_name IN LISTS CONST_FOLD_CASES)
   add_test(NAME semantic.const_fold.${case_name} COMMAND test_const_fold ${case_name})
 endforeach()
@@ -172,6 +174,7 @@ set(GATE_CASES gate_flag_selects_declaration gate_guard_on_all_kinds
     gate_condition_must_be_bool gate_unknown_name_diag gate_symbolic_and_layout_banned
     gate_self_reference_cycle gate_mutual_gating_cycle gate_transitive_cycle
     gate_disjoint_alternatives_legal gate_feature_let_forbidden
+    gate_when_true_literal
     gate_grammar_rejects_unsuffixed_literal gate_grammar_rejects_operators_outside_the_set
     gate_grammar_rejects_non_integer_literals gate_grammar_accepts_the_closed_set
     gate_guard_without_condition_diag

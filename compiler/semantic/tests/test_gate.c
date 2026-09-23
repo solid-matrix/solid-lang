@@ -216,6 +216,27 @@ void gate_feature_let_forbidden(void) {
   arena_destroy(a);
 }
 
+void gate_when_true_literal(void) {
+  Arena *a = arena_create();
+  // `true`/`false` are core's toolchain constants (§12.1), not driver-supplied
+  // facts: a guard may use them, and their fold must not demand a knob value.
+  SemanticModule *core = module_of(a, path_of(a, 1, "core"),
+                                   units_of(a, 1, "@intrinsic let true: bool;\n"
+                                                  "@intrinsic let false: bool;\n"));
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"),
+                                  units_of(a, 1, "@when(true) let V = 1u;\n"
+                                                 "@when(false) let W = 2u;\n"));
+  SemanticModuleList *mods = modules_of(a, 2, core, app);
+  SemanticRegistry r;
+  run_pipeline(a, mods, NULL, &r);
+
+  TEST_ASSERT_NULL(semantic_registry_errors(&r));
+  TEST_ASSERT_TRUE(find_entry(&r, "V")->survive);
+  TEST_ASSERT_FALSE(find_entry(&r, "W")->survive);
+
+  arena_destroy(a);
+}
+
 void gate_grammar_rejects_unsuffixed_literal(void) {
   Arena *a = arena_create();
   // A `@when` condition is a typed slot: literals in it shall carry suffixes
@@ -356,6 +377,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"gate_transitive_cycle", gate_transitive_cycle},
     {"gate_disjoint_alternatives_legal", gate_disjoint_alternatives_legal},
     {"gate_feature_let_forbidden", gate_feature_let_forbidden},
+    {"gate_when_true_literal", gate_when_true_literal},
     {"gate_grammar_rejects_unsuffixed_literal", gate_grammar_rejects_unsuffixed_literal},
     {"gate_grammar_rejects_operators_outside_the_set", gate_grammar_rejects_operators_outside_the_set},
     {"gate_grammar_rejects_non_integer_literals", gate_grammar_rejects_non_integer_literals},

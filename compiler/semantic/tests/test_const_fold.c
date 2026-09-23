@@ -7,7 +7,6 @@
 #include "semantic_const_fold.h"
 #include "semantic_fixture.h"
 #include "symbol_table.h"
-#include <stdio.h>
 #include "test_support.h"
 
 static SemanticRegistryEntry *find_entry(const SemanticRegistry *r, const char *name) {
@@ -25,15 +24,11 @@ static int errors_with_code(const SemanticRegistry *r, SemanticErrorCode code) {
 }
 
 void fold_chain_int(void) {
-  fprintf(stderr, "[test] enter\n");
   Arena *a = arena_create();
-  fprintf(stderr, "[test] arena\n");
   SemanticModule *app = module_of(a, path_of(a, 1, "app"),
                                   units_of(a, 1, "let A = 1u32;\nlet B = A + 2u32;\n"));
   SemanticModuleList *mods = modules_of(a, 1, app);
-  fprintf(stderr, "[test] modules ready\n");
   SemanticRegistry r = semantic_registry_build(a, mods, NULL);
-  fprintf(stderr, "[test] built\n");
   semantic_fold_world(&r, a);
 
   SemanticRegistryEntry *b = find_entry(&r, "B");
@@ -149,6 +144,55 @@ void fold_string_flags(void) {
   arena_destroy(a);
 }
 
+void fold_core_builtins(void) {
+  Arena *a = arena_create();
+  // core's own constants are toolchain-provided (§12.1): having core in the
+  // closure and folding true/false shall need no driver-supplied value, and
+  // shall produce no diagnostics at all.
+  SemanticModule *core = module_of(a, path_of(a, 1, "core"),
+                                   units_of(a, 1, "@intrinsic let true: bool;\n"
+                                                  "@intrinsic let false: bool;\n"));
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"),
+                                  units_of(a, 1, "let T = true;\nlet F = false;\n"));
+  SemanticModuleList *mods = modules_of(a, 2, core, app);
+  SemanticRegistry r = semantic_registry_build(a, mods, NULL);
+  semantic_fold_world(&r, a);
+
+  TEST_ASSERT_NULL(semantic_registry_errors(&r));
+
+  SemanticRegistryEntry *t = find_entry(&r, "T");
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_FC_FOLDABLE, t->fold_class);
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_CV_BOOL, t->value.kind);
+  TEST_ASSERT_EQUAL_UINT64(1, t->value.bits);
+  TEST_ASSERT_TRUE(t->guard_usable);
+
+  SemanticRegistryEntry *f = find_entry(&r, "F");
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_FC_FOLDABLE, f->fold_class);
+  TEST_ASSERT_EQUAL_UINT64(0, f->value.bits);
+
+  arena_destroy(a);
+}
+
+void fold_core_builtin_shadowing(void) {
+  Arena *a = arena_create();
+  // A package may shadow `true`/`false` (§10.4); the shadowing declaration is
+  // an ordinary let and governs — the toolchain's value must not leak through.
+  SemanticModule *core = module_of(a, path_of(a, 1, "core"),
+                                   units_of(a, 1, "@intrinsic let true: bool;\n"));
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"),
+                                  units_of(a, 1, "let true = 7u32;\nlet X = true;\n"));
+  SemanticModuleList *mods = modules_of(a, 2, core, app);
+  SemanticRegistry r = semantic_registry_build(a, mods, NULL);
+  semantic_fold_world(&r, a);
+
+  SemanticRegistryEntry *x = find_entry(&r, "X");
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_CV_INT, x->value.kind);
+  TEST_ASSERT_EQUAL_HEX32(SEMANTIC_INT_U32, x->value.int_type);
+  TEST_ASSERT_EQUAL_UINT64(7, x->value.bits);
+
+  arena_destroy(a);
+}
+
 void fold_div_zero_diag(void) {
   Arena *a = arena_create();
   SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, "let Z = 1u32 / 0u32;\n"));
@@ -212,6 +256,8 @@ static const TestDispatchEntry ENTRIES[] = {
     {"fold_layout_deferred", fold_layout_deferred},
     {"fold_symbolic_and_address_alias", fold_symbolic_and_address_alias},
     {"fold_string_flags", fold_string_flags},
+    {"fold_core_builtins", fold_core_builtins},
+    {"fold_core_builtin_shadowing", fold_core_builtin_shadowing},
     {"fold_div_zero_diag", fold_div_zero_diag},
     {"fold_unknown_name_deferred", fold_unknown_name_deferred},
     {"fold_knob_value", fold_knob_value},

@@ -11,6 +11,13 @@
 #include "symbol_table.h"
 #include "test_support.h"
 
+static int errors_with_code(const SemanticRegistry *r, SemanticErrorCode code) {
+  int n = 0;
+  for (SemanticErrorList *e = semantic_registry_errors(r); e != NULL; e = e->tail)
+    if (e->head.code == code) n++;
+  return n;
+}
+
 static int count_named(const SemanticRegistry *r, const char *name) {
   int n = 0;
   for (const SemanticRegistryEntry *e = semantic_registry_entries(r); e != NULL;
@@ -127,20 +134,42 @@ void registry_duplicate_keeps_first(void) {
   arena_destroy(a);
 }
 
+void registry_intrinsic_outside_core_diag(void) {
+  Arena *a = arena_create();
+  // Only core may declare `@intrinsic`: the marker promises an implementation
+  // lowering, a promise only the compiler's own glue library can make (§12.1).
+  SemanticModule *core = module_of(a, path_of(a, 1, "core"),
+                                   units_of(a, 1, "@intrinsic let TARGET_OS: String8;\n"
+                                                  "@intrinsic func _read():i32;\n"
+                                                  "@intrinsic struct Array<T, N: usize>;\n"));
+  SemanticModule *app = module_of(a, path_of(a, 1, "app"),
+                                  units_of(a, 1, "@intrinsic let X: u32;\n"
+                                                 "@intrinsic func f():i32;\n"
+                                                 "@intrinsic struct S;\n"));
+  SemanticModuleList *mods = modules_of(a, 2, core, app);
+  SemanticRegistry r = semantic_registry_build(a, mods, NULL);
+
+  TEST_ASSERT_EQUAL_INT(3, errors_with_code(&r, SEMANTIC_INTRINSIC_OUTSIDE_CORE));
+
+  arena_destroy(a);
+}
+
 void registry_kinds_classification(void) {
   Arena *a = arena_create();
+  // `@intrinsic` is core-only (§12.1), so the fact declaration lives there.
+  const char *core_text = "@intrinsic let FACT: u32;\n";
   const char *text = "let folded = 1u;\n"
                      "let addr: &u32 = @const(5u);\n"
                      "let st: &u32 = @static(0u);\n"
                      "@feature let LOG_LEVEL: i32;\n"
-                     "@intrinsic let FACT: u32;\n"
                      "@import(\"X\") let X: u32;\n"
                      "let noinit: i32;\n"
                      "func f():i32;\n"
                      "struct S;\n"
                      "contract C(p:i32):i32;\n";
+  SemanticModule *core = module_of(a, path_of(a, 1, "core"), units_of(a, 1, core_text));
   SemanticModule *app = module_of(a, path_of(a, 1, "app"), units_of(a, 1, text));
-  SemanticModuleList *mods = modules_of(a, 1, app);
+  SemanticModuleList *mods = modules_of(a, 2, core, app);
   SemanticRegistry r = semantic_registry_build(a, mods, NULL);
 
   SemanticRegistryKind want[] = {
@@ -269,6 +298,7 @@ static const TestDispatchEntry ENTRIES[] = {
     {"registry_core_prelude_bare", registry_core_prelude_bare},
     {"registry_duplicate_keeps_first", registry_duplicate_keeps_first},
     {"registry_kinds_classification", registry_kinds_classification},
+    {"registry_intrinsic_outside_core_diag", registry_intrinsic_outside_core_diag},
     {"registry_lookup_ambiguous", registry_lookup_ambiguous},
     {"registry_lookup_miss", registry_lookup_miss},
     {"registry_guards_collected", registry_guards_collected},

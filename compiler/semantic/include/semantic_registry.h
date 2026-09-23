@@ -139,6 +139,14 @@ SemanticRegistry semantic_registry_build(Arena *arena, const SemanticModuleList 
                                          const SemanticParamList *params);
 
 /**
+ * @brief Is @p module the core prelude package?
+ * @details core is the compiler's glue library: its source is target-invariant
+ *          and it is the only package that may declare `@intrinsic`
+ *          declarations (spec §12.1).
+ */
+int semantic_module_is_core(const SemanticModule *module);
+
+/**
  * @brief The world-shaped table backing the registry (package :: namespace?
  *        :: name → declaration).
  */

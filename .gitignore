@@ -17,13 +17,15 @@ out/
 .zcode
 .claude
 .codex
+.zcodeignore
 
 # OS
 .DS_Store
 Thumbs.db
 
-# ARCHIVE
+# ARCHIVE & DRAFT
 .archive
+.draft
 
 # Compiler outputs (generated during tests)
 *.o
@@ -33,5 +35,3 @@ Thumbs.db
 
 # solid-lang
 .solid
-
-.doc-draft

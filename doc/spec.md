@@ -400,9 +400,11 @@ Consumers of constant expressions: `@when` guards and the constant world (§10.3
 
 Built-ins are exempt from the ordinary function rules: one built-in may expose several parameter forms (e.g. `@panic(msg)` / `@panic(msg, code)`). Built-in names are reserved: user annotations shall not use them.
 
+`@intrinsic` is core's alone. The marker promises that the implementation lowers the declaration, a promise only the compiler's own glue library can make; a package other than core declaring `@intrinsic` is ill-formed.
+
 | Annotation | Meaning |
 |---|---|
-| `@intrinsic` | built-in declaration (struct/func/let); lowered by the implementation |
+| `@intrinsic` | built-in declaration (struct/func/let); lowered by the implementation — core only (§12.1) |
 | `@flag` | enables bit-operator synthesis on an enum (§5.3) |
 | `@import` | external symbol import (func and let; §5.6) |
 | `@export` | C symbol export — functions and address-binding lets (§5.6) |

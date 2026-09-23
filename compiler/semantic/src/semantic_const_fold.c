@@ -149,10 +149,41 @@ static int knob_type_spelling(SyntaxNode *type, SemanticCValueKind *kind, Strvie
   return 0;
 }
 
+// core's own constants — `true` and `false` — are the language's values,
+// provided by the toolchain rather than injected by the driver (§4.1, §12.1).
+// They are the one `@intrinsic let` family with no driver-supplied value;
+// shadowing declarations in other packages are ordinary lets (§10.4).
+static int core_builtin_bits(const SemanticRegistryEntry *e, uint64_t *bits) {
+  if (!semantic_module_is_core(e->module))
+    return 0;
+  if (strview_equals(e->name, STRVIEW("true"))) {
+    *bits = 1;
+    return 1;
+  }
+  if (strview_equals(e->name, STRVIEW("false"))) {
+    *bits = 0;
+    return 1;
+  }
+  return 0;
+}
+
 // Folds the injected value of a knob/fact: the manifest or driver supplies a
 // plain string parsed against the declared type spelling (§12.3).
 static SemanticEvalOutcome fold_extern_value(Folder *f, SemanticRegistryEntry *e,
                                              SemanticCValue *out) {
+  uint64_t bits = 0;
+  if (e->decl->kind == SYNTAX_KIND_LET_DECL && core_builtin_bits(e, &bits)) {
+    SemanticCValueKind kind = SEMANTIC_CV_DEFERRED;
+    Strview spelling;
+    if (knob_type_spelling(((SyntaxLetDecl *)e->decl)->type, &kind, &spelling) &&
+        kind == SEMANTIC_CV_BOOL) {
+      *out = semantic_cvalue_bool(bits);
+      return ok_value(*out);
+    }
+    // core declares them `bool`; a differently typed declaration is no
+    // language constant and falls through to the driver path.
+  }
+
   const Strview *raw = semantic_registry_knob_value(f->registry, e);
   SemanticCValueKind kind = SEMANTIC_CV_DEFERRED;
   Strview spelling;

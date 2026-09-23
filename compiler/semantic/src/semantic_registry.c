@@ -207,9 +207,24 @@ static SemanticRegistryKind classify_decl(SyntaxNode *decl) {
   }
 }
 
-static int module_is_core(const SemanticModule *module) {
+int semantic_module_is_core(const SemanticModule *module) {
   return module->path != NULL && module->path->tail == NULL &&
          strview_equals(module->path->head, strview_from_cstr("core"));
+}
+
+// `@intrinsic` promises that the implementation lowers the declaration
+// (§10.2). Only core may make that promise: its source is target-invariant
+// and ships with the compiler (§12.1).
+static void check_intrinsic_placement(Arena *arena, SemanticErrorList **errors, SyntaxNode *decl,
+                                      int is_core) {
+  if (is_core)
+    return;
+  for (SyntaxNodeList *it = decl_annotations(decl); it != NULL; it = it->tail) {
+    if (!annotation_is((SyntaxCompileTime *)it->head, ANNOT_INTRINSIC))
+      continue;
+    SemanticError error = semantic_error_create(SEMANTIC_INTRINSIC_OUTSIDE_CORE, decl->span);
+    *errors = semantic_errorlist_prepend(arena, *errors, error);
+  }
 }
 
 SemanticRegistry semantic_registry_build(Arena *arena, const SemanticModuleList *modules,
@@ -221,7 +236,7 @@ SemanticRegistry semantic_registry_build(Arena *arena, const SemanticModuleList 
 
   for (const SemanticModuleList *it = modules; it != NULL; it = it->next) {
     const SemanticModule *module = it->module;
-    int is_core = module_is_core(module);
+    int is_core = semantic_module_is_core(module);
 
     for (SemanticProgramList *unit = module->programs; unit != NULL; unit = unit->next) {
       SyntaxNodeList *decls = unit->program->top_levels;
@@ -285,6 +300,7 @@ SemanticRegistry semantic_registry_build(Arena *arena, const SemanticModuleList 
         entry->guard_missing = 0;
         extract_guard(arena, &r.errors, entry);
         check_nested_guards(arena, &r.errors, decl);
+        check_intrinsic_placement(arena, &r.errors, decl, is_core);
         entry->fold_class = SEMANTIC_FC_DEFERRED; // pending: classified while folding
         entry->value = (SemanticCValue){.kind = SEMANTIC_CV_DEFERRED};
         entry->eval_state = SEMANTIC_EVS_UNVISITED;
@@ -341,9 +357,9 @@ SemanticRegistryLookup semantic_registry_lookup_bare(const SemanticRegistry *reg
     return SEMANTIC_RLOOKUP_HIT;
   }
 
-  if (registry->core_table != NULL && !module_is_core(module)) {
+  if (registry->core_table != NULL && !semantic_module_is_core(module)) {
     for (const SemanticRegistryEntry *it = registry->entries; it != NULL; it = it->next) {
-      if (module_is_core(it->module) && strview_equals(it->name, name)) {
+      if (semantic_module_is_core(it->module) && strview_equals(it->name, name)) {
         hits++;
         hit = it->decl;
       }
